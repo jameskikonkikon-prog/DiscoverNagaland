@@ -1,9 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+export function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = {
+  auth: {
+    getUser: () => getSupabaseClient().auth.getUser(),
+    signInWithOtp: (opts: { email: string }) => getSupabaseClient().auth.signInWithOtp(opts),
+    verifyOtp: (opts: { email: string; token: string; type: 'email' }) => getSupabaseClient().auth.verifyOtp(opts),
+    signOut: () => getSupabaseClient().auth.signOut(),
+  },
+  from: (table: string) => getSupabaseClient().from(table),
+  storage: {
+    from: (bucket: string) => getSupabaseClient().storage.from(bucket),
+  },
+};
 
 export function getServiceClient() {
   return createClient(
