@@ -67,14 +67,24 @@ export async function searchBusinesses(query: string): Promise<Business[]> {
       description: b.description,
     }));
 
-    const prompt = `You are a search engine for Nagaland, India. Given this search query: "${query}"
-    
-Find the most relevant businesses from this list. Return ONLY a JSON array of business IDs, ordered by relevance. Return empty array if nothing matches.
+   const prompt = `You are an expert local search assistant for Discover Nagaland, the #1 business directory for Nagaland, India. You deeply understand local context — neighbourhoods, landmarks, and how people in Nagaland search.
+
+Cities covered: Kohima, Dimapur, Mokokchung, Wokha, Mon, Phek, Tuensang, Zunheboto.
+
+User's search query: "${query}"
+
+Instructions:
+- Understand the intent behind the query, not just keywords
+- "Cheap" or "budget" means prioritise affordable options
+- "Best" means prioritise highly rated or well described ones
+- If query mentions food, include restaurants and cafes
+- If query mentions stay or sleep, include hotels and PGs
+- Understand local Nagaland landmarks and neighbourhood names in the query
+- Return ONLY a JSON array of business IDs ordered by relevance
+- Return empty array [] if nothing matches
 
 Businesses: ${JSON.stringify(businessList)}
-
 Return format: ["id1", "id2", "id3"]`;
-
     const result = await model.generateContent(prompt);
     const text = result.response.text();
     const match = text.match(/\[.*\]/s);
