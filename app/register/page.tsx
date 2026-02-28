@@ -3,7 +3,39 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CITIES, CATEGORIES } from '@/types';
 
-const STEPS = ['Business Info', 'Location', 'Contact', 'Description', 'Photos', 'Done'];
+const STEPS = ['Business Info', 'Location', 'Contact', 'Details', 'Media'];
+
+const KEYWORD_SUGGESTIONS: Record<string, string[]> = {
+  restaurant: ['veg', 'non-veg', 'delivery', 'dine-in', 'takeaway', 'naga food', 'spicy', 'family', 'ac', 'parking'],
+  cafe: ['wifi', 'coffee', 'snacks', 'study-friendly', 'cozy', 'outdoor seating', 'ac', 'desserts'],
+  hotel: ['ac rooms', 'wifi', 'parking', 'restaurant', 'conference room', 'hot water', 'geyser'],
+  hospital: ['24hr', 'emergency', 'icu', 'maternity', 'surgery', 'outpatient', 'ambulance'],
+  pharmacy: ['24hr', 'delivery', 'generic medicines', 'cosmetics', 'open sunday'],
+  salon: ['ladies', 'gents', 'unisex', 'bridal', 'makeup', 'hair color', 'threading'],
+  school: ['cbse', 'icse', 'state board', 'english medium', 'hostel', 'transport'],
+  clinic: ['general', 'dental', 'eye', 'skin', 'appointment', 'home visit'],
+  turf: ['football', 'cricket', 'floodlights', 'booking', 'weekend', 'changing room'],
+  pg: ['boys', 'girls', 'meals included', 'wifi', 'attached bathroom', 'ac', 'hot water', 'laundry'],
+  coaching: ['entrance', 'competitive', 'cbse', 'spoken english', 'computer', 'weekend batch'],
+  rental: ['self-drive', 'with driver', 'bike', 'car', 'tempo', 'daily', 'monthly', 'outstation'],
+  shop: ['grocery', 'clothing', 'electronics', 'wholesale', 'retail', 'home delivery'],
+  service: ['repair', 'plumbing', 'electrical', 'cleaning', 'home visit', '24hr'],
+};
+
+const PG_AMENITIES = ['WiFi', 'Meals Included', 'AC', 'Hot Water', 'Laundry', 'Attached Bathroom', 'Parking', 'CCTV', 'Study Room', 'TV'];
+
+// What pricing UI to show per category
+function getPricingType(category: string): 'menu' | 'per_night' | 'per_month' | 'per_day' | 'consultation' | 'starting_from' | 'range' | null {
+  const cat = category.toLowerCase();
+  if (['restaurant', 'cafe'].includes(cat)) return 'menu';
+  if (cat === 'hotel') return 'per_night';
+  if (cat === 'pg') return 'per_month';
+  if (cat === 'rental') return 'per_day';
+  if (['hospital', 'clinic'].includes(cat)) return 'consultation';
+  if (['salon', 'coaching', 'school'].includes(cat)) return 'starting_from';
+  if (['shop', 'pharmacy', 'turf', 'service'].includes(cat)) return 'range';
+  return null;
+}
 
 export default function RegisterPage() {
   const [step, setStep] = useState(0);
@@ -20,11 +52,23 @@ export default function RegisterPage() {
     email: '',
     description: '',
     opening_hours: '',
+    price_range: '',
+    price_min: '',
+    price_max: '',
+    price_unit: '',
+    website: '',
+    tags: '',
+    amenities: '',
   });
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [menuFile, setMenuFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+  const toggleTag = (tag: string) => setSelectedTags((p) => p.includes(tag) ? p.filter((t) => t !== tag) : [...p, tag]);
+  const toggleAmenity = (a: string) => setSelectedAmenities((p) => p.includes(a) ? p.filter((x) => x !== a) : [...p, a]);
 
   const uploadPhotos = async (businessId: string) => {
     const urls: string[] = [];
@@ -40,34 +84,59 @@ export default function RegisterPage() {
     return urls;
   };
 
+  const uploadMenu = async (businessId: string) => {
+    if (!menuFile) return null;
+    const ext = menuFile.name.split('.').pop();
+    const path = `menus/${businessId}/menu.${ext}`;
+    const { data } = await supabase.storage.from('business-photos').upload(path, menuFile);
+    if (data) {
+      const { data: urlData } = supabase.storage.from('business-photos').getPublicUrl(path);
+      return urlData.publicUrl;
+    }
+    return null;
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
-
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      window.location.href = '/login';
-      return;
-    }
+    if (!user) { window.location.href = '/login'; return; }
 
     try {
+      const allTags = [...selectedTags, ...form.tags.split(',').map(t => t.trim()).filter(Boolean)];
+      const allAmenities = [...selectedAmenities, ...form.amenities.split(',').map(a => a.trim()).filter(Boolean)];
+
       const res = await fetch('/api/businesses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, owner_id: user.id }),
+        body: JSON.stringify({
+          ...form,
+          price_min: form.price_min ? parseInt(form.price_min) : null,
+          price_max: form.price_max ? parseInt(form.price_max) : null,
+          tags: allTags.join(', '),
+          amenities: allAmenities.join(', '),
+          owner_id: user.id,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create listing');
 
+      const businessId = data.business.id;
+      const updates: Record<string, unknown> = {};
+
       if (photos.length > 0) {
-        const photoUrls = await uploadPhotos(data.business.id);
-        await fetch(`/api/businesses/${data.business.id}`, {
+        updates.photos = await uploadPhotos(businessId);
+      }
+      if (menuFile) {
+        updates.menu_url = await uploadMenu(businessId);
+      }
+      if (Object.keys(updates).length > 0) {
+        await fetch(`/api/businesses/${businessId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ photos: photoUrls }),
+          body: JSON.stringify(updates),
         });
       }
-
       setSubmitted(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -75,55 +144,54 @@ export default function RegisterPage() {
     setLoading(false);
   };
 
-  // ── Success screen ───────────────────────────────────────────────────────
+  const pricingType = getPricingType(form.category);
+  const suggestedTags = KEYWORD_SUGGESTIONS[form.category.toLowerCase()] || [];
+
+  const canNext = [
+    !!(form.name && form.category),
+    !!(form.city && form.address),
+    !!form.phone,
+    true,
+    true,
+  ];
+
   if (submitted) {
     return (
       <>
-        <style>{globalStyles}</style>
+        <style>{styles}</style>
         <main className="reg-page">
           <div className="reg-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
             <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🎉</div>
-            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: '#c9963a', marginBottom: '0.75rem' }}>
-              You&apos;re Listed!
-            </h1>
-            <p style={{ color: '#8a9a8a', marginBottom: '2rem', lineHeight: '1.6' }}>
-              Your business is now live on Discover Nagaland.
-            </p>
-            <a href="/dashboard" className="btn-next" style={{ display: 'inline-block', textDecoration: 'none', padding: '0.85rem 2rem' }}>
-              Go to Dashboard →
-            </a>
+            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: '#c9963a', marginBottom: '0.75rem' }}>You&apos;re Listed!</h1>
+            <p style={{ color: '#8a9a8a', marginBottom: '2rem', lineHeight: '1.6' }}>Your business is now live on Discover Nagaland.</p>
+            <a href="/" className="btn-next" style={{ display: 'inline-block', textDecoration: 'none', padding: '0.85rem 2rem' }}>Go to Homepage →</a>
           </div>
         </main>
       </>
     );
   }
 
-  // ── Main form ────────────────────────────────────────────────────────────
   return (
     <>
-      <style>{globalStyles}</style>
+      <style>{styles}</style>
       <main className="reg-page">
 
-        {/* Brand */}
         <div className="reg-brand">
           <a href="/">Discover<span>Nagaland</span></a>
-          <p>List Your Business</p>
+          <p>List Your Business — It&apos;s Free</p>
         </div>
 
         {/* Stepper */}
         <div className="stepper">
-          {STEPS.slice(0, -1).map((s, i) => (
+          {STEPS.map((s, i) => (
             <div key={s} className={`step-item ${i < step ? 'done' : i === step ? 'active' : ''}`}>
-              <div className="step-bubble">
-                {i < step ? '✓' : i + 1}
-              </div>
+              <div className="step-bubble">{i < step ? '✓' : i + 1}</div>
               <span className="step-label">{s}</span>
-              {i < STEPS.length - 2 && <div className="step-line" />}
+              {i < STEPS.length - 1 && <div className="step-line" />}
             </div>
           ))}
         </div>
 
-        {/* Card */}
         <div className="reg-card">
           <div className="step-heading">
             <h2>{STEPS[step]}</h2>
@@ -131,30 +199,21 @@ export default function RegisterPage() {
               {step === 0 && 'What kind of business are you listing?'}
               {step === 1 && 'Where is your business located?'}
               {step === 2 && 'How can customers reach you?'}
-              {step === 3 && 'Tell customers what makes you special.'}
-              {step === 4 && 'Add photos to attract more customers.'}
+              {step === 3 && 'Pricing, description and searchable keywords.'}
+              {step === 4 && 'Photos and menu — help customers decide before visiting.'}
             </p>
           </div>
 
-          {/* Step 0 — Business Info */}
+          {/* ── Step 0: Business Info ── */}
           {step === 0 && (
             <div className="step-content">
               <div className="form-group">
                 <label className="form-label">Business Name *</label>
-                <input
-                  className="form-input"
-                  value={form.name}
-                  onChange={(e) => update('name', e.target.value)}
-                  placeholder="e.g. Naga Kitchen"
-                />
+                <input className="form-input" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="e.g. Naga Kitchen" />
               </div>
               <div className="form-group">
                 <label className="form-label">Category *</label>
-                <select
-                  className="form-select"
-                  value={form.category}
-                  onChange={(e) => update('category', e.target.value)}
-                >
+                <select className="form-select" value={form.category} onChange={(e) => { update('category', e.target.value); setSelectedTags([]); }}>
                   <option value="">Select category</option>
                   {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -162,152 +221,254 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* Step 1 — Location */}
+          {/* ── Step 1: Location ── */}
           {step === 1 && (
             <div className="step-content">
               <div className="form-group">
                 <label className="form-label">District *</label>
-                <select
-                  className="form-select"
-                  value={form.city}
-                  onChange={(e) => update('city', e.target.value)}
-                >
+                <select className="form-select" value={form.city} onChange={(e) => update('city', e.target.value)}>
                   <option value="">Select district</option>
                   {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Address *</label>
-                <input
-                  className="form-input"
-                  value={form.address}
-                  onChange={(e) => update('address', e.target.value)}
-                  placeholder="e.g. Near DC Court, New NST Colony"
-                />
+                <input className="form-input" value={form.address} onChange={(e) => update('address', e.target.value)} placeholder="e.g. New NST Colony, Kohima" />
               </div>
               <div className="form-group">
                 <label className="form-label">Nearby Landmark</label>
-                <input
-                  className="form-input"
-                  value={form.landmark}
-                  onChange={(e) => update('landmark', e.target.value)}
-                  placeholder="e.g. PR Hill, Naga Bazaar"
-                />
+                <input className="form-input" value={form.landmark} onChange={(e) => update('landmark', e.target.value)} placeholder="e.g. Opposite NST Bus Stand" />
+                <p className="form-note">Landmarks help customers find you faster — very important in Nagaland!</p>
               </div>
             </div>
           )}
 
-          {/* Step 2 — Contact */}
+          {/* ── Step 2: Contact ── */}
           {step === 2 && (
             <div className="step-content">
               <div className="form-group">
                 <label className="form-label">Phone Number *</label>
-                <input
-                  className="form-input"
-                  value={form.phone}
-                  onChange={(e) => update('phone', e.target.value)}
-                  placeholder="9xxxxxxxxx"
-                />
+                <input className="form-input" value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="9xxxxxxxxx" />
               </div>
               <div className="form-group">
                 <label className="form-label">WhatsApp Number</label>
-                <input
-                  className="form-input"
-                  value={form.whatsapp}
-                  onChange={(e) => update('whatsapp', e.target.value)}
-                  placeholder="91xxxxxxxxxx (with country code)"
-                />
+                <input className="form-input" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="91xxxxxxxxxx (with country code)" />
               </div>
               <div className="form-group">
                 <label className="form-label">Email</label>
-                <input
-                  type="email"
-                  className="form-input"
-                  value={form.email}
-                  onChange={(e) => update('email', e.target.value)}
-                  placeholder="business@email.com"
-                />
+                <input type="email" className="form-input" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="business@email.com" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Website / Facebook / Instagram</label>
+                <input className="form-input" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://facebook.com/yourbusiness" />
               </div>
             </div>
           )}
 
-          {/* Step 3 — Description */}
+          {/* ── Step 3: Details + Pricing ── */}
           {step === 3 && (
             <div className="step-content">
               <div className="form-group">
                 <label className="form-label">Description</label>
-                <textarea
-                  className="form-textarea"
-                  value={form.description}
-                  onChange={(e) => update('description', e.target.value)}
-                  rows={4}
-                  placeholder="Tell customers what makes your business special..."
-                />
+                <textarea className="form-textarea" value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} placeholder="Tell customers what makes your business special..." />
               </div>
               <div className="form-group">
                 <label className="form-label">Opening Hours</label>
-                <input
-                  className="form-input"
-                  value={form.opening_hours}
-                  onChange={(e) => update('opening_hours', e.target.value)}
-                  placeholder="e.g. Mon-Sat 9am–8pm"
-                />
+                <input className="form-input" value={form.opening_hours} onChange={(e) => update('opening_hours', e.target.value)} placeholder="e.g. Mon–Sat 9am–8pm, Sun Closed" />
+              </div>
+
+              {/* Smart pricing per category */}
+              {pricingType === 'menu' && (
+                <div className="pricing-box">
+                  <div className="pricing-title">💰 Price Range</div>
+                  <p className="form-note" style={{ marginBottom: '0.75rem' }}>Give customers a rough idea of how much to expect:</p>
+                  <div className="price-range-grid">
+                    {[
+                      { v: 'budget', l: '💰 Budget', d: 'Under ₹200/person' },
+                      { v: 'mid', l: '💰💰 Mid', d: '₹200–500/person' },
+                      { v: 'premium', l: '💰💰💰 Premium', d: '₹500+/person' },
+                    ].map((p) => (
+                      <div key={p.v} className={`price-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
+                        <div className="price-label">{p.l}</div>
+                        <div className="price-desc">{p.d}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {pricingType === 'per_night' && (
+                <div className="pricing-box">
+                  <div className="pricing-title">🏨 Room Price</div>
+                  <div className="price-inputs">
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Starting from (₹)</label>
+                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 800" />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Up to (₹)</label>
+                      <input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 3000" />
+                    </div>
+                  </div>
+                  <p className="form-note">per night</p>
+                </div>
+              )}
+
+              {pricingType === 'per_month' && (
+                <div className="pricing-box">
+                  <div className="pricing-title">🏠 Monthly Rent</div>
+                  <div className="price-inputs">
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Min Rent (₹)</label>
+                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 3000" />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Max Rent (₹)</label>
+                      <input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 6000" />
+                    </div>
+                  </div>
+                  <p className="form-note">per month — meals included or excluded?</p>
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <label className="form-label">Amenities</label>
+                    <div className="tags-wrap">
+                      {PG_AMENITIES.map((a) => (
+                        <button key={a} type="button" className={`tag-btn ${selectedAmenities.includes(a) ? 'selected' : ''}`} onClick={() => toggleAmenity(a)}>
+                          {selectedAmenities.includes(a) ? '✓ ' : '+ '}{a}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {pricingType === 'per_day' && (
+                <div className="pricing-box">
+                  <div className="pricing-title">🚗 Rental Price</div>
+                  <div className="price-inputs">
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Starting from (₹)</label>
+                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 500" />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Price unit</label>
+                      <select className="form-select" value={form.price_unit} onChange={(e) => update('price_unit', e.target.value)}>
+                        <option value="">Select</option>
+                        <option value="per day">Per day</option>
+                        <option value="per hour">Per hour</option>
+                        <option value="per km">Per km</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {pricingType === 'consultation' && (
+                <div className="pricing-box">
+                  <div className="pricing-title">🏥 Consultation Fee</div>
+                  <div className="price-inputs">
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Fee (₹)</label>
+                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 200" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {pricingType === 'starting_from' && (
+                <div className="pricing-box">
+                  <div className="pricing-title">💈 Starting Price</div>
+                  <div className="price-inputs">
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Starting from (₹)</label>
+                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 100" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {pricingType === 'range' && (
+                <div className="pricing-box">
+                  <div className="pricing-title">💰 Price Range</div>
+                  <div className="price-range-grid">
+                    {[
+                      { v: 'budget', l: '💰 Budget', d: 'Affordable' },
+                      { v: 'mid', l: '💰💰 Mid', d: 'Moderate' },
+                      { v: 'premium', l: '💰💰💰 Premium', d: 'High-end' },
+                    ].map((p) => (
+                      <div key={p.v} className={`price-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
+                        <div className="price-label">{p.l}</div>
+                        <div className="price-desc">{p.d}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tags */}
+              <div className="form-group" style={{ marginTop: '1rem' }}>
+                <label className="form-label">Keywords / Tags</label>
+                <p className="form-note" style={{ marginBottom: '0.75rem' }}>Tap to select — helps customers find you in search:</p>
+                {suggestedTags.length > 0 && (
+                  <div className="tags-wrap">
+                    {suggestedTags.map((tag) => (
+                      <button key={tag} type="button" className={`tag-btn ${selectedTags.includes(tag) ? 'selected' : ''}`} onClick={() => toggleTag(tag)}>
+                        {selectedTags.includes(tag) ? '✓ ' : '+ '}{tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input className="form-input" style={{ marginTop: '0.75rem' }} value={form.tags} onChange={(e) => update('tags', e.target.value)} placeholder="Add more keywords, comma separated" />
               </div>
             </div>
           )}
 
-          {/* Step 4 — Photos */}
+          {/* ── Step 4: Media ── */}
           {step === 4 && (
             <div className="step-content">
-              <p style={{ color: '#8a9a8a', fontSize: '0.88rem', marginBottom: '1rem' }}>
-                Upload photos of your business (optional)
-              </p>
-              <label className="photo-upload-label">
-                <span>📷 Click to choose photos</span>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={(e) => setPhotos(Array.from(e.target.files || []))}
-                  style={{ display: 'none' }}
-                />
-              </label>
-              {photos.length > 0 && (
-                <p style={{ color: '#c9963a', fontSize: '0.85rem', marginTop: '0.75rem' }}>
-                  ✓ {photos.length} photo{photos.length > 1 ? 's' : ''} selected
-                </p>
+
+              {/* Menu upload for restaurants/cafes */}
+              {pricingType === 'menu' && (
+                <div className="form-group">
+                  <label className="form-label">📋 Menu (PDF or Photo)</label>
+                  <p className="form-note" style={{ marginBottom: '0.75rem' }}>
+                    Customers can browse your menu before visiting — huge for getting more orders!
+                  </p>
+                  <label className="photo-upload-label" style={{ borderColor: menuFile ? '#c9963a' : undefined }}>
+                    <span>{menuFile ? `✓ ${menuFile.name}` : '📄 Upload Menu (PDF or image)'}</span>
+                    <input type="file" accept=".pdf,image/*" onChange={(e) => setMenuFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
+                  </label>
+                </div>
               )}
+
+              {/* Photos */}
+              <div className="form-group">
+                <label className="form-label">📷 Business Photos</label>
+                <p className="form-note" style={{ marginBottom: '0.75rem' }}>
+                  Businesses with photos get 3× more views. Add at least one!
+                </p>
+                <label className="photo-upload-label" style={{ borderColor: photos.length > 0 ? '#c9963a' : undefined }}>
+                  <span>{photos.length > 0 ? `✓ ${photos.length} photo${photos.length > 1 ? 's' : ''} selected` : '📷 Click to choose photos'}</span>
+                  <input type="file" multiple accept="image/*" onChange={(e) => setPhotos(Array.from(e.target.files || []))} style={{ display: 'none' }} />
+                </label>
+              </div>
+
+              <div className="info-box">
+                ✦ All uploads are safe and only visible on your listing page.
+              </div>
             </div>
           )}
 
           {error && <div className="error-msg">{error}</div>}
 
-          {/* Navigation buttons */}
           <div className="btn-row">
-            {step > 0 && (
-              <button className="btn-back" onClick={() => setStep(step - 1)}>
-                ← Back
-              </button>
-            )}
+            {step > 0 && <button className="btn-back" onClick={() => setStep(step - 1)}>← Back</button>}
             {step < 4 ? (
-              <button
-                className="btn-next"
-                onClick={() => setStep(step + 1)}
-                disabled={
-                  (step === 0 && (!form.name || !form.category)) ||
-                  (step === 1 && (!form.city || !form.address)) ||
-                  (step === 2 && !form.phone)
-                }
-              >
+              <button className="btn-next" onClick={() => setStep(step + 1)} disabled={!canNext[step]}>
                 Continue →
               </button>
             ) : (
-              <button
-                className="btn-next"
-                onClick={handleSubmit}
-                disabled={loading}
-              >
-                {loading ? 'Creating…' : 'Create Listing 🎉'}
+              <button className="btn-next" onClick={handleSubmit} disabled={loading}>
+                {loading ? 'Submitting…' : 'Create Listing 🎉'}
               </button>
             )}
           </div>
@@ -321,252 +482,71 @@ export default function RegisterPage() {
   );
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
-const globalStyles = `
+const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap');
-
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: #0d1a0d;
-    color: #e8ddd0;
-    font-family: 'Outfit', sans-serif;
-    min-height: 100vh;
-  }
-
-  .reg-page {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 3rem 1.5rem 4rem;
-    background:
-      radial-gradient(ellipse at 20% 0%, rgba(201,150,58,0.06) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 100%, rgba(201,150,58,0.04) 0%, transparent 50%),
-      #0d1a0d;
-  }
-
-  .reg-brand {
-    text-align: center;
-    margin-bottom: 2.5rem;
-  }
-  .reg-brand a {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.7rem;
-    color: #e8ddd0;
-    text-decoration: none;
-    letter-spacing: 0.02em;
-  }
+  body { background: #0d1a0d; color: #e8ddd0; font-family: 'Outfit', sans-serif; min-height: 100vh; }
+  .reg-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 3rem 1.5rem 4rem; background: radial-gradient(ellipse at 20% 0%, rgba(201,150,58,0.06) 0%, transparent 50%), #0d1a0d; }
+  .reg-brand { text-align: center; margin-bottom: 2.5rem; }
+  .reg-brand a { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: #e8ddd0; text-decoration: none; }
   .reg-brand a span { color: #c9963a; }
-  .reg-brand p {
-    font-size: 0.8rem;
-    color: #8a9a8a;
-    margin-top: 0.3rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  .stepper {
-    display: flex;
-    align-items: flex-start;
-    margin-bottom: 2rem;
-    width: 100%;
-    max-width: 520px;
-    justify-content: center;
-  }
-  .step-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    position: relative;
-    gap: 0.35rem;
-    flex: 1;
-  }
-  .step-line {
-    position: absolute;
-    top: 17px;
-    left: 50%;
-    width: 100%;
-    height: 2px;
-    background: rgba(201,150,58,0.15);
-    z-index: 0;
-  }
-  .step-item.done .step-line,
-  .step-item.active .step-line {
-    background: rgba(201,150,58,0.4);
-  }
-  .step-bubble {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    border: 2px solid rgba(201,150,58,0.2);
-    background: #0d1a0d;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #8a9a8a;
-    z-index: 1;
-    position: relative;
-    transition: all 0.3s;
-  }
-  .step-item.active .step-bubble {
-    border-color: #c9963a;
-    color: #c9963a;
-    background: rgba(201,150,58,0.1);
-    box-shadow: 0 0 0 4px rgba(201,150,58,0.08);
-  }
-  .step-item.done .step-bubble {
-    border-color: #c9963a;
-    background: #c9963a;
-    color: #000d00;
-  }
-  .step-label {
-    font-size: 0.65rem;
-    color: #6a7a6a;
-    text-align: center;
-    white-space: nowrap;
-    transition: color 0.3s;
-  }
+  .reg-brand p { font-size: 0.8rem; color: #8a9a8a; margin-top: 0.3rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .stepper { display: flex; align-items: flex-start; margin-bottom: 2rem; width: 100%; max-width: 580px; justify-content: center; }
+  .step-item { display: flex; flex-direction: column; align-items: center; position: relative; gap: 0.35rem; flex: 1; }
+  .step-line { position: absolute; top: 17px; left: 50%; width: 100%; height: 2px; background: rgba(201,150,58,0.15); z-index: 0; }
+  .step-item.done .step-line, .step-item.active .step-line { background: rgba(201,150,58,0.4); }
+  .step-bubble { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(201,150,58,0.2); background: #0d1a0d; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 600; color: #8a9a8a; z-index: 1; position: relative; transition: all 0.3s; }
+  .step-item.active .step-bubble { border-color: #c9963a; color: #c9963a; background: rgba(201,150,58,0.1); box-shadow: 0 0 0 4px rgba(201,150,58,0.08); }
+  .step-item.done .step-bubble { border-color: #c9963a; background: #c9963a; color: #000d00; }
+  .step-label { font-size: 0.65rem; color: #6a7a6a; text-align: center; white-space: nowrap; transition: color 0.3s; }
   .step-item.active .step-label { color: #c9963a; }
   .step-item.done .step-label { color: #8a9a8a; }
-
-  .reg-card {
-    background: linear-gradient(145deg, #1a2e1a, #152515);
-    border: 1px solid rgba(201,150,58,0.15);
-    border-radius: 18px;
-    padding: 2.25rem;
-    width: 100%;
-    max-width: 520px;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
-    position: relative;
-    overflow: hidden;
-  }
-  .reg-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #c9963a, transparent);
-  }
-
+  .reg-card { background: linear-gradient(145deg, #1a2e1a, #152515); border: 1px solid rgba(201,150,58,0.15); border-radius: 18px; padding: 2.25rem; width: 100%; max-width: 580px; box-shadow: 0 24px 64px rgba(0,0,0,0.5); position: relative; overflow: hidden; }
+  .reg-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #c9963a, transparent); }
   .step-heading { margin-bottom: 1.75rem; }
-  .step-heading h2 {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.5rem;
-    color: #e8ddd0;
-    margin-bottom: 0.3rem;
-  }
+  .step-heading h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #e8ddd0; margin-bottom: 0.3rem; }
   .step-heading p { color: #8a9a8a; font-size: 0.87rem; }
-
-  @keyframes stepIn {
-    from { opacity: 0; transform: translateX(12px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
+  @keyframes stepIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
   .step-content { animation: stepIn 0.22s ease; }
-
   .form-group { margin-bottom: 1.2rem; }
-  .form-label {
-    display: block;
-    font-size: 0.74rem;
-    color: #c9963a;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-bottom: 0.45rem;
-    font-weight: 600;
-  }
-  .form-input, .form-select, .form-textarea {
-    width: 100%;
-    padding: 0.8rem 1rem;
-    background: rgba(0,0,0,0.25);
-    border: 1.5px solid rgba(201,150,58,0.15);
-    border-radius: 10px;
-    color: #e8ddd0;
-    font-family: 'Outfit', sans-serif;
-    font-size: 0.95rem;
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
+  .form-label { display: block; font-size: 0.74rem; color: #c9963a; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.45rem; font-weight: 600; }
+  .form-note { font-size: 0.76rem; color: #6a7a6a; margin-top: 0.35rem; line-height: 1.4; }
+  .form-input, .form-select, .form-textarea { width: 100%; padding: 0.8rem 1rem; background: rgba(0,0,0,0.25); border: 1.5px solid rgba(201,150,58,0.15); border-radius: 10px; color: #e8ddd0; font-family: 'Outfit', sans-serif; font-size: 0.95rem; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
   .form-input::placeholder, .form-textarea::placeholder { color: #3a4a3a; }
-  .form-input:focus, .form-select:focus, .form-textarea:focus {
-    border-color: #c9963a;
-    box-shadow: 0 0 0 3px rgba(201,150,58,0.1);
-  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: #c9963a; box-shadow: 0 0 0 3px rgba(201,150,58,0.1); }
   .form-select option { background: #1a2e1a; }
-  .form-textarea { resize: vertical; min-height: 100px; line-height: 1.55; }
-
-  .photo-upload-label {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    padding: 2rem;
-    border: 2px dashed rgba(201,150,58,0.25);
-    border-radius: 12px;
-    color: #8a9a8a;
-    cursor: pointer;
-    font-size: 0.95rem;
-    transition: border-color 0.2s, color 0.2s;
-  }
+  .form-textarea { resize: vertical; min-height: 90px; line-height: 1.55; }
+  .pricing-box { background: rgba(201,150,58,0.05); border: 1px solid rgba(201,150,58,0.15); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.2rem; }
+  .pricing-title { font-size: 0.85rem; font-weight: 600; color: #c9963a; margin-bottom: 0.75rem; letter-spacing: 0.05em; }
+  .price-range-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+  .price-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem; }
+  .price-card { padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1.5px solid rgba(201,150,58,0.12); border-radius: 10px; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .price-card:hover { border-color: rgba(201,150,58,0.3); }
+  .price-card.selected { border-color: #c9963a; background: rgba(201,150,58,0.1); }
+  .price-label { font-size: 0.8rem; color: #e8ddd0; margin-bottom: 0.2rem; }
+  .price-desc { font-size: 0.68rem; color: #6a7a6a; }
+  .tags-wrap { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .tag-btn { padding: 0.4rem 0.85rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(201,150,58,0.15); border-radius: 20px; color: #8a9a8a; font-family: 'Outfit', sans-serif; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; }
+  .tag-btn:hover { border-color: rgba(201,150,58,0.4); color: #c9963a; }
+  .tag-btn.selected { background: rgba(201,150,58,0.12); border-color: #c9963a; color: #c9963a; }
+  .photo-upload-label { display: flex; align-items: center; justify-content: center; width: 100%; padding: 1.75rem; border: 2px dashed rgba(201,150,58,0.25); border-radius: 12px; color: #8a9a8a; cursor: pointer; font-size: 0.92rem; transition: border-color 0.2s, color 0.2s; }
   .photo-upload-label:hover { border-color: #c9963a; color: #c9963a; }
-
-  .error-msg {
-    background: rgba(180,40,40,0.12);
-    border: 1px solid rgba(180,40,40,0.3);
-    border-radius: 8px;
-    padding: 0.7rem 1rem;
-    font-size: 0.85rem;
-    color: #ff8080;
-    margin-top: 1rem;
-  }
-
+  .info-box { background: rgba(201,150,58,0.06); border: 1px solid rgba(201,150,58,0.12); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #8a9a8a; margin-top: 1rem; }
+  .error-msg { background: rgba(180,40,40,0.12); border: 1px solid rgba(180,40,40,0.3); border-radius: 8px; padding: 0.7rem 1rem; font-size: 0.85rem; color: #ff8080; margin-top: 1rem; }
   .btn-row { display: flex; gap: 0.75rem; margin-top: 1.75rem; }
-  .btn-back {
-    flex: 0 0 auto;
-    padding: 0.85rem 1.4rem;
-    background: transparent;
-    border: 1.5px solid rgba(201,150,58,0.2);
-    border-radius: 10px;
-    color: #8a9a8a;
-    font-family: 'Outfit', sans-serif;
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: border-color 0.2s, color 0.2s;
-  }
+  .btn-back { flex: 0 0 auto; padding: 0.85rem 1.4rem; background: transparent; border: 1.5px solid rgba(201,150,58,0.2); border-radius: 10px; color: #8a9a8a; font-family: 'Outfit', sans-serif; font-size: 0.95rem; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
   .btn-back:hover { border-color: #c9963a; color: #c9963a; }
-  .btn-next {
-    flex: 1;
-    padding: 0.85rem;
-    background: linear-gradient(135deg, #c9963a 0%, #a07020 100%);
-    border: none;
-    border-radius: 10px;
-    color: #000d00;
-    font-family: 'Outfit', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    letter-spacing: 0.03em;
-    transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
-  }
-  .btn-next:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 24px rgba(201,150,58,0.35);
-  }
+  .btn-next { flex: 1; padding: 0.85rem; background: linear-gradient(135deg, #c9963a 0%, #a07020 100%); border: none; border-radius: 10px; color: #000d00; font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s; }
+  .btn-next:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,150,58,0.35); }
   .btn-next:disabled { opacity: 0.45; cursor: not-allowed; }
-
-  .login-link {
-    margin-top: 1.5rem;
-    font-size: 0.85rem;
-    color: #8a9a8a;
-  }
+  .login-link { margin-top: 1.5rem; font-size: 0.85rem; color: #8a9a8a; }
   .login-link a { color: #c9963a; text-decoration: none; }
   .login-link a:hover { text-decoration: underline; }
-
   @media (max-width: 480px) {
     .reg-card { padding: 1.5rem 1.1rem; }
     .step-label { display: none; }
+    .price-range-grid { grid-template-columns: 1fr; }
+    .price-inputs { grid-template-columns: 1fr; }
     .reg-page { padding: 2rem 1rem 3rem; }
   }
 `;
