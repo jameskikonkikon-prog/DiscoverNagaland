@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CITIES, CATEGORIES } from '@/types';
 
-const STEPS = ['Business Info', 'Location', 'Contact', 'Pricing', 'Media'];
+const STEPS = ['Business Info', 'Location', 'Contact', 'Pricing', 'Media', 'Account'];
 
 const KEYWORD_SUGGESTIONS: Record<string, string[]> = {
   restaurant: ['veg', 'non-veg', 'delivery', 'dine-in', 'takeaway', 'naga food', 'spicy', 'family', 'ac', 'parking'],
@@ -23,10 +23,7 @@ const KEYWORD_SUGGESTIONS: Record<string, string[]> = {
 };
 
 const PG_AMENITIES = ['WiFi', 'Meals Included', 'AC', 'Hot Water', 'Laundry', 'Attached Bathroom', 'Parking', 'CCTV', 'Study Room', 'TV', 'Water Filter', 'Generator'];
-
-// Categories that get menu/rate card upload
 const MENU_CATEGORIES = ['restaurant', 'cafe', 'hotel', 'pg', 'turf', 'rental', 'salon'];
-
 const PRICE_TAGS = [
   { v: 'budget', l: '💰 Budget', d: 'Affordable for everyone' },
   { v: 'mid', l: '💰💰 Mid-range', d: 'Moderate prices' },
@@ -38,24 +35,13 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
-    name: '',
-    category: '',
-    city: '',
-    address: '',
-    landmark: '',
-    phone: '',
-    whatsapp: '',
-    email: '',
-    description: '',
-    opening_hours: '',
-    price_range: '',
-    price_min: '',
-    price_max: '',
-    price_unit: '',
-    website: '',
-    tags: '',
-    amenities: '',
+    name: '', category: '', city: '', address: '', landmark: '',
+    phone: '', whatsapp: '', email: '', website: '',
+    description: '', opening_hours: '',
+    price_range: '', price_min: '', price_max: '', price_unit: '',
+    tags: '', amenities: '',
   });
+  const [account, setAccount] = useState({ email: '', password: '', confirm: '' });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [photos, setPhotos] = useState<File[]>([]);
@@ -97,18 +83,30 @@ export default function RegisterPage() {
   };
 
   const handleSubmit = async () => {
+    if (account.password !== account.confirm) { setError("Passwords don't match!"); return; }
+    if (account.password.length < 6) { setError("Password must be at least 6 characters."); return; }
     setLoading(true);
     setError('');
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { window.location.href = '/login'; return; }
     try {
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: account.email,
+        password: account.password,
+      });
+      if (authErr) throw authErr;
+      const user = authData.user;
+      if (!user) throw new Error('Account creation failed');
+
       const allTags = [...selectedTags, ...form.tags.split(',').map(t => t.trim()).filter(Boolean)];
       const allAmenities = [...selectedAmenities, ...form.amenities.split(',').map(a => a.trim()).filter(Boolean)];
+      const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
+
       const res = await fetch('/api/businesses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          slug,
+          email: account.email,
           price_min: form.price_min ? parseInt(form.price_min) : null,
           price_max: form.price_max ? parseInt(form.price_max) : null,
           tags: allTags.join(', '),
@@ -118,6 +116,7 @@ export default function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create listing');
+
       const businessId = data.business.id;
       const updates: Record<string, unknown> = {};
       if (photos.length > 0) updates.photos = await uploadPhotos(businessId);
@@ -140,8 +139,8 @@ export default function RegisterPage() {
     !!(form.name && form.category),
     !!(form.city && form.address),
     !!form.phone,
-    true,
-    true,
+    true, true,
+    !!(account.email && account.password && account.confirm),
   ];
 
   if (submitted) {
@@ -152,8 +151,9 @@ export default function RegisterPage() {
           <div className="reg-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
             <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🎉</div>
             <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: '#c9963a', marginBottom: '0.75rem' }}>You&apos;re Listed!</h1>
-            <p style={{ color: '#8a9a8a', marginBottom: '2rem', lineHeight: '1.6' }}>Your business is now live on Discover Nagaland.</p>
-            <a href="/" className="btn-next" style={{ display: 'inline-block', textDecoration: 'none', padding: '0.85rem 2rem' }}>Go to Homepage →</a>
+            <p style={{ color: '#8a9a8a', marginBottom: '0.5rem', lineHeight: '1.6' }}>Your business is now live on Discover Nagaland.</p>
+            <p style={{ color: '#6a7a6a', fontSize: '0.85rem', marginBottom: '2rem' }}>Use your email and password to log in and manage your listing anytime.</p>
+            <a href="/login" className="btn-next" style={{ display: 'inline-block', textDecoration: 'none', padding: '0.85rem 2rem' }}>Go to Login →</a>
           </div>
         </main>
       </>
@@ -168,7 +168,6 @@ export default function RegisterPage() {
           <a href="/">Discover<span>Nagaland</span></a>
           <p>List Your Business — It&apos;s Free</p>
         </div>
-
         <div className="stepper">
           {STEPS.map((s, i) => (
             <div key={s} className={`step-item ${i < step ? 'done' : i === step ? 'active' : ''}`}>
@@ -178,7 +177,6 @@ export default function RegisterPage() {
             </div>
           ))}
         </div>
-
         <div className="reg-card">
           <div className="step-heading">
             <h2>{STEPS[step]}</h2>
@@ -186,12 +184,12 @@ export default function RegisterPage() {
               {step === 0 && 'Tell us about your business.'}
               {step === 1 && 'Where is your business located?'}
               {step === 2 && 'How can customers reach you?'}
-              {step === 3 && 'Set your pricing and help customers find you.'}
+              {step === 3 && 'Set your pricing and search keywords.'}
               {step === 4 && 'Add photos and menu to attract more customers.'}
+              {step === 5 && 'Create your account to manage your listing.'}
             </p>
           </div>
 
-          {/* ── Step 0: Business Info ── */}
           {step === 0 && (
             <div className="step-content">
               <div className="form-group">
@@ -216,7 +214,6 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ── Step 1: Location ── */}
           {step === 1 && (
             <div className="step-content">
               <div className="form-group">
@@ -233,12 +230,11 @@ export default function RegisterPage() {
               <div className="form-group">
                 <label className="form-label">Nearby Landmark</label>
                 <input className="form-input" value={form.landmark} onChange={(e) => update('landmark', e.target.value)} placeholder="e.g. Opposite NST Bus Stand" />
-                <p className="form-note">Landmarks help customers find you faster — very important in Nagaland!</p>
+                <p className="form-note">Landmarks help customers find you faster!</p>
               </div>
             </div>
           )}
 
-          {/* ── Step 2: Contact ── */}
           {step === 2 && (
             <div className="step-content">
               <div className="form-group">
@@ -250,79 +246,54 @@ export default function RegisterPage() {
                 <input className="form-input" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="91xxxxxxxxxx (with country code)" />
               </div>
               <div className="form-group">
-                <label className="form-label">Email</label>
-                <input type="email" className="form-input" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="business@email.com" />
-              </div>
-              <div className="form-group">
                 <label className="form-label">Website / Facebook / Instagram</label>
                 <input className="form-input" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://facebook.com/yourbusiness" />
               </div>
             </div>
           )}
 
-          {/* ── Step 3: Pricing + Tags ── */}
           {step === 3 && (
             <div className="step-content">
-
-              {/* RESTAURANT / CAFE */}
               {(cat === 'restaurant' || cat === 'cafe') && (
                 <div className="pricing-box">
                   <div className="pricing-title">{cat === 'cafe' ? '☕' : '🍽️'} How would you describe your pricing?</div>
                   <div className="price-tag-grid">
                     {PRICE_TAGS.map((p) => (
                       <div key={p.v} className={`price-tag-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
-                        <div className="ptc-label">{p.l}</div>
-                        <div className="ptc-desc">{p.d}</div>
+                        <div className="ptc-label">{p.l}</div><div className="ptc-desc">{p.d}</div>
                       </div>
                     ))}
                   </div>
                   <div style={{ marginTop: '1rem' }}>
                     <label className="form-label">Average price per person (₹)</label>
                     <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 150" />
-                    <p className="form-note">Customers see this before visiting — helps them decide!</p>
+                    <p className="form-note">Customers see this before visiting!</p>
                   </div>
                 </div>
               )}
-
-              {/* HOTEL */}
               {cat === 'hotel' && (
                 <div className="pricing-box">
                   <div className="pricing-title">🏨 Room Tariff</div>
                   <div className="price-tag-grid">
                     {PRICE_TAGS.map((p) => (
                       <div key={p.v} className={`price-tag-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
-                        <div className="ptc-label">{p.l}</div>
-                        <div className="ptc-desc">{p.d}</div>
+                        <div className="ptc-label">{p.l}</div><div className="ptc-desc">{p.d}</div>
                       </div>
                     ))}
                   </div>
                   <div className="price-inputs" style={{ marginTop: '1rem' }}>
-                    <div>
-                      <label className="form-label">Starting from (₹)</label>
-                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 800" />
-                    </div>
-                    <div>
-                      <label className="form-label">Up to (₹)</label>
-                      <input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 3500" />
-                    </div>
+                    <div><label className="form-label">Starting from (₹)</label><input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 800" /></div>
+                    <div><label className="form-label">Up to (₹)</label><input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 3500" /></div>
                   </div>
                   <p className="form-note">per night</p>
                 </div>
               )}
-
-              {/* PG */}
               {cat === 'pg' && (
                 <div className="pricing-box">
                   <div className="pricing-title">🏠 Monthly Rent</div>
                   <div className="price-inputs">
-                    <div>
-                      <label className="form-label">Min Rent (₹)</label>
-                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 3000" />
-                    </div>
-                    <div>
-                      <label className="form-label">Max Rent (₹)</label>
-                      <input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 6000" />
-                    </div>
+                    <div><label className="form-label">Min Rent (₹)</label><input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 3000" /></div>
+                    <div><label className="form-label">Max Rent (₹)</label><input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 6000" /></div>
                   </div>
                   <p className="form-note" style={{ marginBottom: '1rem' }}>per month</p>
                   <label className="form-label">Amenities Included</label>
@@ -335,33 +306,20 @@ export default function RegisterPage() {
                   </div>
                 </div>
               )}
-
-              {/* TURF */}
               {cat === 'turf' && (
                 <div className="pricing-box">
                   <div className="pricing-title">⚽ Booking Rates</div>
                   <div className="price-inputs">
-                    <div>
-                      <label className="form-label">Price per hour (₹)</label>
-                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 500" />
-                    </div>
-                    <div>
-                      <label className="form-label">Weekend price (₹)</label>
-                      <input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 700" />
-                    </div>
+                    <div><label className="form-label">Weekday (₹/hr)</label><input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 500" /></div>
+                    <div><label className="form-label">Weekend (₹/hr)</label><input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 700" /></div>
                   </div>
                 </div>
               )}
-
-              {/* RENTAL */}
               {cat === 'rental' && (
                 <div className="pricing-box">
                   <div className="pricing-title">🚗 Rental Rates</div>
                   <div className="price-inputs">
-                    <div>
-                      <label className="form-label">Starting from (₹)</label>
-                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 800" />
-                    </div>
+                    <div><label className="form-label">Starting from (₹)</label><input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 800" /></div>
                     <div>
                       <label className="form-label">Price per</label>
                       <select className="form-select" value={form.price_unit} onChange={(e) => update('price_unit', e.target.value)}>
@@ -374,16 +332,13 @@ export default function RegisterPage() {
                   </div>
                 </div>
               )}
-
-              {/* SALON */}
               {cat === 'salon' && (
                 <div className="pricing-box">
                   <div className="pricing-title">💈 Service Pricing</div>
                   <div className="price-tag-grid">
                     {PRICE_TAGS.map((p) => (
                       <div key={p.v} className={`price-tag-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
-                        <div className="ptc-label">{p.l}</div>
-                        <div className="ptc-desc">{p.d}</div>
+                        <div className="ptc-label">{p.l}</div><div className="ptc-desc">{p.d}</div>
                       </div>
                     ))}
                   </div>
@@ -393,16 +348,11 @@ export default function RegisterPage() {
                   </div>
                 </div>
               )}
-
-              {/* COACHING / SCHOOL */}
               {(cat === 'coaching' || cat === 'school') && (
                 <div className="pricing-box">
                   <div className="pricing-title">📚 Fee Structure</div>
                   <div className="price-inputs">
-                    <div>
-                      <label className="form-label">Fees from (₹)</label>
-                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 500" />
-                    </div>
+                    <div><label className="form-label">Fees from (₹)</label><input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 500" /></div>
                     <div>
                       <label className="form-label">Per</label>
                       <select className="form-select" value={form.price_unit} onChange={(e) => update('price_unit', e.target.value)}>
@@ -416,38 +366,27 @@ export default function RegisterPage() {
                   </div>
                 </div>
               )}
-
-              {/* HOSPITAL / CLINIC */}
               {(cat === 'hospital' || cat === 'clinic') && (
                 <div className="pricing-box">
                   <div className="pricing-title">🏥 Consultation Fee</div>
-                  <div>
-                    <label className="form-label">Consultation fee (₹)</label>
-                    <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 200" />
-                    <p className="form-note">Enter 0 if free consultation</p>
-                  </div>
+                  <div><label className="form-label">Consultation fee (₹)</label><input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 200" /><p className="form-note">Enter 0 if free</p></div>
                 </div>
               )}
-
-              {/* SHOP / PHARMACY / SERVICE — just tag */}
               {(cat === 'shop' || cat === 'pharmacy' || cat === 'service' || cat === 'other') && (
                 <div className="pricing-box">
                   <div className="pricing-title">💰 Price Range</div>
                   <div className="price-tag-grid">
                     {PRICE_TAGS.map((p) => (
                       <div key={p.v} className={`price-tag-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
-                        <div className="ptc-label">{p.l}</div>
-                        <div className="ptc-desc">{p.d}</div>
+                        <div className="ptc-label">{p.l}</div><div className="ptc-desc">{p.d}</div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              {/* Tags for all */}
               <div className="form-group" style={{ marginTop: '1.25rem' }}>
                 <label className="form-label">🔍 Search Keywords</label>
-                <p className="form-note" style={{ marginBottom: '0.75rem' }}>Tap to select — these help customers find you:</p>
+                <p className="form-note" style={{ marginBottom: '0.75rem' }}>Tap to select — helps customers find you:</p>
                 {suggestedTags.length > 0 && (
                   <div className="tags-wrap">
                     {suggestedTags.map((tag) => (
@@ -462,26 +401,14 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ── Step 4: Media ── */}
           {step === 4 && (
             <div className="step-content">
-
-              {/* Menu/rate card upload — only for relevant categories */}
               {showMenuUpload && (
                 <div className="form-group">
                   <label className="form-label">
-                    {cat === 'restaurant' || cat === 'cafe' ? '📋 Menu' :
-                     cat === 'hotel' ? '🏨 Tariff Card' :
-                     cat === 'pg' ? '🏠 Room Pricing Sheet' :
-                     cat === 'turf' ? '⚽ Booking Rate Card' :
-                     cat === 'rental' ? '🚗 Rate Card' :
-                     cat === 'salon' ? '💈 Service Price List' : '📄 Price List'}
+                    {cat === 'restaurant' || cat === 'cafe' ? '📋 Menu' : cat === 'hotel' ? '🏨 Tariff Card' : cat === 'pg' ? '🏠 Room Pricing Sheet' : cat === 'turf' ? '⚽ Booking Rate Card' : cat === 'rental' ? '🚗 Rate Card' : '💈 Service Price List'}
                   </label>
-                  <p className="form-note" style={{ marginBottom: '0.75rem' }}>
-                    {cat === 'restaurant' || cat === 'cafe'
-                      ? 'Customers browse your menu before visiting — gets you way more orders!'
-                      : 'Upload a PDF or photo of your pricing — customers decide faster!'}
-                  </p>
+                  <p className="form-note" style={{ marginBottom: '0.75rem' }}>Customers decide faster when they can see your pricing!</p>
                   <label className="upload-box" style={{ borderColor: menuFile ? '#c9963a' : undefined, color: menuFile ? '#c9963a' : undefined }}>
                     <span className="upload-icon">{menuFile ? '✓' : '📄'}</span>
                     <span>{menuFile ? menuFile.name : 'Upload PDF or photo'}</span>
@@ -490,13 +417,9 @@ export default function RegisterPage() {
                   </label>
                 </div>
               )}
-
-              {/* Photos */}
               <div className="form-group">
                 <label className="form-label">📷 Business Photos</label>
-                <p className="form-note" style={{ marginBottom: '0.75rem' }}>
-                  Businesses with photos get <strong style={{ color: '#c9963a' }}>3× more views</strong>. Add your best shots!
-                </p>
+                <p className="form-note" style={{ marginBottom: '0.75rem' }}>Businesses with photos get <strong style={{ color: '#c9963a' }}>3× more views</strong>!</p>
                 <label className="upload-box" style={{ borderColor: photos.length > 0 ? '#c9963a' : undefined, color: photos.length > 0 ? '#c9963a' : undefined }}>
                   <span className="upload-icon">{photos.length > 0 ? '✓' : '📷'}</span>
                   <span>{photos.length > 0 ? `${photos.length} photo${photos.length > 1 ? 's' : ''} selected` : 'Click to choose photos'}</span>
@@ -504,9 +427,29 @@ export default function RegisterPage() {
                   <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhotos(Array.from(e.target.files || []))} style={{ display: 'none' }} />
                 </label>
               </div>
+            </div>
+          )}
 
-              <div className="info-box">
-                ✦ All uploads are secure and only shown on your listing page.
+          {step === 5 && (
+            <div className="step-content">
+              <div className="account-info-box">
+                <div>🔐</div>
+                <div><strong>Almost done!</strong> Create an account to manage your listing — edit details, update photos, and see who&apos;s finding you.</div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email Address *</label>
+                <input className="form-input" type="email" value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} placeholder="you@example.com" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Password *</label>
+                <input className="form-input" type="password" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} placeholder="At least 6 characters" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Confirm Password *</label>
+                <input className="form-input" type="password" value={account.confirm} onChange={(e) => setAccount({ ...account, confirm: e.target.value })} placeholder="Same password again" />
+                {account.confirm && account.password !== account.confirm && (
+                  <p className="form-note" style={{ color: '#f87171', marginTop: '0.4rem' }}>⚠ Passwords don&apos;t match</p>
+                )}
               </div>
             </div>
           )}
@@ -515,21 +458,16 @@ export default function RegisterPage() {
 
           <div className="btn-row">
             {step > 0 && <button className="btn-back" onClick={() => setStep(step - 1)}>← Back</button>}
-            {step < 4 ? (
-              <button className="btn-next" onClick={() => setStep(step + 1)} disabled={!canNext[step]}>
-                Continue →
-              </button>
+            {step < 5 ? (
+              <button className="btn-next" onClick={() => setStep(step + 1)} disabled={!canNext[step]}>Continue →</button>
             ) : (
-              <button className="btn-next" onClick={handleSubmit} disabled={loading}>
-                {loading ? 'Submitting…' : 'Create Listing 🎉'}
+              <button className="btn-next" onClick={handleSubmit} disabled={loading || !canNext[5] || account.password !== account.confirm}>
+                {loading ? 'Creating listing…' : 'Create Listing 🎉'}
               </button>
             )}
           </div>
         </div>
-
-        <div className="login-link">
-          Already have an account? <a href="/login">Sign in →</a>
-        </div>
+        <div className="login-link">Already have an account? <a href="/login">Sign in →</a></div>
       </main>
     </>
   );
@@ -544,17 +482,17 @@ const styles = `
   .reg-brand a { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: #e8ddd0; text-decoration: none; }
   .reg-brand a span { color: #c9963a; }
   .reg-brand p { font-size: 0.8rem; color: #8a9a8a; margin-top: 0.3rem; letter-spacing: 0.1em; text-transform: uppercase; }
-  .stepper { display: flex; align-items: flex-start; margin-bottom: 2rem; width: 100%; max-width: 580px; }
+  .stepper { display: flex; align-items: flex-start; margin-bottom: 2rem; width: 100%; max-width: 600px; }
   .step-item { display: flex; flex-direction: column; align-items: center; position: relative; gap: 0.35rem; flex: 1; }
   .step-line { position: absolute; top: 17px; left: 50%; width: 100%; height: 2px; background: rgba(201,150,58,0.15); z-index: 0; }
   .step-item.done .step-line, .step-item.active .step-line { background: rgba(201,150,58,0.4); }
   .step-bubble { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(201,150,58,0.2); background: #0d1a0d; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 600; color: #8a9a8a; z-index: 1; position: relative; transition: all 0.3s; }
   .step-item.active .step-bubble { border-color: #c9963a; color: #c9963a; background: rgba(201,150,58,0.1); box-shadow: 0 0 0 4px rgba(201,150,58,0.08); }
   .step-item.done .step-bubble { border-color: #c9963a; background: #c9963a; color: #000d00; }
-  .step-label { font-size: 0.65rem; color: #6a7a6a; text-align: center; white-space: nowrap; transition: color 0.3s; }
+  .step-label { font-size: 0.62rem; color: #6a7a6a; text-align: center; white-space: nowrap; transition: color 0.3s; }
   .step-item.active .step-label { color: #c9963a; }
   .step-item.done .step-label { color: #8a9a8a; }
-  .reg-card { background: linear-gradient(145deg, #1a2e1a, #152515); border: 1px solid rgba(201,150,58,0.15); border-radius: 18px; padding: 2.25rem; width: 100%; max-width: 580px; box-shadow: 0 24px 64px rgba(0,0,0,0.5); position: relative; overflow: hidden; }
+  .reg-card { background: linear-gradient(145deg, #1a2e1a, #152515); border: 1px solid rgba(201,150,58,0.15); border-radius: 18px; padding: 2.25rem; width: 100%; max-width: 600px; box-shadow: 0 24px 64px rgba(0,0,0,0.5); position: relative; overflow: hidden; }
   .reg-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #c9963a, transparent); }
   .step-heading { margin-bottom: 1.75rem; }
   .step-heading h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #e8ddd0; margin-bottom: 0.3rem; }
@@ -586,7 +524,8 @@ const styles = `
   .upload-box:hover { border-color: #c9963a; color: #c9963a; }
   .upload-icon { font-size: 1.8rem; }
   .upload-sub { font-size: 0.72rem; color: #4a5a4a; margin-top: 0.2rem; }
-  .info-box { background: rgba(201,150,58,0.06); border: 1px solid rgba(201,150,58,0.12); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #8a9a8a; margin-top: 0.5rem; }
+  .account-info-box { display: flex; gap: 0.75rem; background: rgba(201,150,58,0.07); border: 1px solid rgba(201,150,58,0.15); border-radius: 10px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: #8a9a8a; line-height: 1.5; }
+  .account-info-box strong { color: #e8ddd0; }
   .error-msg { background: rgba(180,40,40,0.12); border: 1px solid rgba(180,40,40,0.3); border-radius: 8px; padding: 0.7rem 1rem; font-size: 0.85rem; color: #ff8080; margin-top: 1rem; }
   .btn-row { display: flex; gap: 0.75rem; margin-top: 1.75rem; }
   .btn-back { flex: 0 0 auto; padding: 0.85rem 1.4rem; background: transparent; border: 1.5px solid rgba(201,150,58,0.2); border-radius: 10px; color: #8a9a8a; font-family: 'Outfit', sans-serif; font-size: 0.95rem; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
