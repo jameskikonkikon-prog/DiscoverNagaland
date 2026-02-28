@@ -3,39 +3,35 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CITIES, CATEGORIES } from '@/types';
 
-const STEPS = ['Business Info', 'Location', 'Contact', 'Details', 'Media'];
+const STEPS = ['Business Info', 'Location', 'Contact', 'Pricing', 'Media'];
 
 const KEYWORD_SUGGESTIONS: Record<string, string[]> = {
   restaurant: ['veg', 'non-veg', 'delivery', 'dine-in', 'takeaway', 'naga food', 'spicy', 'family', 'ac', 'parking'],
   cafe: ['wifi', 'coffee', 'snacks', 'study-friendly', 'cozy', 'outdoor seating', 'ac', 'desserts'],
-  hotel: ['ac rooms', 'wifi', 'parking', 'restaurant', 'conference room', 'hot water', 'geyser'],
+  hotel: ['ac rooms', 'wifi', 'parking', 'restaurant', 'conference room', 'hot water', 'geyser', 'room service'],
   hospital: ['24hr', 'emergency', 'icu', 'maternity', 'surgery', 'outpatient', 'ambulance'],
   pharmacy: ['24hr', 'delivery', 'generic medicines', 'cosmetics', 'open sunday'],
-  salon: ['ladies', 'gents', 'unisex', 'bridal', 'makeup', 'hair color', 'threading'],
+  salon: ['ladies', 'gents', 'unisex', 'bridal', 'makeup', 'hair color', 'threading', 'facial'],
   school: ['cbse', 'icse', 'state board', 'english medium', 'hostel', 'transport'],
   clinic: ['general', 'dental', 'eye', 'skin', 'appointment', 'home visit'],
-  turf: ['football', 'cricket', 'floodlights', 'booking', 'weekend', 'changing room'],
+  turf: ['football', 'cricket', 'floodlights', 'booking', 'weekend', 'changing room', 'washroom'],
   pg: ['boys', 'girls', 'meals included', 'wifi', 'attached bathroom', 'ac', 'hot water', 'laundry'],
-  coaching: ['entrance', 'competitive', 'cbse', 'spoken english', 'computer', 'weekend batch'],
+  coaching: ['entrance', 'competitive', 'cbse', 'spoken english', 'computer', 'weekend batch', 'online'],
   rental: ['self-drive', 'with driver', 'bike', 'car', 'tempo', 'daily', 'monthly', 'outstation'],
   shop: ['grocery', 'clothing', 'electronics', 'wholesale', 'retail', 'home delivery'],
   service: ['repair', 'plumbing', 'electrical', 'cleaning', 'home visit', '24hr'],
 };
 
-const PG_AMENITIES = ['WiFi', 'Meals Included', 'AC', 'Hot Water', 'Laundry', 'Attached Bathroom', 'Parking', 'CCTV', 'Study Room', 'TV'];
+const PG_AMENITIES = ['WiFi', 'Meals Included', 'AC', 'Hot Water', 'Laundry', 'Attached Bathroom', 'Parking', 'CCTV', 'Study Room', 'TV', 'Water Filter', 'Generator'];
 
-// What pricing UI to show per category
-function getPricingType(category: string): 'menu' | 'per_night' | 'per_month' | 'per_day' | 'consultation' | 'starting_from' | 'range' | null {
-  const cat = category.toLowerCase();
-  if (['restaurant', 'cafe'].includes(cat)) return 'menu';
-  if (cat === 'hotel') return 'per_night';
-  if (cat === 'pg') return 'per_month';
-  if (cat === 'rental') return 'per_day';
-  if (['hospital', 'clinic'].includes(cat)) return 'consultation';
-  if (['salon', 'coaching', 'school'].includes(cat)) return 'starting_from';
-  if (['shop', 'pharmacy', 'turf', 'service'].includes(cat)) return 'range';
-  return null;
-}
+// Categories that get menu/rate card upload
+const MENU_CATEGORIES = ['restaurant', 'cafe', 'hotel', 'pg', 'turf', 'rental', 'salon'];
+
+const PRICE_TAGS = [
+  { v: 'budget', l: '💰 Budget', d: 'Affordable for everyone' },
+  { v: 'mid', l: '💰💰 Mid-range', d: 'Moderate prices' },
+  { v: 'premium', l: '💰💰💰 Premium', d: 'High-end experience' },
+];
 
 export default function RegisterPage() {
   const [step, setStep] = useState(0);
@@ -70,6 +66,10 @@ export default function RegisterPage() {
   const toggleTag = (tag: string) => setSelectedTags((p) => p.includes(tag) ? p.filter((t) => t !== tag) : [...p, tag]);
   const toggleAmenity = (a: string) => setSelectedAmenities((p) => p.includes(a) ? p.filter((x) => x !== a) : [...p, a]);
 
+  const cat = form.category.toLowerCase();
+  const showMenuUpload = MENU_CATEGORIES.includes(cat);
+  const suggestedTags = KEYWORD_SUGGESTIONS[cat] || [];
+
   const uploadPhotos = async (businessId: string) => {
     const urls: string[] = [];
     for (const photo of photos) {
@@ -101,11 +101,9 @@ export default function RegisterPage() {
     setError('');
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { window.location.href = '/login'; return; }
-
     try {
       const allTags = [...selectedTags, ...form.tags.split(',').map(t => t.trim()).filter(Boolean)];
       const allAmenities = [...selectedAmenities, ...form.amenities.split(',').map(a => a.trim()).filter(Boolean)];
-
       const res = await fetch('/api/businesses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,16 +118,10 @@ export default function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create listing');
-
       const businessId = data.business.id;
       const updates: Record<string, unknown> = {};
-
-      if (photos.length > 0) {
-        updates.photos = await uploadPhotos(businessId);
-      }
-      if (menuFile) {
-        updates.menu_url = await uploadMenu(businessId);
-      }
+      if (photos.length > 0) updates.photos = await uploadPhotos(businessId);
+      if (menuFile) updates.menu_url = await uploadMenu(businessId);
       if (Object.keys(updates).length > 0) {
         await fetch(`/api/businesses/${businessId}`, {
           method: 'PATCH',
@@ -143,9 +135,6 @@ export default function RegisterPage() {
     }
     setLoading(false);
   };
-
-  const pricingType = getPricingType(form.category);
-  const suggestedTags = KEYWORD_SUGGESTIONS[form.category.toLowerCase()] || [];
 
   const canNext = [
     !!(form.name && form.category),
@@ -175,13 +164,11 @@ export default function RegisterPage() {
     <>
       <style>{styles}</style>
       <main className="reg-page">
-
         <div className="reg-brand">
           <a href="/">Discover<span>Nagaland</span></a>
           <p>List Your Business — It&apos;s Free</p>
         </div>
 
-        {/* Stepper */}
         <div className="stepper">
           {STEPS.map((s, i) => (
             <div key={s} className={`step-item ${i < step ? 'done' : i === step ? 'active' : ''}`}>
@@ -196,11 +183,11 @@ export default function RegisterPage() {
           <div className="step-heading">
             <h2>{STEPS[step]}</h2>
             <p>
-              {step === 0 && 'What kind of business are you listing?'}
+              {step === 0 && 'Tell us about your business.'}
               {step === 1 && 'Where is your business located?'}
               {step === 2 && 'How can customers reach you?'}
-              {step === 3 && 'Pricing, description and searchable keywords.'}
-              {step === 4 && 'Photos and menu — help customers decide before visiting.'}
+              {step === 3 && 'Set your pricing and help customers find you.'}
+              {step === 4 && 'Add photos and menu to attract more customers.'}
             </p>
           </div>
 
@@ -217,6 +204,14 @@ export default function RegisterPage() {
                   <option value="">Select category</option>
                   {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Description</label>
+                <textarea className="form-textarea" value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} placeholder="Tell customers what makes your business special..." />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Opening Hours</label>
+                <input className="form-input" value={form.opening_hours} onChange={(e) => update('opening_hours', e.target.value)} placeholder="e.g. Mon–Sat 9am–8pm, Sun Closed" />
               </div>
             </div>
           )}
@@ -265,92 +260,110 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ── Step 3: Details + Pricing ── */}
+          {/* ── Step 3: Pricing + Tags ── */}
           {step === 3 && (
             <div className="step-content">
-              <div className="form-group">
-                <label className="form-label">Description</label>
-                <textarea className="form-textarea" value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} placeholder="Tell customers what makes your business special..." />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Opening Hours</label>
-                <input className="form-input" value={form.opening_hours} onChange={(e) => update('opening_hours', e.target.value)} placeholder="e.g. Mon–Sat 9am–8pm, Sun Closed" />
-              </div>
 
-              {/* Smart pricing per category */}
-              {pricingType === 'menu' && (
+              {/* RESTAURANT / CAFE */}
+              {(cat === 'restaurant' || cat === 'cafe') && (
                 <div className="pricing-box">
-                  <div className="pricing-title">💰 Price Range</div>
-                  <p className="form-note" style={{ marginBottom: '0.75rem' }}>Give customers a rough idea of how much to expect:</p>
-                  <div className="price-range-grid">
-                    {[
-                      { v: 'budget', l: '💰 Budget', d: 'Under ₹200/person' },
-                      { v: 'mid', l: '💰💰 Mid', d: '₹200–500/person' },
-                      { v: 'premium', l: '💰💰💰 Premium', d: '₹500+/person' },
-                    ].map((p) => (
-                      <div key={p.v} className={`price-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
-                        <div className="price-label">{p.l}</div>
-                        <div className="price-desc">{p.d}</div>
+                  <div className="pricing-title">{cat === 'cafe' ? '☕' : '🍽️'} How would you describe your pricing?</div>
+                  <div className="price-tag-grid">
+                    {PRICE_TAGS.map((p) => (
+                      <div key={p.v} className={`price-tag-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
+                        <div className="ptc-label">{p.l}</div>
+                        <div className="ptc-desc">{p.d}</div>
                       </div>
                     ))}
+                  </div>
+                  <div style={{ marginTop: '1rem' }}>
+                    <label className="form-label">Average price per person (₹)</label>
+                    <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 150" />
+                    <p className="form-note">Customers see this before visiting — helps them decide!</p>
                   </div>
                 </div>
               )}
 
-              {pricingType === 'per_night' && (
+              {/* HOTEL */}
+              {cat === 'hotel' && (
                 <div className="pricing-box">
-                  <div className="pricing-title">🏨 Room Price</div>
-                  <div className="price-inputs">
-                    <div className="form-group" style={{ margin: 0 }}>
+                  <div className="pricing-title">🏨 Room Tariff</div>
+                  <div className="price-tag-grid">
+                    {PRICE_TAGS.map((p) => (
+                      <div key={p.v} className={`price-tag-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
+                        <div className="ptc-label">{p.l}</div>
+                        <div className="ptc-desc">{p.d}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="price-inputs" style={{ marginTop: '1rem' }}>
+                    <div>
                       <label className="form-label">Starting from (₹)</label>
                       <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 800" />
                     </div>
-                    <div className="form-group" style={{ margin: 0 }}>
+                    <div>
                       <label className="form-label">Up to (₹)</label>
-                      <input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 3000" />
+                      <input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 3500" />
                     </div>
                   </div>
                   <p className="form-note">per night</p>
                 </div>
               )}
 
-              {pricingType === 'per_month' && (
+              {/* PG */}
+              {cat === 'pg' && (
                 <div className="pricing-box">
                   <div className="pricing-title">🏠 Monthly Rent</div>
                   <div className="price-inputs">
-                    <div className="form-group" style={{ margin: 0 }}>
+                    <div>
                       <label className="form-label">Min Rent (₹)</label>
                       <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 3000" />
                     </div>
-                    <div className="form-group" style={{ margin: 0 }}>
+                    <div>
                       <label className="form-label">Max Rent (₹)</label>
                       <input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 6000" />
                     </div>
                   </div>
-                  <p className="form-note">per month — meals included or excluded?</p>
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <label className="form-label">Amenities</label>
-                    <div className="tags-wrap">
-                      {PG_AMENITIES.map((a) => (
-                        <button key={a} type="button" className={`tag-btn ${selectedAmenities.includes(a) ? 'selected' : ''}`} onClick={() => toggleAmenity(a)}>
-                          {selectedAmenities.includes(a) ? '✓ ' : '+ '}{a}
-                        </button>
-                      ))}
+                  <p className="form-note" style={{ marginBottom: '1rem' }}>per month</p>
+                  <label className="form-label">Amenities Included</label>
+                  <div className="tags-wrap">
+                    {PG_AMENITIES.map((a) => (
+                      <button key={a} type="button" className={`tag-btn ${selectedAmenities.includes(a) ? 'selected' : ''}`} onClick={() => toggleAmenity(a)}>
+                        {selectedAmenities.includes(a) ? '✓ ' : '+ '}{a}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TURF */}
+              {cat === 'turf' && (
+                <div className="pricing-box">
+                  <div className="pricing-title">⚽ Booking Rates</div>
+                  <div className="price-inputs">
+                    <div>
+                      <label className="form-label">Price per hour (₹)</label>
+                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 500" />
+                    </div>
+                    <div>
+                      <label className="form-label">Weekend price (₹)</label>
+                      <input className="form-input" type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 700" />
                     </div>
                   </div>
                 </div>
               )}
 
-              {pricingType === 'per_day' && (
+              {/* RENTAL */}
+              {cat === 'rental' && (
                 <div className="pricing-box">
-                  <div className="pricing-title">🚗 Rental Price</div>
+                  <div className="pricing-title">🚗 Rental Rates</div>
                   <div className="price-inputs">
-                    <div className="form-group" style={{ margin: 0 }}>
+                    <div>
                       <label className="form-label">Starting from (₹)</label>
-                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 500" />
+                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 800" />
                     </div>
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">Price unit</label>
+                    <div>
+                      <label className="form-label">Price per</label>
                       <select className="form-select" value={form.price_unit} onChange={(e) => update('price_unit', e.target.value)}>
                         <option value="">Select</option>
                         <option value="per day">Per day</option>
@@ -362,52 +375,79 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              {pricingType === 'consultation' && (
+              {/* SALON */}
+              {cat === 'salon' && (
+                <div className="pricing-box">
+                  <div className="pricing-title">💈 Service Pricing</div>
+                  <div className="price-tag-grid">
+                    {PRICE_TAGS.map((p) => (
+                      <div key={p.v} className={`price-tag-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
+                        <div className="ptc-label">{p.l}</div>
+                        <div className="ptc-desc">{p.d}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: '1rem' }}>
+                    <label className="form-label">Services starting from (₹)</label>
+                    <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 50" />
+                  </div>
+                </div>
+              )}
+
+              {/* COACHING / SCHOOL */}
+              {(cat === 'coaching' || cat === 'school') && (
+                <div className="pricing-box">
+                  <div className="pricing-title">📚 Fee Structure</div>
+                  <div className="price-inputs">
+                    <div>
+                      <label className="form-label">Fees from (₹)</label>
+                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 500" />
+                    </div>
+                    <div>
+                      <label className="form-label">Per</label>
+                      <select className="form-select" value={form.price_unit} onChange={(e) => update('price_unit', e.target.value)}>
+                        <option value="">Select</option>
+                        <option value="per month">Per month</option>
+                        <option value="per term">Per term</option>
+                        <option value="per year">Per year</option>
+                        <option value="per course">Per course</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* HOSPITAL / CLINIC */}
+              {(cat === 'hospital' || cat === 'clinic') && (
                 <div className="pricing-box">
                   <div className="pricing-title">🏥 Consultation Fee</div>
-                  <div className="price-inputs">
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">Fee (₹)</label>
-                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 200" />
-                    </div>
+                  <div>
+                    <label className="form-label">Consultation fee (₹)</label>
+                    <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 200" />
+                    <p className="form-note">Enter 0 if free consultation</p>
                   </div>
                 </div>
               )}
 
-              {pricingType === 'starting_from' && (
-                <div className="pricing-box">
-                  <div className="pricing-title">💈 Starting Price</div>
-                  <div className="price-inputs">
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">Starting from (₹)</label>
-                      <input className="form-input" type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 100" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {pricingType === 'range' && (
+              {/* SHOP / PHARMACY / SERVICE — just tag */}
+              {(cat === 'shop' || cat === 'pharmacy' || cat === 'service' || cat === 'other') && (
                 <div className="pricing-box">
                   <div className="pricing-title">💰 Price Range</div>
-                  <div className="price-range-grid">
-                    {[
-                      { v: 'budget', l: '💰 Budget', d: 'Affordable' },
-                      { v: 'mid', l: '💰💰 Mid', d: 'Moderate' },
-                      { v: 'premium', l: '💰💰💰 Premium', d: 'High-end' },
-                    ].map((p) => (
-                      <div key={p.v} className={`price-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
-                        <div className="price-label">{p.l}</div>
-                        <div className="price-desc">{p.d}</div>
+                  <div className="price-tag-grid">
+                    {PRICE_TAGS.map((p) => (
+                      <div key={p.v} className={`price-tag-card ${form.price_range === p.v ? 'selected' : ''}`} onClick={() => update('price_range', p.v)}>
+                        <div className="ptc-label">{p.l}</div>
+                        <div className="ptc-desc">{p.d}</div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Tags */}
-              <div className="form-group" style={{ marginTop: '1rem' }}>
-                <label className="form-label">Keywords / Tags</label>
-                <p className="form-note" style={{ marginBottom: '0.75rem' }}>Tap to select — helps customers find you in search:</p>
+              {/* Tags for all */}
+              <div className="form-group" style={{ marginTop: '1.25rem' }}>
+                <label className="form-label">🔍 Search Keywords</label>
+                <p className="form-note" style={{ marginBottom: '0.75rem' }}>Tap to select — these help customers find you:</p>
                 {suggestedTags.length > 0 && (
                   <div className="tags-wrap">
                     {suggestedTags.map((tag) => (
@@ -426,15 +466,26 @@ export default function RegisterPage() {
           {step === 4 && (
             <div className="step-content">
 
-              {/* Menu upload for restaurants/cafes */}
-              {pricingType === 'menu' && (
+              {/* Menu/rate card upload — only for relevant categories */}
+              {showMenuUpload && (
                 <div className="form-group">
-                  <label className="form-label">📋 Menu (PDF or Photo)</label>
+                  <label className="form-label">
+                    {cat === 'restaurant' || cat === 'cafe' ? '📋 Menu' :
+                     cat === 'hotel' ? '🏨 Tariff Card' :
+                     cat === 'pg' ? '🏠 Room Pricing Sheet' :
+                     cat === 'turf' ? '⚽ Booking Rate Card' :
+                     cat === 'rental' ? '🚗 Rate Card' :
+                     cat === 'salon' ? '💈 Service Price List' : '📄 Price List'}
+                  </label>
                   <p className="form-note" style={{ marginBottom: '0.75rem' }}>
-                    Customers can browse your menu before visiting — huge for getting more orders!
+                    {cat === 'restaurant' || cat === 'cafe'
+                      ? 'Customers browse your menu before visiting — gets you way more orders!'
+                      : 'Upload a PDF or photo of your pricing — customers decide faster!'}
                   </p>
-                  <label className="photo-upload-label" style={{ borderColor: menuFile ? '#c9963a' : undefined }}>
-                    <span>{menuFile ? `✓ ${menuFile.name}` : '📄 Upload Menu (PDF or image)'}</span>
+                  <label className="upload-box" style={{ borderColor: menuFile ? '#c9963a' : undefined, color: menuFile ? '#c9963a' : undefined }}>
+                    <span className="upload-icon">{menuFile ? '✓' : '📄'}</span>
+                    <span>{menuFile ? menuFile.name : 'Upload PDF or photo'}</span>
+                    <span className="upload-sub">PDF, JPG or PNG · Max 20MB</span>
                     <input type="file" accept=".pdf,image/*" onChange={(e) => setMenuFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
                   </label>
                 </div>
@@ -444,16 +495,18 @@ export default function RegisterPage() {
               <div className="form-group">
                 <label className="form-label">📷 Business Photos</label>
                 <p className="form-note" style={{ marginBottom: '0.75rem' }}>
-                  Businesses with photos get 3× more views. Add at least one!
+                  Businesses with photos get <strong style={{ color: '#c9963a' }}>3× more views</strong>. Add your best shots!
                 </p>
-                <label className="photo-upload-label" style={{ borderColor: photos.length > 0 ? '#c9963a' : undefined }}>
-                  <span>{photos.length > 0 ? `✓ ${photos.length} photo${photos.length > 1 ? 's' : ''} selected` : '📷 Click to choose photos'}</span>
-                  <input type="file" multiple accept="image/*" onChange={(e) => setPhotos(Array.from(e.target.files || []))} style={{ display: 'none' }} />
+                <label className="upload-box" style={{ borderColor: photos.length > 0 ? '#c9963a' : undefined, color: photos.length > 0 ? '#c9963a' : undefined }}>
+                  <span className="upload-icon">{photos.length > 0 ? '✓' : '📷'}</span>
+                  <span>{photos.length > 0 ? `${photos.length} photo${photos.length > 1 ? 's' : ''} selected` : 'Click to choose photos'}</span>
+                  <span className="upload-sub">JPG or PNG · Max 10MB each · Multiple allowed</span>
+                  <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhotos(Array.from(e.target.files || []))} style={{ display: 'none' }} />
                 </label>
               </div>
 
               <div className="info-box">
-                ✦ All uploads are safe and only visible on your listing page.
+                ✦ All uploads are secure and only shown on your listing page.
               </div>
             </div>
           )}
@@ -491,7 +544,7 @@ const styles = `
   .reg-brand a { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: #e8ddd0; text-decoration: none; }
   .reg-brand a span { color: #c9963a; }
   .reg-brand p { font-size: 0.8rem; color: #8a9a8a; margin-top: 0.3rem; letter-spacing: 0.1em; text-transform: uppercase; }
-  .stepper { display: flex; align-items: flex-start; margin-bottom: 2rem; width: 100%; max-width: 580px; justify-content: center; }
+  .stepper { display: flex; align-items: flex-start; margin-bottom: 2rem; width: 100%; max-width: 580px; }
   .step-item { display: flex; flex-direction: column; align-items: center; position: relative; gap: 0.35rem; flex: 1; }
   .step-line { position: absolute; top: 17px; left: 50%; width: 100%; height: 2px; background: rgba(201,150,58,0.15); z-index: 0; }
   .step-item.done .step-line, .step-item.active .step-line { background: rgba(201,150,58,0.4); }
@@ -516,22 +569,24 @@ const styles = `
   .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: #c9963a; box-shadow: 0 0 0 3px rgba(201,150,58,0.1); }
   .form-select option { background: #1a2e1a; }
   .form-textarea { resize: vertical; min-height: 90px; line-height: 1.55; }
-  .pricing-box { background: rgba(201,150,58,0.05); border: 1px solid rgba(201,150,58,0.15); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.2rem; }
-  .pricing-title { font-size: 0.85rem; font-weight: 600; color: #c9963a; margin-bottom: 0.75rem; letter-spacing: 0.05em; }
-  .price-range-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+  .pricing-box { background: rgba(201,150,58,0.05); border: 1px solid rgba(201,150,58,0.15); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+  .pricing-title { font-size: 0.88rem; font-weight: 600; color: #c9963a; margin-bottom: 1rem; }
+  .price-tag-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+  .price-tag-card { padding: 0.8rem 0.5rem; background: rgba(0,0,0,0.2); border: 1.5px solid rgba(201,150,58,0.12); border-radius: 10px; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .price-tag-card:hover { border-color: rgba(201,150,58,0.35); }
+  .price-tag-card.selected { border-color: #c9963a; background: rgba(201,150,58,0.12); }
+  .ptc-label { font-size: 0.82rem; color: #e8ddd0; margin-bottom: 0.25rem; font-weight: 500; }
+  .ptc-desc { font-size: 0.68rem; color: #6a7a6a; }
   .price-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem; }
-  .price-card { padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1.5px solid rgba(201,150,58,0.12); border-radius: 10px; cursor: pointer; transition: all 0.2s; text-align: center; }
-  .price-card:hover { border-color: rgba(201,150,58,0.3); }
-  .price-card.selected { border-color: #c9963a; background: rgba(201,150,58,0.1); }
-  .price-label { font-size: 0.8rem; color: #e8ddd0; margin-bottom: 0.2rem; }
-  .price-desc { font-size: 0.68rem; color: #6a7a6a; }
   .tags-wrap { display: flex; flex-wrap: wrap; gap: 0.5rem; }
   .tag-btn { padding: 0.4rem 0.85rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(201,150,58,0.15); border-radius: 20px; color: #8a9a8a; font-family: 'Outfit', sans-serif; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; }
   .tag-btn:hover { border-color: rgba(201,150,58,0.4); color: #c9963a; }
   .tag-btn.selected { background: rgba(201,150,58,0.12); border-color: #c9963a; color: #c9963a; }
-  .photo-upload-label { display: flex; align-items: center; justify-content: center; width: 100%; padding: 1.75rem; border: 2px dashed rgba(201,150,58,0.25); border-radius: 12px; color: #8a9a8a; cursor: pointer; font-size: 0.92rem; transition: border-color 0.2s, color 0.2s; }
-  .photo-upload-label:hover { border-color: #c9963a; color: #c9963a; }
-  .info-box { background: rgba(201,150,58,0.06); border: 1px solid rgba(201,150,58,0.12); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #8a9a8a; margin-top: 1rem; }
+  .upload-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; width: 100%; padding: 1.75rem 1rem; border: 2px dashed rgba(201,150,58,0.25); border-radius: 12px; color: #8a9a8a; cursor: pointer; transition: border-color 0.2s, color 0.2s; text-align: center; }
+  .upload-box:hover { border-color: #c9963a; color: #c9963a; }
+  .upload-icon { font-size: 1.8rem; }
+  .upload-sub { font-size: 0.72rem; color: #4a5a4a; margin-top: 0.2rem; }
+  .info-box { background: rgba(201,150,58,0.06); border: 1px solid rgba(201,150,58,0.12); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #8a9a8a; margin-top: 0.5rem; }
   .error-msg { background: rgba(180,40,40,0.12); border: 1px solid rgba(180,40,40,0.3); border-radius: 8px; padding: 0.7rem 1rem; font-size: 0.85rem; color: #ff8080; margin-top: 1rem; }
   .btn-row { display: flex; gap: 0.75rem; margin-top: 1.75rem; }
   .btn-back { flex: 0 0 auto; padding: 0.85rem 1.4rem; background: transparent; border: 1.5px solid rgba(201,150,58,0.2); border-radius: 10px; color: #8a9a8a; font-family: 'Outfit', sans-serif; font-size: 0.95rem; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
@@ -545,7 +600,7 @@ const styles = `
   @media (max-width: 480px) {
     .reg-card { padding: 1.5rem 1.1rem; }
     .step-label { display: none; }
-    .price-range-grid { grid-template-columns: 1fr; }
+    .price-tag-grid { grid-template-columns: 1fr; }
     .price-inputs { grid-template-columns: 1fr; }
     .reg-page { padding: 2rem 1rem 3rem; }
   }
