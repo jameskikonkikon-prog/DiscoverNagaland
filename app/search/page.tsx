@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -62,7 +62,7 @@ type Business = {
   photos?: string[];
 };
 
-export default function SearchPage() {
+function SearchPageInner() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Business[]>([]);
   const [loading, setLoading] = useState(false);
@@ -223,6 +223,14 @@ export default function SearchPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div style={{ background: "#0d1a0d", minHeight: "100vh" }} />}>
+      <SearchPageInner />
+    </Suspense>
   );
 }
 
