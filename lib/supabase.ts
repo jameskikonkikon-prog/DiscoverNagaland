@@ -7,18 +7,8 @@ export function getSupabaseClient() {
   );
 }
 
-export const supabase = {
-  auth: {
-    getUser: () => getSupabaseClient().auth.getUser(),
-    signInWithOtp: (opts: { email: string }) => getSupabaseClient().auth.signInWithOtp(opts),
-    verifyOtp: (opts: { email: string; token: string; type: 'email' }) => getSupabaseClient().auth.verifyOtp(opts),
-    signOut: () => getSupabaseClient().auth.signOut(),
-  },
-  from: (table: string) => getSupabaseClient().from(table),
-  storage: {
-    from: (bucket: string) => getSupabaseClient().storage.from(bucket),
-  },
-};
+// Full supabase client — use this everywhere
+export const supabase = getSupabaseClient();
 
 export function getServiceClient() {
   return createClient(
@@ -33,14 +23,12 @@ export async function trackEvent(
 ) {
   const today = new Date().toISOString().split('T')[0];
   const serviceClient = getServiceClient();
-
   const { data: existing } = await serviceClient
     .from('business_analytics')
     .select('*')
     .eq('business_id', businessId)
     .eq('date', today)
     .single();
-
   if (existing) {
     await serviceClient
       .from('business_analytics')
