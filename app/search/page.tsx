@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 function NagaWarrior({ state }: { state: "idle" | "searching" | "sad" | "happy" }) {
@@ -69,6 +70,18 @@ export default function SearchPage() {
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const searchParams = useSearchParams();
+
+  // On load, if there's a ?q= in the URL, auto-search with it
+  useEffect(() => {
+    const q = searchParams.get("q") || "";
+    if (q) {
+      setQuery(q);
+      doSearch(q, "", "");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const CITIES = ["Kohima","Dimapur","Mokokchung","Mon","Tuensang","Wokha","Phek","Zunheboto","Peren","Longleng","Kiphire","Noklak","Shamator","Tseminyü","Chümoukedima","Niuland","Meluri"];
   const CATEGORIES = ["Restaurant","Hotel","Shop","Healthcare","Education","Tourism","Transport","Services","Agriculture","Handicraft"];
