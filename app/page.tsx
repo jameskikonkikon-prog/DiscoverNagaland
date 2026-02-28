@@ -54,6 +54,7 @@ export default function HomePage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Outfit:wght@300;400;500;600;700&display=swap');
         :root { --gold: #c9963a; --gold-light: #e8b85a; --cream: #f5ede0; --deep: #0d1a0d; --forest: #1a2e1a; }
+        * { box-sizing: border-box; }
         .playfair { font-family: 'Playfair Display', serif; }
         .label { font-size: 0.68rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); font-weight: 500; margin-bottom: 14px; }
         .gold-line { width: 60px; height: 1px; background: var(--gold); opacity: 0.5; margin-bottom: 24px; }
@@ -62,9 +63,9 @@ export default function HomePage() {
         .eyebrow { display: inline-flex; align-items: center; gap: 10px; border: 1px solid rgba(201,150,58,0.4); color: var(--gold); font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; padding: 8px 20px; margin-bottom: 28px; font-weight: 500; }
         .eyebrow::before, .eyebrow::after { content: '✦'; font-size: 0.55rem; }
         .search-wrap { display: flex; max-width: 700px; margin: 0 auto 24px; border: 1px solid rgba(201,150,58,0.4); background: rgba(8,20,8,0.7); backdrop-filter: blur(16px); }
-        .search-input { flex: 1; background: transparent; border: none; outline: none; padding: 18px 24px; color: var(--cream); font-family: 'Outfit', sans-serif; font-size: 0.97rem; font-weight: 300; }
+        .search-input { flex: 1; background: transparent; border: none; outline: none; padding: 18px 24px; color: var(--cream); font-family: 'Outfit', sans-serif; font-size: 0.97rem; font-weight: 300; min-width: 0; }
         .search-input::placeholder { color: rgba(232,221,208,0.3); }
-        .search-btn { background: var(--gold); border: none; padding: 0 36px; color: var(--deep); font-family: 'Outfit', sans-serif; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: background 0.2s; }
+        .search-btn { background: var(--gold); border: none; padding: 0 28px; color: var(--deep); font-family: 'Outfit', sans-serif; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
         .search-btn:hover { background: var(--gold-light); }
         .stag { border: 1px solid rgba(201,150,58,0.2); color: rgba(232,221,208,0.5); font-size: 0.78rem; padding: 5px 14px; cursor: pointer; transition: all 0.2s; letter-spacing: 0.04em; background: transparent; }
         .stag:hover { border-color: var(--gold); color: var(--gold); }
@@ -97,25 +98,41 @@ export default function HomePage() {
         .cta-btn:hover { background: var(--gold-light); transform: translateY(-2px); }
         .nav-link { color: rgba(232,221,208,0.7); text-decoration: none; font-size: 0.88rem; letter-spacing: 0.04em; transition: color 0.2s; }
         .nav-link:hover { color: var(--gold); }
-        .nav-cta { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 9px 22px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: all 0.25s; }
+        .nav-cta { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 9px 22px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: all 0.25s; white-space: nowrap; }
         .nav-cta:hover { background: var(--gold); color: var(--deep); }
+
         @media (max-width: 768px) {
           .why-grid { grid-template-columns: 1fr; }
           .district-grid { grid-template-columns: repeat(2,1fr); }
           .cat-grid { grid-template-columns: repeat(3,1fr); }
-          .demo-inner { flex-direction: column !important; }
+          .demo-inner { flex-direction: column !important; align-items: center !important; }
+          .demo-phone { width: 100% !important; max-width: 320px; }
+          .section-pad { padding: 60px 20px !important; }
+          .footer-inner { flex-direction: column !important; gap: 8px !important; text-align: center; }
+        }
+
+        @media (max-width: 480px) {
+          .cat-grid { grid-template-columns: repeat(3,1fr); }
+          .eyebrow { font-size: 0.6rem; padding: 6px 12px; letter-spacing: 0.1em; }
+          .search-input { padding: 14px 12px; font-size: 0.88rem; }
+          .search-btn { padding: 0 16px; font-size: 0.72rem; }
         }
       `}</style>
 
       {/* NAV */}
-      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 48px', background: 'linear-gradient(to bottom, rgba(8,20,8,0.97), transparent)' }}>
-        <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
-          <div style={{ width: 0, height: 0, borderLeft: '13px solid transparent', borderRight: '13px solid transparent', borderBottom: '22px solid #c9963a' }} />
-          <span className="playfair" style={{ fontSize: '1.2rem', color: '#c9963a', letterSpacing: '0.03em' }}>Discover Nagaland</span>
+      <nav style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: 'clamp(12px, 2vw, 20px) clamp(16px, 4vw, 48px)',
+        background: 'linear-gradient(to bottom, rgba(8,20,8,0.97), transparent)'
+      }}>
+        <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', flexShrink: 0 }}>
+          <div style={{ width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderBottom: '17px solid #c9963a', flexShrink: 0 }} />
+          <span className="playfair" style={{ fontSize: 'clamp(0.85rem, 3vw, 1.2rem)', color: '#c9963a', letterSpacing: '0.03em', whiteSpace: 'nowrap' }}>Discover Nagaland</span>
         </a>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
-          <a href="/login" className="nav-link">Login</a>
-          <a href="/register" className="nav-cta">List Your Business</a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(8px, 2vw, 28px)' }}>
+          <a href="/login" className="nav-link" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.88rem)' }}>Login</a>
+          <a href="/register" className="nav-cta" style={{ padding: 'clamp(6px, 1vw, 9px) clamp(10px, 2vw, 22px)', fontSize: 'clamp(0.65rem, 1.5vw, 0.78rem)' }}>List Your Business</a>
         </div>
       </nav>
 
@@ -123,19 +140,19 @@ export default function HomePage() {
       <section style={{ minHeight: '100vh', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         <div className="hero-bg" />
         <div className="hero-overlay" />
-        <div style={{ position: 'relative', textAlign: 'center', maxWidth: 860, padding: '0 24px' }}>
+        <div style={{ position: 'relative', textAlign: 'center', maxWidth: 860, padding: '80px 20px 40px' }}>
           <div className="eyebrow">Nagaland&apos;s #1 Local Discovery Platform · 17 Districts</div>
-          <h1 className="playfair" style={{ fontSize: 'clamp(3rem, 7vw, 6rem)', fontWeight: 900, lineHeight: 1.02, marginBottom: 20, color: '#f5ede0' }}>
+          <h1 className="playfair" style={{ fontSize: 'clamp(2.8rem, 7vw, 6rem)', fontWeight: 900, lineHeight: 1.02, marginBottom: 20, color: '#f5ede0' }}>
             Find <em style={{ fontStyle: 'italic', color: '#c9963a' }}>anything</em><br />in Nagaland
           </h1>
-          <p style={{ fontSize: '1.05rem', color: 'rgba(232,221,208,0.6)', fontWeight: 300, marginBottom: 48, lineHeight: 1.65 }}>
+          <p style={{ fontSize: 'clamp(0.9rem, 2vw, 1.05rem)', color: 'rgba(232,221,208,0.6)', fontWeight: 300, marginBottom: 48, lineHeight: 1.65, padding: '0 8px' }}>
             Not just a map. An AI that understands Nagaland.<br />Ask anything. Find everything. Instantly.
           </p>
           <form onSubmit={handleSearch} className="search-wrap">
             <input className="search-input" type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder='Try "best momos in Kohima" or "24hr pharmacy Dimapur"' />
             <button type="submit" className="search-btn">Search</button>
           </form>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', padding: '0 8px' }}>
             {QUICK_SEARCHES.map((s) => (
               <button key={s} className="stag" onClick={() => router.push(`/search?q=${encodeURIComponent(s)}`)}>{s}</button>
             ))}
@@ -144,7 +161,7 @@ export default function HomePage() {
       </section>
 
       {/* WHY US */}
-      <section style={{ padding: '100px 56px', background: '#0d1a0d' }}>
+      <section className="section-pad" style={{ padding: '100px 56px', background: '#0d1a0d' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 64, gap: 40, flexWrap: 'wrap' }}>
           <div>
             <div className="label">Why Discover Nagaland?</div>
@@ -174,7 +191,7 @@ export default function HomePage() {
       </section>
 
       {/* DEMO */}
-      <section style={{ padding: '100px 56px', background: '#1a2e1a', position: 'relative', overflow: 'hidden' }}>
+      <section className="section-pad" style={{ padding: '100px 56px', background: '#1a2e1a', position: 'relative', overflow: 'hidden' }}>
         <div className="demo-inner" style={{ position: 'relative', display: 'flex', gap: 80, alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ flex: 1 }}>
             <div className="label">See It In Action</div>
@@ -229,7 +246,7 @@ export default function HomePage() {
       </section>
 
       {/* DISTRICTS */}
-      <section style={{ padding: '100px 56px', background: '#0d1a0d' }}>
+      <section className="section-pad" style={{ padding: '100px 56px', background: '#0d1a0d' }}>
         <div className="label">Explore by District</div>
         <div className="gold-line" />
         <h2 className="playfair" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, color: '#f5ede0', marginBottom: 12 }}>Browse by District</h2>
@@ -264,7 +281,7 @@ export default function HomePage() {
       </section>
 
       {/* CATEGORIES */}
-      <section style={{ padding: '100px 56px', background: '#1a2e1a' }}>
+      <section className="section-pad" style={{ padding: '100px 56px', background: '#1a2e1a' }}>
         <div className="label">What are you looking for?</div>
         <div className="gold-line" />
         <h2 className="playfair" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, color: '#f5ede0', marginBottom: 56 }}>Browse by Category</h2>
@@ -279,7 +296,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section style={{ padding: '140px 56px', textAlign: 'center', background: '#0d1a0d', position: 'relative', overflow: 'hidden' }}>
+      <section className="section-pad" style={{ padding: '140px 56px', textAlign: 'center', background: '#0d1a0d', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', fontFamily: 'Playfair Display, serif', fontSize: '20vw', fontWeight: 900, color: 'rgba(201,150,58,0.03)', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>NAGALAND</div>
         <div style={{ position: 'relative' }}>
           <div className="label" style={{ marginBottom: 16 }}>For Business Owners</div>
@@ -295,9 +312,11 @@ export default function HomePage() {
       </section>
 
       {/* FOOTER */}
-      <footer style={{ background: '#060e06', padding: '36px 56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(201,150,58,0.08)' }}>
-        <span className="playfair" style={{ color: '#c9963a', fontSize: '1rem' }}>Discover Nagaland</span>
-        <span style={{ fontSize: '0.78rem', color: 'rgba(232,221,208,0.25)', letterSpacing: '0.04em' }}>© 2026 · Made with pride for Nagaland</span>
+      <footer style={{ background: '#060e06', padding: '36px clamp(20px, 4vw, 56px)', borderTop: '1px solid rgba(201,150,58,0.08)' }}>
+        <div className="footer-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span className="playfair" style={{ color: '#c9963a', fontSize: '1rem' }}>Discover Nagaland</span>
+          <span style={{ fontSize: '0.78rem', color: 'rgba(232,221,208,0.25)', letterSpacing: '0.04em' }}>© 2026 · Made with pride for Nagaland</span>
+        </div>
       </footer>
     </main>
   );
