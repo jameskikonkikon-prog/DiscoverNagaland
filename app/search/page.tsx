@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 // ── Naga Warrior SVG Mascot ──────────────────────────────────────────────────
 function NagaWarrior({
