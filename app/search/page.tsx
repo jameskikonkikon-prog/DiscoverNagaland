@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 
 function NagaWarrior({ state }: { state: "idle" | "searching" | "sad" | "happy" }) {
   return (
@@ -69,11 +68,11 @@ function SearchPageInner() {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchParams = useSearchParams();
 
-  // On load, if there's a ?q= in the URL, auto-search with it
   useEffect(() => {
     const q = searchParams.get("q") || "";
     if (q) {
@@ -84,7 +83,7 @@ function SearchPageInner() {
   }, []);
 
   const CITIES = ["Kohima","Dimapur","Mokokchung","Mon","Tuensang","Wokha","Phek","Zunheboto","Peren","Longleng","Kiphire","Noklak","Shamator","Tseminyü","Chümoukedima","Niuland","Meluri"];
-  const CATEGORIES = ["Restaurant","Hotel","Shop","Healthcare","Education","Tourism","Transport","Services","Agriculture","Handicraft"];
+  const CATEGORIES = ["Restaurant","Cafe","Hotel","PG","Shop","Pharmacy","Hospital","Clinic","Salon","Turf","Coaching","School","Rental","Service"];
 
   const warriorState = loading ? "searching" : !hasSearched ? "idle" : results.length === 0 ? "sad" : "happy";
 
@@ -93,12 +92,13 @@ function SearchPageInner() {
     setHasSearched(true);
     try {
       const params = new URLSearchParams();
-if (q.trim()) params.set("q", q);
-if (city) params.set("city", city);
-if (category) params.set("category", category);
-const res = await fetch(`/api/search?${params}`);
-const json = await res.json();
-setResults(json.businesses ?? []);
+      if (q.trim()) params.set("q", q);
+      if (city) params.set("city", city);
+      if (category) params.set("category", category);
+      const res = await fetch(`/api/search?${params}`);
+      const json = await res.json();
+      setDetectedCity(json.detectedCity || null);
+      setResults(json.businesses ?? []);
     } finally {
       setLoading(false);
     }
@@ -116,11 +116,12 @@ setResults(json.businesses ?? []);
     doSearch(query, city, category);
   }
 
+  const activeCity = selectedCity || detectedCity;
+
   return (
     <>
       <style>{styles}</style>
       <div className="search-page">
-
         <header className="search-header">
           <Link href="/" className="logo-link">Discover<span>Nagaland</span></Link>
           <div style={{ flex: 1 }} />
@@ -155,6 +156,12 @@ setResults(json.businesses ?? []);
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+          {detectedCity && !selectedCity && (
+            <div className="city-detected-badge">
+              📍 Showing results in <strong>{detectedCity}</strong>
+              <button onClick={() => { setDetectedCity(null); doSearch(query.replace(new RegExp(detectedCity, 'gi'), '').trim(), '', selectedCategory); }} className="clear-city-btn">✕ Show all</button>
+            </div>
+          )}
         </div>
 
         <div className="content">
@@ -178,14 +185,19 @@ setResults(json.businesses ?? []);
             {hasSearched && !loading && results.length === 0 && (
               <div className="state-msg sad">
                 <h2>No results found</h2>
-                <p>Try a different keyword, or <Link href="/register" style={{ color: "#c9963a" }}>list your business</Link> if it&apos;s missing!</p>
+                <p>
+                  {activeCity
+                    ? <>No businesses found in <strong style={{ color: '#c9963a' }}>{activeCity}</strong> yet — be the first to <Link href="/register" style={{ color: "#c9963a" }}>register your business</Link>!</>
+                    : <>Try a different keyword, or <Link href="/register" style={{ color: "#c9963a" }}>list your business</Link> if it&apos;s missing!</>
+                  }
+                </p>
               </div>
             )}
             {hasSearched && !loading && results.length > 0 && (
               <div className="results-meta">
                 <strong>{results.length}</strong> result{results.length !== 1 ? "s" : ""}
                 {query && <> for &ldquo;{query}&rdquo;</>}
-                {selectedCity && <> in {selectedCity}</>}
+                {activeCity && <> in {activeCity}</>}
               </div>
             )}
             {loading && (
@@ -258,6 +270,9 @@ const styles = `
   .filters { max-width: 660px; margin: 1rem auto 0; display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
   .filter-select { padding: 0.5rem 1rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(201,150,58,0.2); border-radius: 8px; color: #e8ddd0; font-family: 'Outfit', sans-serif; font-size: 0.88rem; cursor: pointer; outline: none; flex: 1; min-width: 140px; }
   .filter-select option { background: #1a2e1a; }
+  .city-detected-badge { margin-top: 0.75rem; display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(201,150,58,0.1); border: 1px solid rgba(201,150,58,0.25); color: #c9963a; padding: 0.4rem 0.85rem; border-radius: 20px; font-size: 0.82rem; }
+  .clear-city-btn { background: none; border: none; color: #8a9a8a; cursor: pointer; font-size: 0.78rem; padding: 0 0.2rem; }
+  .clear-city-btn:hover { color: #c9963a; }
   .content { flex: 1; display: flex; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; align-items: flex-start; gap: 2rem; }
   .mascot-col { width: 140px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; position: sticky; top: 2rem; }
   .warrior-wrap { width: 130px; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.5)); }
@@ -282,7 +297,7 @@ const styles = `
   .results-meta strong { color: #c9963a; }
   .state-msg { text-align: center; padding: 4rem 2rem; }
   .state-msg h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #e8ddd0; margin-bottom: 0.5rem; }
-  .state-msg p { color: #8a9a8a; font-size: 0.9rem; }
+  .state-msg p { color: #8a9a8a; font-size: 0.9rem; line-height: 1.6; }
   .state-msg.sad h2 { color: #cc6666; }
   .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
   .biz-card { background: #1a2e1a; border: 1px solid rgba(201,150,58,0.1); border-radius: 14px; overflow: hidden; text-decoration: none; color: inherit; display: block; transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s; }
