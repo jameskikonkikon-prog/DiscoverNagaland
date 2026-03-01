@@ -92,12 +92,13 @@ function SearchPageInner() {
     setLoading(true);
     setHasSearched(true);
     try {
-      let builder = supabase.from("businesses").select("*");
-      if (q.trim()) builder = builder.ilike("name", `%${q}%`);
-      if (city) builder = builder.eq("city", city);
-      if (category) builder = builder.eq("category", category);
-      const { data } = await builder.limit(24);
-      setResults(data ?? []);
+      const params = new URLSearchParams();
+if (q.trim()) params.set("q", q);
+if (city) params.set("city", city);
+if (category) params.set("category", category);
+const res = await fetch(`/api/search?${params}`);
+const json = await res.json();
+setResults(json.businesses ?? []);
     } finally {
       setLoading(false);
     }
