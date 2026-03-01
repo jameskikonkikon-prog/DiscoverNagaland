@@ -3,14 +3,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { searchBusinesses } from '@/lib/search';
 
 export async function GET(request: NextRequest) {
-  const query = request.nextUrl.searchParams.get('q');
-  if (!query) return NextResponse.json({ businesses: [] });
+  const query = request.nextUrl.searchParams.get('q') || '';
+  const city = request.nextUrl.searchParams.get('city') || '';
+
+  if (!query && !city) return NextResponse.json({ businesses: [], detectedCity: null });
 
   try {
-    const businesses = await searchBusinesses(query);
-    return NextResponse.json({ businesses });
+    const result = await searchBusinesses(query, city || undefined);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Search error:', error);
-    return NextResponse.json({ businesses: [], error: 'Search failed' }, { status: 500 });
+    return NextResponse.json({ businesses: [], detectedCity: null, error: 'Search failed' }, { status: 500 });
   }
 }
