@@ -1,7 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getServiceClient } from './supabase';
 import { Business } from '@/types';
-import crypto from 'crypto';
 
 export function generateSlug(name: string, city: string): string {
   return `${name}-${city}`
@@ -12,46 +11,29 @@ export function generateSlug(name: string, city: string): string {
 
 export async function searchBusinesses(query: string): Promise<Business[]> {
   const serviceClient = getServiceClient();
-  const queryHash = crypto.createHash('md5').update(query.toLowerCase().trim()).digest('hex');
 
-  // Check cache
-  const { data: cached } = await serviceClient
-    .from('search_logs')
-    .select('*')
-    .eq('query_hash', queryHash)
-    .gt('cached_until', new Date().toISOString())
-    .single();
-
-  if (cached) {
-    return cached.results as Business[];
-  }
-
-  // Get all active businesses
   const { data: businesses } = await serviceClient
     .from('businesses')
     .select('*')
-    .eq('is_active', true)
-    .order('plan', { ascending: false });
+    .eq('is_active', true);
 
   if (!businesses || businesses.length === 0) return [];
 
-  // Try keyword search first
   const lowerQuery = query.toLowerCase();
+
   const keywordResults = businesses.filter((b: Business) => {
     return (
-      b.name.toLowerCase().includes(lowerQuery) ||
-      b.category.toLowerCase().includes(lowerQuery) ||
-      b.city.toLowerCase().includes(lowerQuery) ||
-      b.address.toLowerCase().includes(lowerQuery) ||
-      (b.landmark && b.landmark.toLowerCase().includes(lowerQuery)) ||
-      (b.description && b.description.toLowerCase().includes(lowerQuery))
+      b.name?.toLowerCase().includes(lowerQuery) ||
+      b.category?.toLowerCase().includes(lowerQuery) ||
+      b.city?.toLowerCase().includes(lowerQuery) ||
+      b.address?.toLowerCase().includes(lowerQuery) ||
+      b.landmark?.toLowerCase().includes(lowerQuery) ||
+      b.description?.toLowerCase().includes(lowerQuery) ||
+      b.tags?.toLowerCase().includes(lowerQuery)
     );
   });
 
-  if (keywordResults.length >= 3) {
-    await cacheResults(queryHash, keywordResults, serviceClient);
-    return keywordResults;
-  }
+  if (keywordResults.length > 0) return keywordResults;
 
   // Use Gemini for complex queries
   try {
@@ -63,54 +45,27 @@ export async function searchBusinesses(query: string): Promise<Business[]> {
       name: b.name,
       category: b.category,
       city: b.city,
-      landmark: b.landmark,
+      tags: b.tags,
       description: b.description,
     }));
 
-   const prompt = `You are an expert local search assistant for Discover Nagaland, the #1 business directory for Nagaland, India. You deeply understand local context — neighbourhoods, landmarks, and how people in Nagaland search.
-
-Cities covered: Kohima, Dimapur, Mokokchung, Wokha, Mon, Phek, Tuensang, Zunheboto.
-
-User's search query: "${query}"
-
-Instructions:
-- Understand the intent behind the query, not just keywords
-- "Cheap" or "budget" means prioritise affordable options
-- "Best" means prioritise highly rated or well described ones
-- If query mentions food, include restaurants and cafes
-- If query mentions stay or sleep, include hotels and PGs
-- Understand local Nagaland landmarks and neighbourhood names in the query
-- Return ONLY a JSON array of business IDs ordered by relevance
-- Return empty array [] if nothing matches
-
+    const prompt = `You are a local search assistant for Nagaland, India.
+User searched: "${query}"
+Return a JSON array of matching business IDs ordered by relevance.
+Return [] if nothing matches.
 Businesses: ${JSON.stringify(businessList)}
-Return format: ["id1", "id2", "id3"]`;
+Return ONLY a JSON array like: ["id1", "id2"]`;
+
     const result = await model.generateContent(prompt);
     const text = result.response.text();
     const match = text.match(/\[.*\]/s);
-
     if (match) {
       const ids = JSON.parse(match[0]) as string[];
-      const geminiResults = ids
-        .map((id) => businesses.find((b: Business) => b.id === id))
-        .filter(Boolean) as Business[];
-
-      await cacheResults(queryHash, geminiResults, serviceClient);
-      return geminiResults;
+      return ids.map((id) => businesses.find((b: Business) => b.id === id)).filter(Boolean) as Business[];
     }
   } catch (error) {
     console.error('Gemini search failed:', error);
   }
 
-  await cacheResults(queryHash, keywordResults, serviceClient);
-  return keywordResults;
-}
-
-async function cacheResults(queryHash: string, results: Business[], client: ReturnType<typeof getServiceClient>) {
-  const cachedUntil = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-  await client.from('search_logs').upsert({
-    query_hash: queryHash,
-    results,
-    cached_until: cachedUntil,
-  });
+  return [];
 }
