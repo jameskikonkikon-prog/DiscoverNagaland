@@ -46,7 +46,7 @@ export default function UpgradePage() {
           amount: order.amount,
           currency: 'INR',
           order_id: order.id,
-          name: 'Discover Nagaland',
+          name: 'Yana Nagaland',
           description: `${plan.toUpperCase()} Plan - 1 Month`,
           handler: async (response: Record<string, string>) => {
             await fetch('/api/payments/verify', {

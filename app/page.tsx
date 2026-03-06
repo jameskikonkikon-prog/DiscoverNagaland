@@ -128,7 +128,7 @@ export default function HomePage() {
       }}>
         <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', flexShrink: 0 }}>
           <div style={{ width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderBottom: '17px solid #c9963a', flexShrink: 0 }} />
-          <span className="playfair" style={{ fontSize: 'clamp(0.85rem, 3vw, 1.2rem)', color: '#c9963a', letterSpacing: '0.03em', whiteSpace: 'nowrap' }}>Discover Nagaland</span>
+          <span className="playfair" style={{ fontSize: 'clamp(0.85rem, 3vw, 1.2rem)', color: '#c9963a', letterSpacing: '0.03em', whiteSpace: 'nowrap' }}>Yana Nagaland</span>
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(8px, 2vw, 28px)' }}>
           <a href="/login" className="nav-link" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.88rem)' }}>Login</a>
@@ -164,7 +164,7 @@ export default function HomePage() {
       <section className="section-pad" style={{ padding: '100px 56px', background: '#0d1a0d' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 64, gap: 40, flexWrap: 'wrap' }}>
           <div>
-            <div className="label">Why Discover Nagaland?</div>
+            <div className="label">Why Yana Nagaland?</div>
             <div className="gold-line" />
             <h2 className="playfair" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, color: '#f5ede0', lineHeight: 1.15 }}>
               Built for Nagaland.<br /><em style={{ fontStyle: 'italic', color: '#c9963a' }}>Not the rest of India.</em>
@@ -209,7 +209,7 @@ export default function HomePage() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: 'rgba(0,0,0,0.2)', borderLeft: '2px solid #c9963a' }}>
                 <span style={{ color: '#c9963a' }}>★</span>
-                <span style={{ fontSize: '0.9rem', color: 'rgba(232,221,208,0.7)', fontWeight: 300 }}><strong style={{ color: '#c9963a' }}>Discover Nagaland:</strong> Asks what you need. Finds the best match. Done.</span>
+                <span style={{ fontSize: '0.9rem', color: 'rgba(232,221,208,0.7)', fontWeight: 300 }}><strong style={{ color: '#c9963a' }}>Yana Nagaland:</strong> Asks what you need. Finds the best match. Done.</span>
               </div>
             </div>
           </div>
@@ -217,7 +217,7 @@ export default function HomePage() {
             <div className="demo-phone">
               <div style={{ width: 70, height: 5, background: 'rgba(201,150,58,0.2)', borderRadius: 3, margin: '0 auto 18px' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <span className="playfair" style={{ fontSize: '0.82rem', color: '#c9963a' }}>Discover Nagaland</span>
+                <span className="playfair" style={{ fontSize: '0.82rem', color: '#c9963a' }}>Yana Nagaland</span>
                 <span style={{ fontSize: '0.65rem', color: 'rgba(232,221,208,0.3)' }}>Kohima</span>
               </div>
               <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,150,58,0.2)', padding: '11px 14px', marginBottom: 14, fontSize: '0.78rem' }}>
@@ -314,7 +314,7 @@ export default function HomePage() {
       {/* FOOTER */}
       <footer style={{ background: '#060e06', padding: '36px clamp(20px, 4vw, 56px)', borderTop: '1px solid rgba(201,150,58,0.08)' }}>
         <div className="footer-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span className="playfair" style={{ color: '#c9963a', fontSize: '1rem' }}>Discover Nagaland</span>
+          <span className="playfair" style={{ color: '#c9963a', fontSize: '1rem' }}>Yana Nagaland</span>
           <span style={{ fontSize: '0.78rem', color: 'rgba(232,221,208,0.25)', letterSpacing: '0.04em' }}>© 2026 · Made with pride for Nagaland</span>
         </div>
       </footer>

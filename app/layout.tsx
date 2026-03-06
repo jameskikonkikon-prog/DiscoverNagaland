@@ -5,7 +5,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Discover Nagaland — Find Local Businesses',
+  title: 'Yana Nagaland — Find Local Businesses',
   description: 'The first hyperlocal business directory for Nagaland. Find restaurants, hotels, shops and more in Kohima, Dimapur and across Nagaland.',
 }
 
