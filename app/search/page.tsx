@@ -90,8 +90,11 @@ function SearchPageInner() {
       <div className="search-page">
         <header className="search-header">
           <Link href="/" className="logo-link">
-            <span className="logo-yana">Yana</span>
-            <span className="logo-sub">NAGALAND</span>
+            <svg width="34" height="40" viewBox="0 0 120 140" fill="none"><defs><linearGradient id="pinG" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#8B0000"/><stop offset="50%" stopColor="#c0392b"/><stop offset="100%" stopColor="#922B21"/></linearGradient><linearGradient id="feathG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#8B0000"/><stop offset="60%" stopColor="#c0392b"/><stop offset="100%" stopColor="#1a1a1a"/></linearGradient><radialGradient id="glassG" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#1a1a1a"/><stop offset="100%" stopColor="#0d0d0d"/></radialGradient></defs><g transform="rotate(-35, 45, 30)"><path d="M20 55 C10 40 15 15 40 0 C50 10 55 30 40 45 Z" fill="url(#feathG)"/><circle cx="20" cy="55" r="3" fill="#D4A017"/><circle cx="20" cy="55" r="1.5" fill="#8B0000"/></g><path d="M60 18 C38 18 20 36 20 58 C20 82 60 120 60 120 C60 120 100 82 100 58 C100 36 82 18 60 18Z" fill="url(#pinG)"/><path d="M42 35 L60 48 L78 35" stroke="rgba(0,0,0,0.3)" strokeWidth="2" fill="none"/><path d="M50 72 L60 62 L70 72 L60 82 Z" stroke="rgba(212,160,23,0.5)" strokeWidth="1" fill="rgba(0,0,0,0.15)"/><path d="M47 88 L60 96 L73 88" stroke="rgba(212,160,23,0.3)" strokeWidth="1" fill="none"/><circle cx="60" cy="58" r="19" fill="url(#glassG)" stroke="white" strokeWidth="2.5"/><path d="M54 52 L68 66" stroke="white" strokeWidth="2.5" strokeLinecap="round"/><path d="M54 52 L54 60 L62 52 Z" fill="white"/><line x1="74" y1="72" x2="84" y2="82" stroke="white" strokeWidth="4" strokeLinecap="round"/></svg>
+            <div className="logo-text">
+              <span className="logo-yana">Yana</span>
+              <span className="logo-sub">NAGALAND</span>
+            </div>
           </Link>
           <div style={{ flex: 1 }} />
           <Link href="/register" className="list-btn">List your business</Link>
@@ -242,9 +245,14 @@ const styles = `
   }
   .logo-link {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    gap: 8px;
     text-decoration: none;
     line-height: 1;
+  }
+  .logo-text {
+    display: flex;
+    flex-direction: column;
   }
   .logo-yana {
     font-family: 'Playfair Display', serif;
