@@ -11,8 +11,6 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getServiceClient();
-    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
     const { data, error } = await supabase.from('businesses').insert({
       name,
       slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
@@ -28,8 +26,7 @@ export async function POST(req: NextRequest) {
       amenities: amenities || null,
       custom_fields: custom_fields || null,
       owner_id: owner_id || null,
-      plan: 'trial',
-      trial_ends_at: trialEndsAt,
+      plan: 'basic',
       is_active: true,
       is_verified: false,
     }).select().single();

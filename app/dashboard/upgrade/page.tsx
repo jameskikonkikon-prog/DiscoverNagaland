@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { PLANS, Business } from '@/types';
+import Link from 'next/link';
 
 declare global {
   interface Window {
@@ -9,9 +9,68 @@ declare global {
   }
 }
 
+type Business = {
+  id: string;
+  name: string;
+  plan: string;
+  trial_ends_at?: string;
+  plan_expires_at?: string;
+};
+
+const PLAN_DATA = [
+  {
+    id: 'basic',
+    name: 'Basic',
+    price: 'Free',
+    priceSub: 'Forever',
+    badge: null,
+    trial: null,
+    features: [
+      'Full listing with all details',
+      '2 photos, no videos',
+      'WhatsApp & Call buttons',
+      'Normal search position',
+    ],
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: '₹299',
+    priceSub: '/month',
+    badge: 'Most Popular',
+    trial: '30 days free trial',
+    features: [
+      'Everything in Basic',
+      '10 photos, 3 videos',
+      'AI description writer',
+      'AI menu/price reader',
+      'Analytics & health score',
+      'Higher search ranking',
+    ],
+  },
+  {
+    id: 'plus',
+    name: 'Plus',
+    price: '₹499',
+    priceSub: '/month',
+    badge: null,
+    trial: null,
+    features: [
+      'Everything in Pro',
+      'Unlimited photos & videos',
+      'Verified Owner badge',
+      'Always first in search',
+      'Featured on homepage',
+      'Vacancy alerts & QR code',
+      'Monthly performance report',
+    ],
+  },
+];
+
 export default function UpgradePage() {
   const [business, setBusiness] = useState<Business | null>(null);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -24,9 +83,10 @@ export default function UpgradePage() {
     load();
   }, []);
 
-  const handleUpgrade = async (plan: 'basic' | 'pro') => {
-    if (!business) return;
+  const handleUpgrade = async (plan: string) => {
+    if (!business || plan === 'basic') return;
     setLoading(true);
+    setMessage('');
 
     try {
       const res = await fetch('/api/payments', {
@@ -34,8 +94,16 @@ export default function UpgradePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessId: business.id, plan }),
       });
-      const { order } = await res.json();
+      const data = await res.json();
 
+      // Pro trial activation (no payment needed)
+      if (data.trial) {
+        setMessage('Pro trial activated! Redirecting...');
+        setTimeout(() => { window.location.href = '/dashboard?success=upgraded'; }, 1500);
+        return;
+      }
+
+      // Razorpay payment
       const script = document.createElement('script');
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
       document.body.appendChild(script);
@@ -43,63 +111,291 @@ export default function UpgradePage() {
       script.onload = () => {
         const rzp = new window.Razorpay({
           key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-          amount: order.amount,
+          amount: data.order.amount,
           currency: 'INR',
-          order_id: order.id,
+          order_id: data.order.id,
           name: 'Yana Nagaland',
-          description: `${plan.toUpperCase()} Plan - 1 Month`,
+          description: `${plan.toUpperCase()} Plan - Monthly`,
+          theme: { color: '#c0392b' },
           handler: async (response: Record<string, string>) => {
             await fetch('/api/payments/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ...response, businessId: business.id, plan }),
             });
-            window.location.href = '/dashboard?upgraded=1';
+            window.location.href = '/dashboard?success=upgraded';
           },
         });
         rzp.open();
       };
     } catch {
-      alert('Payment failed. Please try again.');
+      setMessage('Payment failed. Please try again.');
     }
     setLoading(false);
   };
 
-  return (
-    <main className="min-h-screen bg-gray-50 px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        <a href="/dashboard" className="text-orange-600 hover:underline text-sm mb-6 block">← Back to Dashboard</a>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Upgrade Your Plan</h1>
-        <p className="text-gray-600 mb-8">Get more visibility and features for your business</p>
+  const handleCancel = async () => {
+    if (!business || business.plan === 'basic') return;
+    if (!confirm('Cancel your subscription? You\'ll keep access until the end of your billing period, then downgrade to Basic (free).')) return;
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {(['basic', 'pro'] as const).map((plan) => (
-            <div key={plan} className={`bg-white rounded-2xl p-6 shadow-sm border-2 ${plan === 'pro' ? 'border-orange-500' : 'border-gray-200'}`}>
-              {plan === 'pro' && <div className="text-orange-600 text-sm font-bold mb-2">⭐ MOST POPULAR</div>}
-              <h2 className="text-2xl font-bold text-gray-900 capitalize">{plan}</h2>
-              <p className="text-3xl font-bold text-orange-600 my-3">₹{PLANS[plan].price}<span className="text-base text-gray-500 font-normal">/month</span></p>
-              <ul className="space-y-2 mb-6">
-                {PLANS[plan].features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-gray-700">
-                    <span className="text-green-500">✓</span> {f}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => handleUpgrade(plan)}
-                disabled={loading || business?.plan === plan}
-                className={`w-full py-3 rounded-xl font-semibold transition ${
-                  business?.plan === plan
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-orange-600 text-white hover:bg-orange-700'
-                }`}
-              >
-                {business?.plan === plan ? 'Current Plan' : loading ? 'Processing...' : `Upgrade to ${plan.toUpperCase()}`}
-              </button>
-            </div>
-          ))}
+    setLoading(true);
+    await supabase
+      .from('businesses')
+      .update({ plan: 'basic', plan_expires_at: null, trial_ends_at: null, is_verified: false })
+      .eq('id', business.id);
+    setMessage('Subscription cancelled. Downgraded to Basic.');
+    setBusiness({ ...business, plan: 'basic' });
+    setLoading(false);
+  };
+
+  const currentPlan = business?.plan || 'basic';
+  const planOrder = ['basic', 'pro', 'plus'];
+  const currentIndex = planOrder.indexOf(currentPlan);
+
+  const nextBillingDate = business?.plan_expires_at
+    ? new Date(business.plan_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
+
+  return (
+    <main className="upgrade-page">
+      <style>{styles}</style>
+
+      <nav className="upgrade-nav">
+        <Link href="/dashboard" className="back-link">← Back to Dashboard</Link>
+      </nav>
+
+      <div className="upgrade-content">
+        <h1>Choose Your Plan</h1>
+        <p className="upgrade-sub">Every plan includes full business listing with all data fields. Upgrade for more visibility and AI tools.</p>
+
+        {message && <div className="upgrade-msg">{message}</div>}
+
+        {/* Current plan info */}
+        {currentPlan !== 'basic' && nextBillingDate && (
+          <div className="current-plan-info">
+            Current: <strong>{currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}</strong> · Next billing: {nextBillingDate}
+            <button className="cancel-link" onClick={handleCancel} disabled={loading}>Cancel subscription</button>
+          </div>
+        )}
+
+        <div className="plans-grid">
+          {PLAN_DATA.map((plan) => {
+            const isCurrentPlan = currentPlan === plan.id;
+            const isDowngrade = planOrder.indexOf(plan.id) < currentIndex;
+            const isUpgrade = planOrder.indexOf(plan.id) > currentIndex;
+
+            return (
+              <div key={plan.id} className={`plan-card ${plan.id === 'pro' ? 'popular' : ''} ${isCurrentPlan ? 'current' : ''}`}>
+                {plan.badge && <div className="plan-badge">{plan.badge}</div>}
+                {isCurrentPlan && <div className="current-badge">Current Plan</div>}
+                <h2>{plan.name}</h2>
+                <div className="plan-price">
+                  <span className="amount">{plan.price}</span>
+                  <span className="sub">{plan.priceSub}</span>
+                </div>
+                {plan.trial && <div className="plan-trial">{plan.trial}</div>}
+                <button
+                  className={`plan-cta ${plan.id}`}
+                  disabled={loading || isCurrentPlan || isDowngrade}
+                  onClick={() => handleUpgrade(plan.id)}
+                >
+                  {isCurrentPlan ? 'Current Plan' :
+                   isDowngrade ? 'Downgrade' :
+                   isUpgrade && plan.id === 'pro' && !business?.trial_ends_at ? 'Start Free Trial' :
+                   plan.id === 'basic' ? 'Free Forever' :
+                   `Upgrade to ${plan.name}`}
+                </button>
+                <ul className="features">
+                  {plan.features.map((f) => (
+                    <li key={f}><span className="check">✓</span>{f}</li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="upgrade-note">
+          <p>All plans include: name, phone, address, category, price range, amenities, gender, vacancy, WiFi, AC, meals, room type, cuisine, opening hours, vibe tags, and description. <strong>Data entry is never restricted.</strong></p>
         </div>
       </div>
     </main>
   );
 }
+
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=Sora:wght@300;400;500;600;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0a; }
+
+  .upgrade-page {
+    min-height: 100vh;
+    background: #0a0a0a;
+    color: #e0e0e0;
+    font-family: 'Sora', sans-serif;
+  }
+  .upgrade-nav {
+    padding: 16px clamp(16px, 4vw, 48px);
+    border-bottom: 1px solid #1e1e1e;
+  }
+  .back-link {
+    color: #c0392b;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .back-link:hover { text-decoration: underline; }
+
+  .upgrade-content {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+    text-align: center;
+  }
+  .upgrade-content h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.2rem;
+    color: #fff;
+    margin-bottom: 10px;
+  }
+  .upgrade-sub {
+    color: #888;
+    font-size: 0.95rem;
+    margin-bottom: 32px;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .upgrade-msg {
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    color: #4ade80;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+    display: inline-block;
+  }
+  .current-plan-info {
+    background: #141414;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 0.88rem;
+    color: #aaa;
+    margin-bottom: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .cancel-link {
+    background: none;
+    border: none;
+    color: #f87171;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.82rem;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .cancel-link:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .plans-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 40px;
+    text-align: left;
+  }
+  .plan-card {
+    background: #141414;
+    border: 1px solid #222;
+    border-radius: 16px;
+    padding: 28px 24px;
+    position: relative;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .plan-card:hover { transform: translateY(-3px); border-color: #333; }
+  .plan-card.popular { border-color: #c0392b; background: linear-gradient(180deg, #1a0f0f, #141414); }
+  .plan-card.current { border-color: #4ade80; }
+  .plan-badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #c0392b;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+  .current-badge {
+    position: absolute;
+    top: -12px;
+    right: 16px;
+    background: #4ade80;
+    color: #000;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    text-transform: uppercase;
+  }
+  .plan-card h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    color: #fff;
+    margin-bottom: 10px;
+  }
+  .plan-price { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
+  .plan-price .amount { font-size: 2rem; font-weight: 700; color: #fff; }
+  .plan-price .sub { color: #666; font-size: 0.88rem; }
+  .plan-trial { font-size: 0.78rem; color: #4ade80; margin-bottom: 12px; }
+  .plan-cta {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin: 14px 0 20px;
+    transition: opacity 0.2s, transform 0.15s;
+  }
+  .plan-cta:hover:not(:disabled) { transform: translateY(-1px); }
+  .plan-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+  .plan-cta.basic { background: #222; color: #888; }
+  .plan-cta.pro { background: #c0392b; color: #fff; }
+  .plan-cta.plus { background: linear-gradient(135deg, #c0392b, #8B0000); color: #fff; }
+  .features { list-style: none; }
+  .features li {
+    font-size: 0.82rem;
+    color: #bbb;
+    padding: 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .features .check { color: #4ade80; font-weight: 700; }
+
+  .upgrade-note {
+    background: #111;
+    border: 1px solid #1e1e1e;
+    border-radius: 10px;
+    padding: 16px 24px;
+    text-align: center;
+  }
+  .upgrade-note p { color: #888; font-size: 0.85rem; line-height: 1.6; }
+  .upgrade-note strong { color: #ccc; }
+
+  @media (max-width: 800px) {
+    .plans-grid { grid-template-columns: 1fr; max-width: 400px; margin-left: auto; margin-right: auto; }
+    .plan-card.popular { order: -1; }
+  }
+`;

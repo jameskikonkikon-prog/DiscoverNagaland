@@ -18,6 +18,17 @@ const STOP_WORDS = new Set([
   'was','were','i','me','my','we','our','some','any','where','which','want'
 ]);
 
+// Plan-based ranking: Plus first, Pro second, Basic last
+const PLAN_RANK: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
+
+function sortByPlan(businesses: Business[]): Business[] {
+  return [...businesses].sort((a, b) => {
+    const rankA = PLAN_RANK[a.plan] ?? 3;
+    const rankB = PLAN_RANK[b.plan] ?? 3;
+    return rankA - rankB;
+  });
+}
+
 // Price condition detection
 function detectPriceCondition(query: string): { max?: number; min?: number } | null {
   const lower = query.toLowerCase();
@@ -120,14 +131,14 @@ export async function searchBusinesses(
     ? businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition))
     : businesses;
 
-  if (!cleanQuery.trim()) return { businesses: conditionFiltered, detectedCity };
+  if (!cleanQuery.trim()) return { businesses: sortByPlan(conditionFiltered), detectedCity };
 
   // Keyword search on condition-filtered results
   const keywords = cleanQuery.toLowerCase()
     .split(/\s+/)
     .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 
-  if (keywords.length === 0) return { businesses: conditionFiltered, detectedCity };
+  if (keywords.length === 0) return { businesses: sortByPlan(conditionFiltered), detectedCity };
 
   const keywordResults = conditionFiltered.filter((b: Business) => {
     const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
@@ -135,7 +146,7 @@ export async function searchBusinesses(
     return keywords.some(kw => haystack.includes(kw));
   });
 
-  if (keywordResults.length > 0) return { businesses: keywordResults, detectedCity };
+  if (keywordResults.length > 0) return { businesses: sortByPlan(keywordResults), detectedCity };
 
   // Gemini fallback on condition-filtered pool
   try {
@@ -157,11 +168,11 @@ Return ONLY: ["id1", "id2"]`;
     if (match) {
       const ids = JSON.parse(match[0]) as string[];
       const geminiResults = ids.map(id => conditionFiltered.find((b: Business) => b.id === id)).filter(Boolean) as Business[];
-      return { businesses: geminiResults, detectedCity };
+      return { businesses: sortByPlan(geminiResults), detectedCity };
     }
   } catch (error) {
     console.error('Gemini search failed:', error);
   }
 
-  return { businesses: conditionFiltered, detectedCity };
+  return { businesses: sortByPlan(conditionFiltered), detectedCity };
 }

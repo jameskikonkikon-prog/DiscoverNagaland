@@ -7,8 +7,14 @@ export function getSupabaseClient() {
   );
 }
 
-// Full supabase client — use this everywhere
-export const supabase = getSupabaseClient();
+// Lazy singleton — safe during build when env vars aren't available
+let _supabase: ReturnType<typeof createClient> | null = null;
+export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_, prop) {
+    if (!_supabase) _supabase = getSupabaseClient();
+    return (_supabase as Record<string, unknown>)[prop as string];
+  },
+});
 
 export function getServiceClient() {
   return createClient(

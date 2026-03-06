@@ -44,6 +44,7 @@ type Business = {
   photos?: string[];
   created_at: string;
   is_verified: boolean;
+  plan?: string;
 };
 
 export default function HomePage() {
@@ -67,13 +68,24 @@ export default function HomePage() {
 
   useEffect(() => {
     async function fetchBusinesses() {
-      const { data: featured } = await supabase
+      // Featured: Plus businesses first, then Pro, then recent
+      const { data: plusBiz } = await supabase
         .from('businesses')
         .select('*')
         .eq('is_active', true)
-        .in('plan', ['basic', 'pro'])
+        .eq('plan', 'plus')
         .order('created_at', { ascending: false })
         .limit(6);
+
+      const { data: proBiz } = await supabase
+        .from('businesses')
+        .select('*')
+        .eq('is_active', true)
+        .eq('plan', 'pro')
+        .order('created_at', { ascending: false })
+        .limit(6);
+
+      const featured = [...(plusBiz || []), ...(proBiz || [])].slice(0, 6);
 
       const { data: recent } = await supabase
         .from('businesses')
@@ -87,7 +99,7 @@ export default function HomePage() {
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
 
-      setFeaturedBusinesses(featured || []);
+      setFeaturedBusinesses(featured);
       setRecentBusinesses(recent || []);
       setTotalBusinesses(count || 0);
     }
@@ -373,6 +385,25 @@ export default function HomePage() {
           color: #27ae60;
           font-weight: 500;
         }
+        .biz-card-plus {
+          border-color: rgba(212, 175, 55, 0.25);
+        }
+        .biz-card-plus:hover {
+          border-color: rgba(212, 175, 55, 0.5);
+        }
+        .featured-badge {
+          display: inline-block;
+          margin-left: 8px;
+          background: rgba(212, 175, 55, 0.12);
+          color: #d4af37;
+          font-size: 0.6rem;
+          padding: 2px 8px;
+          border-radius: 10px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          vertical-align: middle;
+        }
 
         /* EMPTY STATE */
         .empty-state {
@@ -570,6 +601,7 @@ export default function HomePage() {
               {link.label}
             </a>
           ))}
+          <a href="/pricing" className="nav-link">Pricing</a>
         </div>
         <a href="/register" className="nav-cta">List your business</a>
       </nav>
@@ -613,14 +645,14 @@ export default function HomePage() {
                   <h2 className="section-title"><span className="dot" /> Featured Businesses</h2>
                   <div className="biz-grid">
                     {featuredBusinesses.map((biz) => (
-                      <a key={biz.id} href={`/business/${biz.id}`} className="biz-card">
+                      <a key={biz.id} href={`/business/${biz.id}`} className={`biz-card ${biz.plan === 'plus' ? 'biz-card-plus' : ''}`}>
                         {biz.photos && biz.photos[0] ? (
                           <img src={biz.photos[0]} alt={biz.name} className="biz-photo" />
                         ) : (
                           <div className="biz-photo-placeholder">🏔️</div>
                         )}
                         <div className="biz-body">
-                          <div className="biz-cat">{biz.category}</div>
+                          <div className="biz-cat">{biz.category}{biz.plan === 'plus' && <span className="featured-badge">Featured</span>}</div>
                           <div className="biz-name">{biz.name}</div>
                           <div className="biz-city">📍 {biz.city}</div>
                           {biz.is_verified && (
