@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY!;
 const FROM_EMAIL = 'hello@discovernagaland.in';
-const FROM_NAME = 'Discover Nagaland';
+const FROM_NAME = 'Yana Nagaland';
 const DASHBOARD_URL = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`;
 
 type EmailPayload = {
@@ -17,12 +17,12 @@ function getEmailContent(payload: EmailPayload) {
   const { type, name, plan, billing } = payload;
 
   if (type === 'welcome') return {
-    subject: `🎉 ${name} is now live on Discover Nagaland!`,
+    subject: `🎉 ${name} is now live on Yana Nagaland!`,
     html: `
       <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0d1a0d;color:#e8ddd0;padding:2rem;border-radius:12px;">
         <h1 style="color:#c9963a;font-size:1.6rem;">You're listed! 🎉</h1>
         <p>Hi ${name},</p>
-        <p>Your business is now live on Discover Nagaland. Customers across Nagaland can find you!</p>
+        <p>Your business is now live on Yana Nagaland. Customers across Nagaland can find you!</p>
         <div style="background:rgba(201,150,58,0.1);border:1px solid rgba(201,150,58,0.2);border-radius:8px;padding:1rem;margin:1.5rem 0;">
           <strong style="color:#c9963a;">🎁 30-Day Free Trial Started</strong>
           <p style="margin:0.5rem 0 0;font-size:0.9rem;">You have full Basic features free for 30 days — no credit card needed.</p>

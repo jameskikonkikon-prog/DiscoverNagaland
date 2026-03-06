@@ -25,7 +25,7 @@ export default function BusinessPage() {
       <header className="bg-white shadow-sm">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
           <a href="javascript:history.back()" className="text-orange-600">← Back</a>
-          <a href="/" className="text-lg font-bold text-orange-600 ml-auto">🏔️ Discover Nagaland</a>
+          <a href="/" className="text-lg font-bold text-orange-600 ml-auto">🏔️ Yana Nagaland</a>
         </div>
       </header>
       <div className="max-w-3xl mx-auto px-4 py-6">

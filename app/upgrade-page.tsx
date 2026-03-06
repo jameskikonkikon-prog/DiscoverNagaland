@@ -71,7 +71,7 @@ function UpgradeInner() {
         key: keyId,
         amount,
         currency: 'INR',
-        name: 'Discover Nagaland',
+        name: 'Yana Nagaland',
         description: `${plan.name} Plan — ${billing}`,
         order_id: orderId,
         handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
@@ -97,7 +97,7 @@ function UpgradeInner() {
       <style>{styles}</style>
       <main className="upgrade-page">
         <nav className="upgrade-nav">
-          <a href="/" className="nav-logo">Discover<span>Nagaland</span></a>
+          <a href="/" className="nav-logo">Yana<span>Nagaland</span></a>
           <a href="/dashboard" className="nav-back">← Dashboard</a>
         </nav>
 
