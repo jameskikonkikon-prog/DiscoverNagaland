@@ -39,20 +39,26 @@ const CATEGORY_ICONS: Record<string, string> = {
   service: '🔧', rental: '🚗', other: '🏪',
 };
 
-// ── VIBE TAGS ──
-const VIBE_TAGS = [
-  { emoji: '🌙', label: 'Date night' },
-  { emoji: '👨‍👩‍👧', label: 'Family friendly' },
-  { emoji: '👯', label: 'Friends hangout' },
-  { emoji: '🧘', label: 'Quiet and peaceful' },
-  { emoji: '📚', label: 'Study and work' },
-  { emoji: '🎉', label: 'Party and celebrations' },
-  { emoji: '💰', label: 'Budget friendly' },
-  { emoji: '✨', label: 'Premium' },
-];
+// ── VIBE TAGS PER CATEGORY ──
+const CATEGORY_VIBE_TAGS: Record<string, string[]> = {
+  pg: ['Budget friendly', 'Premium', 'Parking available', 'Study friendly', 'Family friendly', 'Girls only', 'Boys only'],
+  hostel: ['Budget friendly', 'Premium', 'Parking available', 'Study friendly', 'Family friendly', 'Girls only', 'Boys only'],
+  rental_house: ['Budget friendly', 'Premium', 'Parking available', 'Family friendly', 'Quiet neighbourhood', 'Newly built', '24hr water supply'],
+  homestay: ['Romantic getaway', 'Family friendly', 'Quiet and peaceful', 'Premium', 'Nature and outdoor', 'Parking available', 'Meals included', 'Scenic views'],
+  vehicle_rental: ['Budget friendly', 'Premium', 'Self drive', 'Bikes available', 'Scooties available', 'Cars available', 'Delivery available', 'Fuel included'],
+  gym: ['Budget friendly', 'Premium', 'Open early', 'Open late', 'Personal trainer', 'AC available', 'Ladies friendly', 'Cardio focused', 'Powerlifting', 'Yoga available'],
+  turf: ['Friends hangout', 'Party and celebrations', 'Budget friendly', 'Premium', 'Open late', 'Floodlights', 'Covered turf', 'Football', 'Cricket', 'Basketball', 'Futsal'],
+  cafe: ['Couple friendly', 'Friends hangout', 'Quiet and peaceful', 'Study and work', 'Budget friendly', 'Premium', 'Open late', 'Open early', 'Fast WiFi', 'Power outlets', 'Outdoor seating', 'Takeaway friendly', 'Instagrammable', 'Live music'],
+  restaurant: ['Couple friendly', 'Family friendly', 'Friends hangout', 'Party and celebrations', 'Budget friendly', 'Premium', 'Open late', 'Outdoor seating', 'Takeaway friendly', 'Parking available', 'Naga cuisine', 'Veg friendly', 'Bar available', 'Instagrammable', 'Live music', 'Birthday celebrations'],
+  study_space: ['Quiet and peaceful', 'Study and work', 'Budget friendly', 'Premium', 'Open early', 'Open late', 'AC available', 'Fast WiFi', 'Power outlets', 'Printing available', 'Private cabins', 'Café inside'],
+  salon: ['Budget friendly', 'Premium', 'Open late', 'Ladies only', 'Mens only', 'Unisex', 'Bridal packages', 'Nail art', 'Hair colour', 'Facial available', 'Appointment required', 'Walk in welcome'],
+  hotel: ['Family friendly', 'Quiet and peaceful', 'Premium', 'Budget friendly', 'Parking available', 'Fast WiFi', 'AC rooms', 'Breakfast included', 'Nature views', 'Near Kisama', 'Event hall available'],
+  coaching: ['Study and work', 'Budget friendly', 'Premium', 'Morning batch', 'Evening batch', 'Online available', 'Small batch', 'Demo class available', 'Competitive exams', 'School subjects'],
+  couple_spot: ['Couple hangout spot', 'Quiet and peaceful', 'Premium', 'Budget friendly', 'Nature and outdoor', 'Scenic views', 'Instagrammable', 'Live music', 'Food available', 'Private booking', 'Open late', 'Parking available'],
+};
 
 const DEFAULT_VIBES: Record<string, string[]> = {
-  couple_spot: ['Date night'],
+  couple_spot: ['Couple hangout spot'],
   homestay: ['Family friendly'],
   study_space: ['Study and work'],
 };
@@ -343,22 +349,25 @@ function CategoryFields({ category, values, onChange }: {
 }
 
 // ── VIBE TAGS COMPONENT ──
-function VibeTagsPicker({ selected, onChange }: {
+function VibeTagsPicker({ selected, onChange, category }: {
   selected: string[];
   onChange: (tags: string[]) => void;
+  category: string;
 }) {
+  const tags = CATEGORY_VIBE_TAGS[category.toLowerCase()] || [];
   const toggle = (label: string) => {
     onChange(selected.includes(label) ? selected.filter(t => t !== label) : [...selected, label]);
   };
+  if (tags.length === 0) return null;
   return (
     <div className="vibe-section" style={{ animation: 'fieldSlide 0.35s 0.15s ease both' }}>
       <div className="vibe-title">✨ Vibe tags <span className="vibe-hint">— select all that apply</span></div>
       <div className="vibe-grid">
-        {VIBE_TAGS.map(v => {
-          const active = selected.includes(v.label);
+        {tags.map(label => {
+          const active = selected.includes(label);
           return (
-            <button key={v.label} type="button" className={`vibe-chip ${active ? 'active' : ''}`} onClick={() => toggle(v.label)}>
-              <span className="vibe-emoji">{v.emoji}</span> {v.label}
+            <button key={label} type="button" className={`vibe-chip ${active ? 'active' : ''}`} onClick={() => toggle(label)}>
+              {label}
             </button>
           );
         })}
@@ -399,7 +408,9 @@ export default function RegisterPage() {
   const handleCategoryChange = (cat: string) => {
     update('category', cat);
     setCustomFields({});
-    setVibeTags(DEFAULT_VIBES[cat] || []);
+    const allowed = CATEGORY_VIBE_TAGS[cat.toLowerCase()] || [];
+    const defaults = DEFAULT_VIBES[cat] || [];
+    setVibeTags(defaults.filter(t => allowed.includes(t)));
   };
 
   const uploadPhotos = async (businessId: string) => {
@@ -629,7 +640,7 @@ export default function RegisterPage() {
               {CATEGORY_FIELDS[form.category.toLowerCase()] ? (
                 <>
                   <CategoryFields category={form.category} values={customFields} onChange={updateCustom} />
-                  <VibeTagsPicker selected={vibeTags} onChange={setVibeTags} />
+                  <VibeTagsPicker selected={vibeTags} onChange={setVibeTags} category={form.category} />
                 </>
               ) : (
                 <>
@@ -638,7 +649,7 @@ export default function RegisterPage() {
                     <p>No extra details needed for <strong>{CATEGORY_LABELS[form.category] || form.category}</strong>.</p>
                     <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: '0.3rem' }}>Click Continue to add photos.</p>
                   </div>
-                  <VibeTagsPicker selected={vibeTags} onChange={setVibeTags} />
+                  <VibeTagsPicker selected={vibeTags} onChange={setVibeTags} category={form.category} />
                 </>
               )}
             </div>
