@@ -205,6 +205,7 @@ export default function HomePage() {
           ))}
         </div>
         <a href="/pricing" className="nl" style={{ color: '#D4A017', fontWeight: 700 }}>Pricing</a>
+        <a href="/login" className="nl" style={{ color: '#999' }}>Sign in</a>
         <a href="/register" className="nav-cta-btn">List your business</a>
       </nav>
 
@@ -427,6 +428,7 @@ export default function HomePage() {
             <div className="cta-sub">Get found by thousands searching in Nagaland. First 100 businesses get Pro free — forever!</div>
             <a href="/register" className="cta-btn">List your business free</a>
             <span className="cta-free">No credit card · No contract · Cancel anytime</span>
+            <a href="/login" className="cta-signin">Already own a business? Sign in</a>
           </div>
 
           {/* TRENDING */}
@@ -724,6 +726,8 @@ const pageStyles = `
   }
   .cta-btn:hover{background:var(--red2);}
   .cta-free{font-size:10.5px;color:var(--muted2);margin-top:8px;display:block;}
+  .cta-signin{display:block;margin-top:12px;font-size:0.8rem;color:var(--muted);text-decoration:none;transition:color 0.2s;}
+  .cta-signin:hover{color:var(--red);text-decoration:underline;}
 
   /* Trending */
   .trending{
