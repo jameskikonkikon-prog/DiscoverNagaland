@@ -20,7 +20,10 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.push('/dashboard');
+    // Support redirect param (e.g. from pricing page)
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get('redirect');
+    router.push(redirect || '/dashboard');
   };
 
   return (

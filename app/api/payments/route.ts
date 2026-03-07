@@ -11,9 +11,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request. Plan must be pro or plus.' }, { status: 400 });
   }
 
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    console.error('Missing Razorpay env vars:', {
+      hasKeyId: !!process.env.RAZORPAY_KEY_ID,
+      hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
+    });
+    return NextResponse.json({ error: 'Payment service not configured. Please contact support.' }, { status: 500 });
+  }
+
   const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID!,
-    key_secret: process.env.RAZORPAY_KEY_SECRET!,
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
   });
 
   try {
@@ -94,7 +102,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ order, amount, description });
   } catch (error) {
-    console.error('Razorpay error:', error);
-    return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('Razorpay order creation error:', msg, error);
+    return NextResponse.json({ error: `Failed to create order: ${msg}` }, { status: 500 });
   }
 }
