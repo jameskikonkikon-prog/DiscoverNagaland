@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
 declare global {
@@ -18,7 +18,7 @@ const PLANS = [
     cta: 'Start Free',
     ctaStyle: 'cta-basic',
     badge: null,
-    trial: null,
+    badgeColor: null,
     features: [
       { text: 'Full listing with all details', included: true },
       { text: '2 photos, no videos', included: true },
@@ -36,10 +36,10 @@ const PLANS = [
     name: 'Pro',
     price: '₹299',
     priceSub: '/month',
-    cta: 'Upgrade to Pro',
+    cta: 'Get Pro Free',
     ctaStyle: 'cta-pro',
     badge: 'Most Popular',
-    trial: '30 days free trial for new users',
+    badgeColor: '#c0392b',
     features: [
       { text: 'Full listing with all details', included: true },
       { text: '10 photos, 3 videos', included: true },
@@ -60,8 +60,8 @@ const PLANS = [
     priceSub: '/month',
     cta: 'Upgrade to Plus',
     ctaStyle: 'cta-plus',
-    badge: null,
-    trial: null,
+    badge: 'Premium',
+    badgeColor: '#D4A017',
     features: [
       { text: 'Full listing with all details', included: true },
       { text: 'Unlimited photos & videos', included: true },
@@ -102,11 +102,11 @@ const COMPARISON = [
 const FAQ = [
   {
     q: 'Can I cancel anytime?',
-    a: 'Yes, you can cancel your subscription at any time. Your plan stays active until the end of your current billing period — you won\'t lose access mid-month.',
+    a: 'Yes, you can cancel your subscription at any time. Your plan stays active until the end of your current billing period.',
   },
   {
-    q: 'When am I charged?',
-    a: 'Pro plan has a 30-day free trial — no card needed to start. After the trial, you\'re charged ₹299/month. Plus plan charges ₹499 from day 1, no trial. Auto-charges on your billing date each month.',
+    q: 'What is the founding member offer?',
+    a: 'The first 100 businesses to register on Yana Nagaland get the Pro plan completely free — forever. No credit card, no expiry, no catch. Once all 100 spots are claimed, Pro costs ₹299/month.',
   },
   {
     q: 'Can I upgrade later?',
@@ -114,15 +114,15 @@ const FAQ = [
   },
   {
     q: 'What happens if I miss a payment?',
-    a: 'If a payment fails, you get a 7-day grace period to update your payment method. After 7 days, your listing is automatically downgraded to the Basic (free) plan. No data is lost — you can upgrade again anytime.',
+    a: 'If a payment fails, you get a 7-day grace period to update your payment method. After 7 days, your listing is automatically downgraded to the Basic (free) plan. No data is lost.',
   },
   {
     q: 'Do I lose my data if I downgrade?',
-    a: 'Never. All your business information stays intact regardless of your plan. The only difference is which features are active. Your listing data always powers the AI search.',
+    a: 'Never. All your business information stays intact regardless of your plan. The only difference is which features are active.',
   },
   {
     q: 'Is the Basic plan really free forever?',
-    a: 'Yes. The Basic plan is completely free — no card required, no hidden charges, no time limit. You get a full listing with all details, 2 photos, and WhatsApp/Call buttons.',
+    a: 'Yes. The Basic plan is completely free — no card required, no hidden charges, no time limit.',
   },
 ];
 
@@ -130,6 +130,15 @@ export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [foundingSpots, setFoundingSpots] = useState<{ claimed: number; remaining: number; total: number } | null>(null);
+
+  // Fetch founding member counter
+  useEffect(() => {
+    fetch('/api/founding-members')
+      .then(r => r.json())
+      .then(data => setFoundingSpots(data))
+      .catch(() => {});
+  }, []);
 
   const ensureRazorpayScript = useCallback((): Promise<void> => {
     return new Promise((resolve) => {
@@ -153,28 +162,24 @@ export default function PricingPage() {
     setMessage('');
 
     try {
-      // Check if user is logged in and has a business
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        // Not logged in — send to register
         window.location.href = '/register';
         return;
       }
 
       const { data: business } = await supabase
         .from('businesses')
-        .select('id, plan, trial_ends_at')
+        .select('id, plan, is_founding_member')
         .eq('owner_id', user.id)
         .single();
 
       if (!business) {
-        // Logged in but no business — send to register
         window.location.href = '/register';
         return;
       }
 
-      // Already on this plan or higher
       const planOrder = ['basic', 'pro', 'plus'];
       if (planOrder.indexOf(business.plan) >= planOrder.indexOf(planId)) {
         setMessage(`You're already on the ${business.plan.charAt(0).toUpperCase() + business.plan.slice(1)} plan.`);
@@ -182,7 +187,6 @@ export default function PricingPage() {
         return;
       }
 
-      // Create payment order
       const res = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,10 +195,10 @@ export default function PricingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create order');
 
-      // Pro trial activation
-      if (data.trial) {
-        setMessage('Pro trial activated! Redirecting to dashboard...');
-        setTimeout(() => { window.location.href = '/dashboard?success=upgraded'; }, 1200);
+      // Founding member activation (free Pro, no payment)
+      if (data.foundingMember) {
+        setMessage(`Founding member Pro activated! You're one of the first ${100 - data.spotsRemaining}. Redirecting...`);
+        setTimeout(() => { window.location.href = '/dashboard?success=upgraded'; }, 1500);
         return;
       }
 
@@ -228,6 +232,9 @@ export default function PricingPage() {
     }
   }, [ensureRazorpayScript]);
 
+  const spotsLeft = foundingSpots?.remaining ?? null;
+  const spotsClaimed = foundingSpots?.claimed ?? 0;
+
   return (
     <main className="pricing-page">
       <style>{styles}</style>
@@ -248,26 +255,59 @@ export default function PricingPage() {
         <p>Every plan gives you a full listing with all business details. Upgrade for more photos, AI tools, and premium visibility.</p>
       </section>
 
+      {/* Founding Member Banner */}
+      {spotsLeft !== null && spotsLeft > 0 && (
+        <div className="founding-banner">
+          <div className="founding-icon">🎉</div>
+          <div className="founding-text">
+            <strong>Founding Member Offer — Get Pro Free Forever!</strong>
+            <p>First 100 businesses get the Pro plan completely free. No credit card, no expiry.</p>
+          </div>
+          <div className="founding-counter">
+            <div className="counter-bar">
+              <div className="counter-fill" style={{ width: `${(spotsClaimed / 100) * 100}%` }} />
+            </div>
+            <div className="counter-text">
+              <span className="counter-spots">{spotsLeft}</span> of 100 spots remaining
+            </div>
+          </div>
+        </div>
+      )}
+
+      {spotsLeft !== null && spotsLeft === 0 && (
+        <div className="founding-banner closed">
+          <div className="founding-icon">🔒</div>
+          <div className="founding-text">
+            <strong>All 100 founding member spots have been claimed!</strong>
+            <p>Pro plan is now ₹299/month. Plus plan is ₹499/month.</p>
+          </div>
+        </div>
+      )}
+
       {message && (
         <div className="pricing-msg">{message}</div>
       )}
 
       <section className="plans-grid">
         {PLANS.map((plan) => (
-          <div key={plan.id} className={`plan-card ${plan.id === 'pro' ? 'popular' : ''}`}>
-            {plan.badge && <div className="plan-badge">{plan.badge}</div>}
+          <div key={plan.id} className={`plan-card ${plan.id === 'pro' ? 'popular' : ''} ${plan.id === 'plus' ? 'plus-card' : ''}`}>
+            {plan.badge && <div className="plan-badge" style={plan.badgeColor ? { background: plan.badgeColor } : {}}>{plan.badge}</div>}
             <h2 className="plan-name">{plan.name}</h2>
             <div className="plan-price">
               <span className="price-amount">{plan.price}</span>
               <span className="price-sub">{plan.priceSub}</span>
             </div>
-            {plan.trial && <div className="plan-trial">{plan.trial}</div>}
+            {plan.id === 'pro' && spotsLeft !== null && spotsLeft > 0 && (
+              <div className="plan-founding">🎉 Free for founding members — {spotsLeft} spots left</div>
+            )}
             <button
               className={`plan-cta ${plan.ctaStyle}`}
               onClick={() => handlePlanClick(plan.id)}
               disabled={upgrading === plan.id}
             >
-              {upgrading === plan.id ? 'Processing...' : plan.cta}
+              {upgrading === plan.id ? 'Processing...' :
+               plan.id === 'pro' && spotsLeft !== null && spotsLeft > 0 ? 'Claim Free Pro' :
+               plan.cta}
             </button>
             <ul className="plan-features">
               {plan.features.map((f) => (
@@ -337,7 +377,7 @@ export default function PricingPage() {
 
       <footer className="pricing-footer">
         <span>Yana Nagaland</span>
-        <span>© 2026 · Made with pride for Nagaland</span>
+        <span>&copy; 2026 · Made with pride for Nagaland</span>
       </footer>
     </main>
   );
@@ -392,7 +432,7 @@ const styles = `
   /* Hero */
   .pricing-hero {
     text-align: center;
-    padding: 100px 20px 50px;
+    padding: 80px 20px 40px;
   }
   .pricing-hero h1 {
     font-family: 'Playfair Display', serif;
@@ -409,17 +449,68 @@ const styles = `
     line-height: 1.7;
   }
 
+  /* Founding Member Banner */
+  .founding-banner {
+    max-width: 700px;
+    margin: 0 auto 32px;
+    padding: 24px 28px;
+    background: linear-gradient(135deg, rgba(192,57,43,0.08), rgba(212,160,23,0.06));
+    border: 1px solid rgba(192,57,43,0.25);
+    border-radius: 16px;
+    text-align: center;
+  }
+  .founding-banner.closed {
+    background: rgba(255,255,255,0.02);
+    border-color: #333;
+  }
+  .founding-icon { font-size: 2rem; margin-bottom: 8px; }
+  .founding-text strong {
+    display: block;
+    font-size: 1.1rem;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .founding-text p {
+    font-size: 0.88rem;
+    color: #999;
+    margin-bottom: 16px;
+  }
+  .founding-banner.closed .founding-text p { margin-bottom: 0; }
+  .counter-bar {
+    width: 100%;
+    height: 8px;
+    background: #222;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .counter-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #c0392b, #D4A017);
+    border-radius: 8px;
+    transition: width 0.6s ease;
+  }
+  .counter-text {
+    font-size: 0.85rem;
+    color: #aaa;
+  }
+  .counter-spots {
+    font-weight: 700;
+    color: #4ade80;
+    font-size: 1.1rem;
+  }
+
   /* Message */
   .pricing-msg {
     max-width: 600px;
     margin: 0 auto 24px;
     padding: 12px 20px;
-    background: rgba(192,57,43,0.08);
-    border: 1px solid rgba(192,57,43,0.2);
+    background: rgba(74,222,128,0.08);
+    border: 1px solid rgba(74,222,128,0.2);
     border-radius: 10px;
     text-align: center;
     font-size: 0.9rem;
-    color: var(--off, #e0e0e0);
+    color: #4ade80;
   }
 
   /* Plans Grid */
@@ -447,6 +538,10 @@ const styles = `
   .plan-card.popular {
     border-color: #c0392b;
     background: linear-gradient(180deg, #1a0f0f, #141414);
+  }
+  .plan-card.plus-card {
+    border-color: #D4A017;
+    background: linear-gradient(180deg, #1a1508, #141414);
   }
   .plan-badge {
     position: absolute;
@@ -484,11 +579,12 @@ const styles = `
     font-size: 0.9rem;
     color: #666;
   }
-  .plan-trial {
+  .plan-founding {
     font-size: 0.78rem;
     color: #4ade80;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     margin-top: 4px;
+    font-weight: 600;
   }
   .plan-cta {
     display: block;
@@ -509,7 +605,7 @@ const styles = `
   .plan-cta:disabled { opacity: 0.5; cursor: not-allowed; }
   .cta-basic { background: #222; color: #fff; border: 1px solid #333; }
   .cta-pro { background: #c0392b; color: #fff; box-shadow: 0 4px 14px rgba(192,57,43,0.3); }
-  .cta-plus { background: linear-gradient(135deg, #c0392b, #8B0000); color: #fff; box-shadow: 0 4px 14px rgba(139,0,0,0.3); }
+  .cta-plus { background: linear-gradient(135deg, #D4A017, #8B6914); color: #fff; box-shadow: 0 4px 14px rgba(212,160,23,0.3); }
   .plan-features { list-style: none; }
   .plan-features li {
     font-size: 0.84rem;

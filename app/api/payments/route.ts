@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/supabase';
-import { PLANS } from '@/types';
+import { PLANS, FOUNDING_MEMBER_LIMIT } from '@/types';
 import Razorpay from 'razorpay';
 
 export async function POST(request: NextRequest) {
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const serviceClient = getServiceClient();
     const { data: business } = await serviceClient
       .from('businesses')
-      .select('trial_ends_at, plan, plan_expires_at')
+      .select('plan, plan_expires_at, is_founding_member')
       .eq('id', businessId)
       .single();
 
@@ -28,19 +28,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    // Pro plan: if no prior trial, start free trial (no payment needed)
-    if (plan === 'pro' && !business.trial_ends_at) {
-      const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      await serviceClient
-        .from('businesses')
-        .update({
-          plan: 'pro',
-          trial_ends_at: trialEndsAt,
-          plan_expires_at: trialEndsAt,
-        })
-        .eq('id', businessId);
+    // Pro plan: check if eligible for founding member (free Pro)
+    if (plan === 'pro') {
+      // Already a founding member
+      if (business.is_founding_member) {
+        return NextResponse.json({ error: 'You already have founding member Pro access.' }, { status: 400 });
+      }
 
-      return NextResponse.json({ trial: true, trialEndsAt });
+      // Check founding member spots
+      const { count } = await serviceClient
+        .from('businesses')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_founding_member', true);
+
+      if ((count || 0) < FOUNDING_MEMBER_LIMIT) {
+        // Grant free Pro as founding member
+        await serviceClient
+          .from('businesses')
+          .update({
+            plan: 'pro',
+            is_founding_member: true,
+            plan_expires_at: null, // no expiry for founding members
+          })
+          .eq('id', businessId);
+
+        return NextResponse.json({ foundingMember: true, spotsRemaining: FOUNDING_MEMBER_LIMIT - (count || 0) - 1 });
+      }
+
+      // No founding spots left — require payment
     }
 
     // Calculate amount: differential pricing for Pro → Plus
@@ -55,10 +70,9 @@ export async function POST(request: NextRequest) {
       const fractionRemaining = remaining / totalPeriod;
 
       if (fractionRemaining > 0.01) {
-        // Pro credit for unused days
         const proCredit = Math.round(PLANS.pro.priceInPaise * fractionRemaining);
         const plusFull = PLANS.plus.priceInPaise;
-        amount = Math.max(plusFull - proCredit, 100); // minimum ₹1
+        amount = Math.max(plusFull - proCredit, 100);
         description = `Plus Plan Upgrade (Pro credit applied)`;
       }
     }

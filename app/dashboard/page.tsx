@@ -1,25 +1,19 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Suspense } from 'react';
 import { PLANS } from '@/types';
 import type { PlanType } from '@/types';
 
-declare global {
-  interface Window {
-    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
-  }
-}
-
 type Business = {
   id: string; name: string; category: string; city: string;
   address: string; landmark?: string; phone: string; whatsapp?: string;
   email?: string; description?: string; opening_hours?: string;
   photos?: string[]; videos?: string[]; website?: string; tags?: string;
-  plan: PlanType; trial_ends_at?: string; plan_expires_at?: string;
+  plan: PlanType; plan_expires_at?: string;
   views?: number; call_clicks?: number; whatsapp_clicks?: number;
-  is_verified?: boolean; menu_url?: string;
+  is_verified?: boolean; is_founding_member?: boolean; menu_url?: string;
   price_min?: number; price_max?: number; price_range?: string;
   amenities?: string; gender?: string; vacancy?: boolean;
   wifi?: boolean; ac?: boolean; meals?: boolean;
@@ -28,11 +22,6 @@ type Business = {
 
 function getPlanLabel(plan: PlanType) {
   return { basic: 'Basic (Free)', pro: 'Pro', plus: 'Plus' }[plan] || plan;
-}
-
-function getTrialDaysLeft(trialEndsAt: string): number {
-  const diff = new Date(trialEndsAt).getTime() - Date.now();
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 }
 
 function DashboardInner() {
@@ -58,71 +47,6 @@ function DashboardInner() {
     }
     load();
   }, [router]);
-
-  const [upgrading, setUpgrading] = useState(false);
-  const [upgradeMsg, setUpgradeMsg] = useState('');
-
-  const ensureRazorpayScript = useCallback((): Promise<void> => {
-    return new Promise((resolve) => {
-      if (window.Razorpay) { resolve(); return; }
-      const existing = document.querySelector('script[src*="razorpay"]');
-      if (existing) { existing.addEventListener('load', () => resolve()); return; }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve();
-      document.head.appendChild(script);
-    });
-  }, []);
-
-  const handleUpgrade = useCallback(async (plan: 'pro' | 'plus') => {
-    if (!biz || upgrading) return;
-    setUpgrading(true);
-    setUpgradeMsg('');
-    try {
-      const res = await fetch('/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId: biz.id, plan }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create order');
-
-      // Pro trial activation (no payment needed)
-      if (data.trial) {
-        setUpgradeMsg('Pro trial activated! Refreshing...');
-        setTimeout(() => { window.location.href = '/dashboard?success=upgraded'; }, 1200);
-        return;
-      }
-
-      // Open Razorpay checkout
-      await ensureRazorpayScript();
-      const rzp = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: data.order.amount,
-        currency: 'INR',
-        order_id: data.order.id,
-        name: 'Yana Nagaland',
-        description: data.description || `${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
-        theme: { color: '#c0392b' },
-        handler: async (response: Record<string, string>) => {
-          setUpgradeMsg('Verifying payment...');
-          await fetch('/api/payments/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...response, businessId: biz.id, plan }),
-          });
-          window.location.href = '/dashboard?success=upgraded';
-        },
-        modal: {
-          ondismiss: () => { setUpgrading(false); },
-        },
-      });
-      rzp.open();
-    } catch (err) {
-      setUpgradeMsg(err instanceof Error ? err.message : 'Payment failed. Please try again.');
-      setUpgrading(false);
-    }
-  }, [biz, upgrading, ensureRazorpayScript]);
 
   const update = (field: string, value: string | number | boolean) => setForm(f => ({ ...f, [field]: value }));
 
@@ -193,9 +117,6 @@ function DashboardInner() {
   const isPro = plan === 'pro';
   const isPlus = plan === 'plus';
   const hasAnalytics = isPro || isPlus;
-  const trialDays = biz.trial_ends_at ? getTrialDaysLeft(biz.trial_ends_at) : 0;
-  const isOnTrial = isPro && biz.trial_ends_at && trialDays > 0;
-  const trialExpired = isPro && biz.trial_ends_at && trialDays === 0 && !biz.plan_expires_at;
   const maxPhotos = planConfig?.maxPhotos ?? 2;
   const currentPhotoCount = biz.photos?.length || 0;
   const canAddPhotos = maxPhotos === Infinity || currentPhotoCount < maxPhotos;
@@ -204,7 +125,6 @@ function DashboardInner() {
   const cat = biz.category?.toLowerCase() || '';
   const showPG = ['pg', 'rental', 'hotel'].includes(cat);
   const showFood = ['restaurant', 'cafe', 'food'].includes(cat);
-  const showPricing = true; // all categories can have pricing
 
   return (
     <>
@@ -225,44 +145,22 @@ function DashboardInner() {
             <div className="success-banner">Plan upgraded successfully! Your listing now has enhanced visibility.</div>
           )}
 
-          {upgradeMsg && (
-            <div className="success-banner">{upgradeMsg}</div>
-          )}
-
-          {/* Pro trial banner */}
-          {isOnTrial && (
-            <div className="trial-banner">
-              <div>
-                <strong>Pro Trial — {trialDays} day{trialDays !== 1 ? 's' : ''} remaining</strong>
-                <p>You have full Pro features during your trial. Pay now to keep analytics and higher ranking after trial ends.</p>
-              </div>
-              <button className="trial-upgrade-btn" onClick={() => handleUpgrade('pro')} disabled={upgrading}>
-                {upgrading ? 'Processing...' : 'Pay ₹299/mo'}
-              </button>
+          {/* Founding Member Banner */}
+          {biz.is_founding_member && (
+            <div className="founding-member-banner">
+              <strong>🎉 Founding Member — Pro Plan Free Forever</strong>
+              <p>You&apos;re one of the first 100 businesses on Yana Nagaland. Your Pro plan never expires.</p>
             </div>
           )}
 
-          {trialExpired && (
-            <div className="trial-expired-banner">
-              <div>
-                <strong>Your Pro trial has ended</strong>
-                <p>Your listing is now on the Basic plan. Upgrade to Pro for ₹299/month to regain analytics and higher search ranking.</p>
-              </div>
-              <button className="trial-upgrade-btn danger" onClick={() => handleUpgrade('pro')} disabled={upgrading}>
-                {upgrading ? 'Processing...' : 'Upgrade to Pro — ₹299/mo'}
-              </button>
-            </div>
-          )}
-
-          {isBasic && !biz.trial_ends_at && (
+          {/* Basic plan upsell */}
+          {isBasic && (
             <div className="free-banner">
               <div>
                 <strong>You&apos;re on the Basic (Free) plan</strong>
-                <p>Your listing is live but ranked lower in search. Upgrade to Pro for analytics, AI tools, and higher visibility.</p>
+                <p>Your listing is live but ranked lower in search. Upgrade for analytics, AI tools, and higher visibility.</p>
               </div>
-              <button className="trial-upgrade-btn" onClick={() => handleUpgrade('pro')} disabled={upgrading}>
-                {upgrading ? 'Processing...' : 'Upgrade to Pro — Free Trial'}
-              </button>
+              <a href="/pricing" className="trial-upgrade-btn">View Plans</a>
             </div>
           )}
 
@@ -274,6 +172,7 @@ function DashboardInner() {
                 {biz.category} · {biz.city}
                 <span className={`plan-badge plan-${plan}`}>{getPlanLabel(plan)}</span>
                 {biz.is_verified && <span className="verified-tag">Verified</span>}
+                {biz.is_founding_member && <span className="founding-tag">Founding Member</span>}
               </p>
             </div>
             {saveMsg && <div className={`save-msg ${saveMsg.includes('Failed') ? 'error' : ''}`}>{saveMsg}</div>}
@@ -309,14 +208,14 @@ function DashboardInner() {
               <div className="plan-info-label">Current Plan</div>
               <div className="plan-info-name">{getPlanLabel(plan)}</div>
               {isBasic && <div className="plan-info-sub">Free forever · Standard listing</div>}
-              {isPro && <div className="plan-info-sub">₹299/month · Analytics + Higher ranking</div>}
+              {isPro && biz.is_founding_member && <div className="plan-info-sub">Founding Member · Free forever</div>}
+              {isPro && !biz.is_founding_member && <div className="plan-info-sub">₹299/month · Analytics + Higher ranking</div>}
               {isPlus && <div className="plan-info-sub">₹499/month · Priority ranking + Featured</div>}
-              {isOnTrial && <div className="plan-info-trial">{trialDays} days left in trial</div>}
             </div>
             {!isPlus && (
-              <button className="upgrade-cta-btn" onClick={() => handleUpgrade(isPro ? 'plus' : 'pro')} disabled={upgrading} style={{ border: 'none', cursor: upgrading ? 'not-allowed' : 'pointer', fontFamily: "'Sora', sans-serif" }}>
-                {upgrading ? 'Processing...' : isBasic ? 'Upgrade to Pro' : isPro ? 'Upgrade to Plus — ₹200' : 'Upgrade'}
-              </button>
+              <a href="/pricing" className="upgrade-cta-btn">
+                {isBasic ? 'Upgrade Plan' : 'Upgrade to Plus'}
+              </a>
             )}
           </div>
 
@@ -402,25 +301,23 @@ function DashboardInner() {
             </div>
 
             {/* Pricing */}
-            {showPricing && (
-              <div className="detail-card full-width">
-                <div className="detail-title">Pricing</div>
-                <div className="detail-row three-col">
-                  <div className="detail-group">
-                    <div className="detail-label">Min Price (₹)</div>
-                    {editing ? <input className="detail-input" type="number" value={form.price_min ?? ''} onChange={e => update('price_min', e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 500" /> : <div className="detail-value">{biz.price_min != null ? `₹${biz.price_min}` : <span className="detail-empty">Not set</span>}</div>}
-                  </div>
-                  <div className="detail-group">
-                    <div className="detail-label">Max Price (₹)</div>
-                    {editing ? <input className="detail-input" type="number" value={form.price_max ?? ''} onChange={e => update('price_max', e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 2000" /> : <div className="detail-value">{biz.price_max != null ? `₹${biz.price_max}` : <span className="detail-empty">Not set</span>}</div>}
-                  </div>
-                  <div className="detail-group">
-                    <div className="detail-label">Price Range Label</div>
-                    {editing ? <input className="detail-input" value={form.price_range || ''} onChange={e => update('price_range', e.target.value)} placeholder="e.g. Budget, Mid-range, Premium" /> : <div className="detail-value">{biz.price_range || <span className="detail-empty">Not set</span>}</div>}
-                  </div>
+            <div className="detail-card full-width">
+              <div className="detail-title">Pricing</div>
+              <div className="detail-row three-col">
+                <div className="detail-group">
+                  <div className="detail-label">Min Price (₹)</div>
+                  {editing ? <input className="detail-input" type="number" value={form.price_min ?? ''} onChange={e => update('price_min', e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 500" /> : <div className="detail-value">{biz.price_min != null ? `₹${biz.price_min}` : <span className="detail-empty">Not set</span>}</div>}
+                </div>
+                <div className="detail-group">
+                  <div className="detail-label">Max Price (₹)</div>
+                  {editing ? <input className="detail-input" type="number" value={form.price_max ?? ''} onChange={e => update('price_max', e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 2000" /> : <div className="detail-value">{biz.price_max != null ? `₹${biz.price_max}` : <span className="detail-empty">Not set</span>}</div>}
+                </div>
+                <div className="detail-group">
+                  <div className="detail-label">Price Range Label</div>
+                  {editing ? <input className="detail-input" value={form.price_range || ''} onChange={e => update('price_range', e.target.value)} placeholder="e.g. Budget, Mid-range, Premium" /> : <div className="detail-value">{biz.price_range || <span className="detail-empty">Not set</span>}</div>}
                 </div>
               </div>
-            )}
+            </div>
 
             {/* PG / Rental / Hotel fields */}
             {showPG && (
@@ -553,7 +450,7 @@ function DashboardInner() {
               )}
               {editing && !canAddPhotos && (
                 <div className="photo-limit-msg">
-                  Photo limit reached ({maxPhotos}). <button onClick={() => handleUpgrade(isPro ? 'plus' : 'pro')} style={{ background: 'none', border: 'none', color: '#c0392b', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', textDecoration: 'underline', padding: 0 }}>Upgrade for more</button>
+                  Photo limit reached ({maxPhotos}). <a href="/pricing" style={{ color: '#c0392b', textDecoration: 'underline' }}>Upgrade for more</a>
                 </div>
               )}
             </div>
@@ -615,21 +512,13 @@ const styles = `
     color: #4ade80; padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.9rem;
   }
 
-  .trial-banner {
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    background: rgba(192,57,43,0.06); border: 1px solid rgba(192,57,43,0.2);
-    border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+  .founding-member-banner {
+    background: linear-gradient(135deg, rgba(74,222,128,0.06), rgba(212,160,23,0.06));
+    border: 1px solid rgba(74,222,128,0.2);
+    border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; text-align: center;
   }
-  .trial-banner strong { color: #e74c3c; display: block; margin-bottom: 0.25rem; }
-  .trial-banner p { font-size: 0.83rem; color: #888; }
-
-  .trial-expired-banner {
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.15);
-    border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;
-  }
-  .trial-expired-banner strong { color: #f87171; display: block; margin-bottom: 0.25rem; }
-  .trial-expired-banner p { font-size: 0.83rem; color: #888; }
+  .founding-member-banner strong { color: #4ade80; display: block; margin-bottom: 0.3rem; }
+  .founding-member-banner p { font-size: 0.83rem; color: #888; }
 
   .free-banner {
     display: flex; align-items: center; justify-content: space-between; gap: 1rem;
@@ -648,9 +537,7 @@ const styles = `
     transition: background 0.15s, transform 0.15s;
     box-shadow: 0 4px 14px rgba(192,57,43,0.25);
   }
-  .trial-upgrade-btn:hover:not(:disabled) { background: #a93226; transform: translateY(-1px); }
-  .trial-upgrade-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .trial-upgrade-btn.danger { background: #dc2626; }
+  .trial-upgrade-btn:hover { background: #a93226; transform: translateY(-1px); }
 
   .dash-welcome {
     display: flex; align-items: center; justify-content: space-between;
@@ -663,10 +550,15 @@ const styles = `
   }
   .plan-basic { background: #1a1a1a; color: #888; border: 1px solid #2a2a2a; }
   .plan-pro { background: rgba(192,57,43,0.1); color: #e74c3c; border: 1px solid rgba(192,57,43,0.25); }
-  .plan-plus { background: rgba(212,175,55,0.1); color: #d4af37; border: 1px solid rgba(212,175,55,0.25); }
+  .plan-plus { background: rgba(212,160,23,0.1); color: #D4A017; border: 1px solid rgba(212,160,23,0.25); }
   .verified-tag {
     background: rgba(74,222,128,0.08); color: #4ade80;
     border: 1px solid rgba(74,222,128,0.15); padding: 0.15rem 0.5rem;
+    border-radius: 20px; font-size: 0.72rem;
+  }
+  .founding-tag {
+    background: rgba(212,160,23,0.08); color: #D4A017;
+    border: 1px solid rgba(212,160,23,0.15); padding: 0.15rem 0.5rem;
     border-radius: 20px; font-size: 0.72rem;
   }
   .save-msg {
@@ -695,13 +587,14 @@ const styles = `
   .plan-info-label { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.3rem; }
   .plan-info-name { font-size: 1.1rem; font-weight: 600; color: #fff; }
   .plan-info-sub { font-size: 0.8rem; color: #888; margin-top: 0.2rem; }
-  .plan-info-trial { font-size: 0.78rem; color: #e74c3c; margin-top: 0.2rem; }
   .upgrade-cta-btn {
     padding: 0.7rem 1.4rem;
     background: #c0392b; color: #fff;
     text-decoration: none; border-radius: 10px;
     font-size: 0.88rem; font-weight: 700;
+    transition: background 0.15s, transform 0.15s;
   }
+  .upgrade-cta-btn:hover { background: #a93226; transform: translateY(-1px); }
 
   .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
   .section-header h2 { font-family: 'Playfair Display', serif; font-size: 1.25rem; color: #fff; }
@@ -795,7 +688,6 @@ const styles = `
   .photo-limit-msg {
     margin-top: 0.75rem; font-size: 0.82rem; color: #888; text-align: center;
   }
-  .photo-limit-msg a { color: #c0392b; }
 
   .danger-zone { border: 1px solid rgba(255,80,80,0.08); border-radius: 12px; padding: 1.25rem; }
   .danger-title { font-size: 0.72rem; color: #f87171; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.75rem; }

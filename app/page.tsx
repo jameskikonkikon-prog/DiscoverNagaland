@@ -204,6 +204,7 @@ export default function HomePage() {
             <button key={n.label} className="nl" onClick={() => quickSearch(n.query)}>{n.label}</button>
           ))}
         </div>
+        <a href="/pricing" className="nl" style={{ color: '#D4A017', fontWeight: 700 }}>Pricing</a>
         <a href="/register" className="nav-cta-btn">List your business</a>
       </nav>
 
@@ -423,7 +424,7 @@ export default function HomePage() {
           <div className="cta-box">
             <div className="cta-icon">🏪</div>
             <div className="cta-title">Own a business?</div>
-            <div className="cta-sub">Get found by thousands searching in Nagaland. First 30 days completely free.</div>
+            <div className="cta-sub">Get found by thousands searching in Nagaland. First 100 businesses get Pro free — forever!</div>
             <a href="/register" className="cta-btn">List your business free</a>
             <span className="cta-free">No credit card · No contract · Cancel anytime</span>
           </div>

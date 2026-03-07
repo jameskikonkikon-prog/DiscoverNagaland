@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CITIES, CATEGORIES } from '@/types';
 
@@ -383,6 +383,15 @@ export default function RegisterPage() {
   const [photos, setPhotos] = useState<File[]>([]);
   const [menuFile, setMenuFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [isFoundingMember, setIsFoundingMember] = useState(false);
+  const [foundingSpots, setFoundingSpots] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch('/api/founding-members')
+      .then(r => r.json())
+      .then(data => setFoundingSpots(data.remaining))
+      .catch(() => {});
+  }, []);
 
   const update = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
   const updateCustom = (key: string, val: string | string[]) => setCustomFields(f => ({ ...f, [key]: val }));
@@ -446,6 +455,7 @@ export default function RegisterPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to create listing');
 
       const businessId = data.business.id;
+      if (data.business.is_founding_member) setIsFoundingMember(true);
       const updates: Record<string, unknown> = {};
       if (photos.length > 0) updates.photos = await uploadPhotos(businessId);
       if (menuFile) updates.menu_url = await uploadMenu(businessId);
@@ -474,7 +484,14 @@ export default function RegisterPage() {
         <div className="reg-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🎉</div>
           <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: 'var(--red)', marginBottom: '0.75rem' }}>You&apos;re Listed!</h1>
-          <p style={{ color: 'var(--muted)', marginBottom: '2rem', lineHeight: '1.6' }}>Your business is now live on Yana Nagaland. Use your email and password to log in and manage your listing anytime.</p>
+          {isFoundingMember && (
+            <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '10px', padding: '12px 16px', marginBottom: '1rem', color: '#4ade80', fontSize: '0.9rem' }}>
+              <strong>Founding Member!</strong> You got the Pro plan free — forever. No credit card, no expiry.
+            </div>
+          )}
+          <p style={{ color: 'var(--muted)', marginBottom: '2rem', lineHeight: '1.6' }}>
+            Your business is now live on Yana Nagaland{isFoundingMember ? ' with Pro features' : ''}. Use your email and password to log in and manage your listing anytime.
+          </p>
           <a href="/login" className="btn-next" style={{ display: 'inline-block', textDecoration: 'none', padding: '0.85rem 2rem' }}>Go to Login →</a>
         </div>
       </main>
@@ -492,6 +509,11 @@ export default function RegisterPage() {
             <span className="brand-naga">Nagaland</span>
           </a>
           <p>List Your Business — It&apos;s Free</p>
+          {foundingSpots !== null && foundingSpots > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '0.78rem', color: '#4ade80', fontWeight: 600 }}>
+              🎉 {foundingSpots} of 100 founding member spots left — register now for free Pro!
+            </div>
+          )}
         </div>
 
         {/* STEPPER */}

@@ -34,6 +34,8 @@ export const CATEGORIES = [
   'other',
 ] as const;
 
+export const FOUNDING_MEMBER_LIMIT = 100;
+
 export const PLANS = {
   basic: {
     name: 'Basic',
@@ -54,7 +56,6 @@ export const PLANS = {
     priceInPaise: 29900,
     maxPhotos: 10,
     maxVideos: 3,
-    trialDays: 30,
     features: [
       'Everything in Basic',
       '10 photos, 3 videos',
@@ -71,7 +72,6 @@ export const PLANS = {
     priceInPaise: 49900,
     maxPhotos: Infinity,
     maxVideos: Infinity,
-    trialDays: 0,
     features: [
       'Everything in Pro',
       'Unlimited photos & videos',
@@ -110,6 +110,7 @@ export interface Business {
   trial_ends_at?: string;
   is_verified: boolean;
   is_active: boolean;
+  is_founding_member?: boolean;
   owner_id: string;
   created_at: string;
   updated_at: string;
