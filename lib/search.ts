@@ -13,7 +13,7 @@ const NAGALAND_CITIES = [
 ];
 
 const STOP_WORDS = new Set([
-  'store','shop','place','centre','center','find','near','best','good',
+  'place','centre','center','find','near','best','good',
   'a','the','in','at','of','for','and','or','with','to','is','are',
   'was','were','i','me','my','we','our','some','any','where','which','want'
 ]);
@@ -57,7 +57,6 @@ function detectConditions(query: string): string[] {
     'parking': 'parking',
     'delivery': 'delivery',
     'boys': 'boys', 'girls': 'girls',
-    'football': 'football', 'cricket': 'cricket', 'badminton': 'badminton',
     'dental': 'dental', 'eye': 'eye', 'ortho': 'ortho',
     '24': '24 hours', '24hr': '24 hours', '24 hour': '24 hours',
     'emergency': 'emergency',
@@ -197,20 +196,23 @@ export async function searchBusinesses(
     return { businesses: [], detectedCity };
   }
 
-  // Apply condition filtering
-  const conditionFiltered = (conditions.length > 0 || priceCondition)
-    ? businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition))
-    : businesses;
+  // Apply condition filtering (soft — if it returns nothing, fall back to full set)
+  let conditionFiltered = businesses;
+  if (conditions.length > 0 || priceCondition) {
+    const strict = businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition));
+    if (strict.length > 0) conditionFiltered = strict;
+  }
 
   if (!cleanQuery.trim()) return { businesses: sortByPlan(conditionFiltered), detectedCity };
 
-  // Keyword search
+  // Keyword search across name, category, description, tags, address, custom_fields
   const keywords = cleanQuery.toLowerCase()
     .split(/\s+/)
     .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 
   let candidates = conditionFiltered;
   if (keywords.length > 0) {
+    // First try: search within condition-filtered pool
     const keywordResults = conditionFiltered.filter((b: Business) => {
       const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
         .filter(Boolean).join(' ').toLowerCase();
@@ -218,6 +220,16 @@ export async function searchBusinesses(
     });
     if (keywordResults.length > 0) {
       candidates = keywordResults;
+    } else {
+      // Fallback: search across ALL businesses (ignore condition filter)
+      const broadResults = businesses.filter((b: Business) => {
+        const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
+          .filter(Boolean).join(' ').toLowerCase();
+        return keywords.some(kw => haystack.includes(kw));
+      });
+      if (broadResults.length > 0) {
+        candidates = broadResults;
+      }
     }
   }
 
