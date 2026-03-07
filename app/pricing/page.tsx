@@ -149,15 +149,20 @@ export default function PricingPage() {
       .catch(() => {});
   }, []);
 
-  // Check URL for pre-selected plan (after login redirect)
+  // Check localStorage for pending plan (after login redirect)
   useEffect(() => {
+    const storedPlan = localStorage.getItem('yana_pending_plan');
+    if (storedPlan && ['pro', 'plus'].includes(storedPlan)) {
+      localStorage.removeItem('yana_pending_plan');
+      setPendingPlan(storedPlan);
+      handlePlanClick(storedPlan);
+    }
+    // Also check URL param as fallback
     const params = new URLSearchParams(window.location.search);
     const plan = params.get('plan');
     if (plan && ['pro', 'plus'].includes(plan)) {
-      // Auto-trigger after redirect from login
       setPendingPlan(plan);
       handlePlanClick(plan);
-      // Clean URL
       window.history.replaceState({}, '', '/pricing');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,9 +199,11 @@ export default function PricingPage() {
     setLoginEmail('');
     setLoginPassword('');
     setLoginLoading(false);
-    // Continue with plan selection after login
-    if (pendingPlan) {
-      handlePlanClick(pendingPlan);
+    // Retrieve plan from localStorage and go straight to payment
+    const storedPlan = localStorage.getItem('yana_pending_plan') || pendingPlan;
+    if (storedPlan) {
+      localStorage.removeItem('yana_pending_plan');
+      handlePlanClick(storedPlan);
     }
   };
 
@@ -214,7 +221,8 @@ export default function PricingPage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        // Show login modal instead of redirecting away
+        // Store plan in localStorage so it persists through any redirect
+        localStorage.setItem('yana_pending_plan', planId);
         setPendingPlan(planId);
         setShowLogin(true);
         setUpgrading(null);

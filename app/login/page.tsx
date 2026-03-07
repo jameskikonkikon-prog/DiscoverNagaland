@@ -16,6 +16,10 @@ export default function LoginPage() {
 
   const getRedirect = () => {
     const params = new URLSearchParams(window.location.search);
+    // If there's a pending plan in localStorage, redirect to pricing to complete payment
+    if (typeof window !== 'undefined' && localStorage.getItem('yana_pending_plan')) {
+      return '/pricing';
+    }
     return params.get('redirect') || '/dashboard';
   };
 
