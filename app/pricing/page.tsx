@@ -130,7 +130,16 @@ export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [foundingSpots, setFoundingSpots] = useState<{ claimed: number; remaining: number; total: number } | null>(null);
+
+  // Login modal state
+  const [showLogin, setShowLogin] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   // Fetch founding member counter
   useEffect(() => {
@@ -139,6 +148,25 @@ export default function PricingPage() {
       .then(data => setFoundingSpots(data))
       .catch(() => {});
   }, []);
+
+  // Check URL for pre-selected plan (after login redirect)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get('plan');
+    if (plan && ['pro', 'plus'].includes(plan)) {
+      // Auto-trigger after redirect from login
+      setPendingPlan(plan);
+      handlePlanClick(plan);
+      // Clean URL
+      window.history.replaceState({}, '', '/pricing');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
+    setMessage(text);
+    setMessageType(type);
+  };
 
   const ensureRazorpayScript = useCallback((): Promise<void> => {
     return new Promise((resolve) => {
@@ -152,6 +180,27 @@ export default function PricingPage() {
     });
   }, []);
 
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError('');
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
+    if (error) {
+      setLoginError('Wrong email or password. Please try again.');
+      setLoginLoading(false);
+      return;
+    }
+    setShowLogin(false);
+    setLoginEmail('');
+    setLoginPassword('');
+    setLoginLoading(false);
+    // Continue with plan selection after login
+    if (pendingPlan) {
+      handlePlanClick(pendingPlan);
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handlePlanClick = useCallback(async (planId: string) => {
     if (planId === 'basic') {
       window.location.href = '/register';
@@ -165,7 +214,10 @@ export default function PricingPage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        window.location.href = '/register';
+        // Show login modal instead of redirecting away
+        setPendingPlan(planId);
+        setShowLogin(true);
+        setUpgrading(null);
         return;
       }
 
@@ -182,7 +234,7 @@ export default function PricingPage() {
 
       const planOrder = ['basic', 'pro', 'plus'];
       if (planOrder.indexOf(business.plan) >= planOrder.indexOf(planId)) {
-        setMessage(`You're already on the ${business.plan.charAt(0).toUpperCase() + business.plan.slice(1)} plan.`);
+        showMsg(`You're already on the ${business.plan.charAt(0).toUpperCase() + business.plan.slice(1)} plan.`, 'error');
         setUpgrading(null);
         return;
       }
@@ -197,7 +249,7 @@ export default function PricingPage() {
 
       // Founding member activation (free Pro, no payment)
       if (data.foundingMember) {
-        setMessage(`Founding member Pro activated! You're one of the first ${100 - data.spotsRemaining}. Redirecting...`);
+        showMsg(`Founding member Pro activated! You're one of the first ${100 - data.spotsRemaining}. Redirecting...`);
         setTimeout(() => { window.location.href = '/dashboard?success=upgraded'; }, 1500);
         return;
       }
@@ -213,13 +265,20 @@ export default function PricingPage() {
         description: data.description || `${planId.charAt(0).toUpperCase() + planId.slice(1)} Plan`,
         theme: { color: '#c0392b' },
         handler: async (response: Record<string, string>) => {
-          setMessage('Verifying payment...');
-          await fetch('/api/payments/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...response, businessId: business.id, plan: planId }),
-          });
-          window.location.href = '/dashboard?success=upgraded';
+          showMsg('Verifying payment...');
+          try {
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...response, businessId: business.id, plan: planId }),
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) throw new Error(verifyData.error || 'Verification failed');
+            window.location.href = '/dashboard?success=upgraded';
+          } catch (verifyErr) {
+            showMsg(verifyErr instanceof Error ? verifyErr.message : 'Payment verification failed. Please contact support.', 'error');
+            setUpgrading(null);
+          }
         },
         modal: {
           ondismiss: () => { setUpgrading(null); },
@@ -227,7 +286,7 @@ export default function PricingPage() {
       });
       rzp.open();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      showMsg(err instanceof Error ? err.message : 'Something went wrong. Please try again.', 'error');
       setUpgrading(null);
     }
   }, [ensureRazorpayScript]);
@@ -285,7 +344,33 @@ export default function PricingPage() {
       )}
 
       {message && (
-        <div className="pricing-msg">{message}</div>
+        <div className={`pricing-msg ${messageType === 'error' ? 'pricing-msg-error' : ''}`}>{message}</div>
+      )}
+
+      {/* Login Modal */}
+      {showLogin && (
+        <div className="login-overlay" onClick={() => { setShowLogin(false); setPendingPlan(null); }}>
+          <div className="login-modal" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => { setShowLogin(false); setPendingPlan(null); }}>&times;</button>
+            <h2 className="modal-title">Sign in to continue</h2>
+            <p className="modal-sub">Log in to upgrade to the {pendingPlan ? pendingPlan.charAt(0).toUpperCase() + pendingPlan.slice(1) : ''} plan</p>
+            <form onSubmit={handleLoginSubmit} className="modal-form">
+              <div className="modal-field">
+                <label>Email</label>
+                <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="you@email.com" required />
+              </div>
+              <div className="modal-field">
+                <label>Password</label>
+                <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Your password" required />
+              </div>
+              {loginError && <div className="modal-error">{loginError}</div>}
+              <button type="submit" className="modal-btn" disabled={loginLoading}>
+                {loginLoading ? 'Signing in...' : 'Sign In & Continue'}
+              </button>
+            </form>
+            <p className="modal-footer">Don&apos;t have an account? <a href="/register">Register your business first</a></p>
+          </div>
+        </div>
       )}
 
       <section className="plans-grid">
@@ -512,6 +597,78 @@ const styles = `
     font-size: 0.9rem;
     color: #4ade80;
   }
+  .pricing-msg-error {
+    background: rgba(180,40,40,0.12);
+    border-color: rgba(180,40,40,0.3);
+    color: #ff8080;
+  }
+
+  /* Login Modal */
+  .login-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .login-modal {
+    background: #141414;
+    border: 1px solid #333;
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%; max-width: 400px;
+    position: relative;
+  }
+  .modal-close {
+    position: absolute; top: 12px; right: 16px;
+    background: none; border: none; color: #666;
+    font-size: 1.5rem; cursor: pointer;
+  }
+  .modal-close:hover { color: #fff; }
+  .modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem; color: #fff;
+    margin-bottom: 6px;
+  }
+  .modal-sub { font-size: 0.85rem; color: #888; margin-bottom: 24px; }
+  .modal-form { display: flex; flex-direction: column; gap: 16px; }
+  .modal-field label {
+    display: block; font-size: 0.72rem; color: #c0392b;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 6px; font-weight: 600;
+  }
+  .modal-field input {
+    width: 100%; padding: 10px 12px;
+    background: rgba(0,0,0,0.4);
+    border: 1.5px solid #333;
+    border-radius: 8px; color: #fff;
+    font-family: 'Sora', sans-serif; font-size: 0.9rem;
+    outline: none;
+  }
+  .modal-field input:focus { border-color: #c0392b; }
+  .modal-field input::placeholder { color: #555; }
+  .modal-error {
+    background: rgba(180,40,40,0.12);
+    border: 1px solid rgba(180,40,40,0.3);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 0.82rem; color: #ff8080;
+  }
+  .modal-btn {
+    width: 100%; padding: 12px;
+    background: #c0392b; border: none;
+    border-radius: 8px; color: #fff;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.92rem; font-weight: 700;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .modal-btn:hover:not(:disabled) { background: #e74c3c; }
+  .modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .modal-footer {
+    text-align: center; margin-top: 16px;
+    font-size: 0.82rem; color: #666;
+  }
+  .modal-footer a { color: #c0392b; text-decoration: none; }
+  .modal-footer a:hover { text-decoration: underline; }
 
   /* Plans Grid */
   .plans-grid {
