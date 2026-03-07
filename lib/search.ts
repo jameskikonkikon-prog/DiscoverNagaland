@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Anthropic from '@anthropic-ai/sdk';
 import { getServiceClient } from './supabase';
 import { Business } from '@/types';
 
@@ -18,7 +18,16 @@ const STOP_WORDS = new Set([
   'was','were','i','me','my','we','our','some','any','where','which','want'
 ]);
 
-// Price condition detection
+const PLAN_RANK: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
+
+function sortByPlan(businesses: Business[]): Business[] {
+  return [...businesses].sort((a, b) => {
+    const rankA = PLAN_RANK[a.plan] ?? 3;
+    const rankB = PLAN_RANK[b.plan] ?? 3;
+    return rankA - rankB;
+  });
+}
+
 function detectPriceCondition(query: string): { max?: number; min?: number } | null {
   const lower = query.toLowerCase();
   if (lower.match(/under\s*₹?\s*(\d+)/)) {
@@ -38,7 +47,6 @@ function detectPriceCondition(query: string): { max?: number; min?: number } | n
   return null;
 }
 
-// Amenity/feature detection
 function detectConditions(query: string): string[] {
   const conditions: string[] = [];
   const lower = query.toLowerCase();
@@ -68,7 +76,6 @@ function businessMatchesConditions(b: Business & { custom_fields?: Record<string
   const cf = b.custom_fields || {};
   const allText = JSON.stringify(cf).toLowerCase();
 
-  // Check price
   if (priceCondition) {
     const prices = [
       cf.price_per_month, cf.price_per_night, cf.price_per_hour, cf.price_per_day
@@ -79,7 +86,6 @@ function businessMatchesConditions(b: Business & { custom_fields?: Record<string
     }
   }
 
-  // Check conditions
   for (const condition of conditions) {
     if (!allText.includes(condition.toLowerCase())) return false;
   }
@@ -95,10 +101,84 @@ export function detectCity(query: string): string | null {
   return null;
 }
 
+interface AiRankedResult {
+  id: string;
+  reason: string;
+}
+
+async function aiRankWithClaude(
+  query: string,
+  businesses: Business[]
+): Promise<{ ranked: AiRankedResult[]; summary: string } | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.warn('ANTHROPIC_API_KEY not set — skipping AI ranking');
+    return null;
+  }
+
+  const top15 = businesses.slice(0, 15);
+  const businessList = top15.map((b) => ({
+    id: b.id,
+    name: b.name,
+    category: b.category,
+    city: b.city,
+    address: b.address,
+    description: b.description,
+    tags: b.tags,
+    amenities: b.amenities,
+    price_range: b.price_range,
+    gender: b.gender,
+    vacancy: b.vacancy,
+    wifi: b.wifi,
+    ac: b.ac,
+    meals: b.meals,
+    vibe_tags: b.vibe_tags,
+    custom_fields: b.custom_fields,
+  }));
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: 'You are Yana AI, a helpful assistant for finding businesses in Nagaland. Rank these businesses by relevance to the user query and explain briefly why each is a good match. Be concise.',
+      messages: [
+        {
+          role: 'user',
+          content: `User searched: "${query}"
+
+Here are the businesses found in our database:
+${JSON.stringify(businessList, null, 2)}
+
+Return a JSON object with:
+1. "summary": A brief 1-2 sentence overview of what you found for the user
+2. "ranked": An array of objects with "id" (business ID) and "reason" (one short sentence why it matches), ordered by relevance. Only include genuinely relevant businesses.
+
+Return ONLY valid JSON, no markdown fences.`,
+        },
+      ],
+    });
+
+    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        ranked: parsed.ranked || [],
+        summary: parsed.summary || '',
+      };
+    }
+  } catch (error) {
+    console.error('Claude AI ranking failed:', error);
+  }
+
+  return null;
+}
+
 export async function searchBusinesses(
   query: string,
   cityFilter?: string
-): Promise<{ businesses: Business[]; detectedCity: string | null }> {
+): Promise<{ businesses: Business[]; detectedCity: string | null; aiSummary?: string; aiReasons?: Record<string, string> }> {
   const serviceClient = getServiceClient();
 
   const detectedCity = detectCity(query);
@@ -113,55 +193,61 @@ export async function searchBusinesses(
   if (activeCity) dbQuery = dbQuery.eq('city', activeCity);
 
   const { data: businesses } = await dbQuery;
-  if (!businesses || businesses.length === 0) return { businesses: [], detectedCity };
+  if (!businesses || businesses.length === 0) {
+    return { businesses: [], detectedCity };
+  }
 
-  // Apply strict condition filtering first
+  // Apply condition filtering
   const conditionFiltered = (conditions.length > 0 || priceCondition)
     ? businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition))
     : businesses;
 
-  if (!cleanQuery.trim()) return { businesses: conditionFiltered, detectedCity };
+  if (!cleanQuery.trim()) return { businesses: sortByPlan(conditionFiltered), detectedCity };
 
-  // Keyword search on condition-filtered results
+  // Keyword search
   const keywords = cleanQuery.toLowerCase()
     .split(/\s+/)
     .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 
-  if (keywords.length === 0) return { businesses: conditionFiltered, detectedCity };
-
-  const keywordResults = conditionFiltered.filter((b: Business) => {
-    const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
-      .filter(Boolean).join(' ').toLowerCase();
-    return keywords.some(kw => haystack.includes(kw));
-  });
-
-  if (keywordResults.length > 0) return { businesses: keywordResults, detectedCity };
-
-  // Gemini fallback on condition-filtered pool
-  try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const businessList = conditionFiltered.map((b: Business) => ({
-      id: b.id, name: b.name, category: b.category, city: b.city,
-      tags: b.tags, description: b.description, custom_fields: b.custom_fields,
-    }));
-    const prompt = `Local search for Nagaland, India.
-Query: "${cleanQuery}"${activeCity ? ` in ${activeCity}` : ''}
-These businesses already match the user's conditions. Rank them by relevance to the query.
-Return JSON array of matching business IDs. Return [] if nothing relevant.
-Businesses: ${JSON.stringify(businessList)}
-Return ONLY: ["id1", "id2"]`;
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const match = text.match(/\[.*\]/s);
-    if (match) {
-      const ids = JSON.parse(match[0]) as string[];
-      const geminiResults = ids.map(id => conditionFiltered.find((b: Business) => b.id === id)).filter(Boolean) as Business[];
-      return { businesses: geminiResults, detectedCity };
+  let candidates = conditionFiltered;
+  if (keywords.length > 0) {
+    const keywordResults = conditionFiltered.filter((b: Business) => {
+      const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
+        .filter(Boolean).join(' ').toLowerCase();
+      return keywords.some(kw => haystack.includes(kw));
+    });
+    if (keywordResults.length > 0) {
+      candidates = keywordResults;
     }
-  } catch (error) {
-    console.error('Gemini search failed:', error);
   }
 
-  return { businesses: conditionFiltered, detectedCity };
+  // AI ranking with Claude
+  const sorted = sortByPlan(candidates);
+  const aiResult = await aiRankWithClaude(query, sorted);
+
+  if (aiResult && aiResult.ranked.length > 0) {
+    const reasonMap: Record<string, string> = {};
+    const aiOrderedIds = aiResult.ranked.map(r => {
+      reasonMap[r.id] = r.reason;
+      return r.id;
+    });
+
+    // Reorder by AI ranking, keeping AI-ranked ones first
+    const aiRanked = aiOrderedIds
+      .map(id => sorted.find(b => b.id === id))
+      .filter(Boolean) as Business[];
+
+    // Append any businesses AI didn't rank
+    const rankedIds = new Set(aiOrderedIds);
+    const remaining = sorted.filter(b => !rankedIds.has(b.id));
+
+    return {
+      businesses: [...aiRanked, ...remaining],
+      detectedCity,
+      aiSummary: aiResult.summary,
+      aiReasons: reasonMap,
+    };
+  }
+
+  return { businesses: sorted, detectedCity };
 }

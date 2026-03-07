@@ -1,12 +1,9 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
-
 export const metadata: Metadata = {
-  title: 'Yana Nagaland — Find Local Businesses',
-  description: 'The first hyperlocal business directory for Nagaland. Find restaurants, hotels, shops and more in Kohima, Dimapur and across Nagaland.',
+  title: 'Yana Nagaland — Find anything in Nagaland',
+  description: 'Nagaland\'s first AI directory. Find PG rooms, gyms, turfs, cafés, study spaces, restaurants and more across all 17 districts.',
 }
 
 export default function RootLayout({
@@ -16,7 +13,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+      </head>
+      <body>{children}</body>
     </html>
   )
 }

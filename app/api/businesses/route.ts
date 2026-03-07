@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/supabase';
+import { FOUNDING_MEMBER_LIMIT } from '@/types';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, category, city, address, landmark, phone, whatsapp, email, website, description, opening_hours, tags, amenities, owner_id, slug, custom_fields } = body;
+    const { name, category, city, address, landmark, phone, whatsapp, email, website, description, opening_hours, tags, amenities, owner_id, slug, custom_fields, vibe_tags, price_min, price_max, price_range, gender, vacancy, wifi, ac, meals, room_type, cuisine } = body;
 
     if (!name || !category || !city || !address || !phone) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const supabase = getServiceClient();
-    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Check founding member spots for auto-Pro
+    const { count } = await supabase
+      .from('businesses')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_founding_member', true);
+
+    const isFoundingMember = (count || 0) < FOUNDING_MEMBER_LIMIT;
 
     const { data, error } = await supabase.from('businesses').insert({
       name,
@@ -27,9 +35,20 @@ export async function POST(req: NextRequest) {
       tags: tags || null,
       amenities: amenities || null,
       custom_fields: custom_fields || null,
+      vibe_tags: vibe_tags || null,
+      price_min: price_min || null,
+      price_max: price_max || null,
+      price_range: price_range || null,
+      gender: gender || null,
+      vacancy: vacancy || null,
+      wifi: wifi || null,
+      ac: ac || null,
+      meals: meals || null,
+      room_type: room_type || null,
+      cuisine: cuisine || null,
       owner_id: owner_id || null,
-      plan: 'trial',
-      trial_ends_at: trialEndsAt,
+      plan: isFoundingMember ? 'pro' : 'basic',
+      is_founding_member: isFoundingMember,
       is_active: true,
       is_verified: false,
     }).select().single();
