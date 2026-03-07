@@ -73,6 +73,22 @@ export interface Business {
   owner_id: string;
   created_at: string;
   updated_at: string;
+  custom_fields?: Record<string, unknown>;
+  tags?: string;
+  amenities?: string;
+  menu_url?: string;
+  price_min?: number;
+  price_max?: number;
+  price_range?: string;
+  gender?: string;
+  vacancy?: boolean;
+  wifi?: boolean;
+  ac?: boolean;
+  meals?: boolean;
+  room_type?: string;
+  cuisine?: string;
+  vibe_tags?: string;
+  videos?: string[];
 }
 
 export interface BusinessAnalytics {

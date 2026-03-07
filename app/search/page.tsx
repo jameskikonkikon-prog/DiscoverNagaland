@@ -59,6 +59,9 @@ type Business = {
   city: string;
   description?: string;
   photos?: string[];
+  phone?: string;
+  whatsapp?: string;
+  is_verified?: boolean;
 };
 
 function SearchPageInner() {
@@ -68,6 +71,8 @@ function SearchPageInner() {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiReasons, setAiReasons] = useState<Record<string, string>>({});
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -99,6 +104,8 @@ function SearchPageInner() {
       const json = await res.json();
       setDetectedCity(json.detectedCity || null);
       setResults(json.businesses ?? []);
+      setAiSummary(json.aiSummary || null);
+      setAiReasons(json.aiReasons || {});
     } finally {
       setLoading(false);
     }
@@ -107,7 +114,7 @@ function SearchPageInner() {
   function handleInput(val: string) {
     setQuery(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(val, selectedCity, selectedCategory), 400);
+    debounceRef.current = setTimeout(() => doSearch(val, selectedCity, selectedCategory), 800);
   }
 
   function handleFilter(city: string, category: string) {
@@ -184,21 +191,27 @@ function SearchPageInner() {
             )}
             {hasSearched && !loading && results.length === 0 && (
               <div className="state-msg sad">
-                <h2>No results found</h2>
+                <h2>No businesses found yet in this category</h2>
                 <p>
-                  {activeCity
-                    ? <>No businesses found in <strong style={{ color: '#c9963a' }}>{activeCity}</strong> yet — be the first to <Link href="/register" style={{ color: "#c9963a" }}>register your business</Link>!</>
-                    : <>Try a different keyword, or <Link href="/register" style={{ color: "#c9963a" }}>list your business</Link> if it&apos;s missing!</>
-                  }
+                  Be the first to <Link href="/register" style={{ color: "#c9963a" }}>list yours</Link>!
+                  {activeCity && <> We&apos;re growing fast in <strong style={{ color: '#c9963a' }}>{activeCity}</strong>.</>}
                 </p>
               </div>
             )}
             {hasSearched && !loading && results.length > 0 && (
-              <div className="results-meta">
-                <strong>{results.length}</strong> result{results.length !== 1 ? "s" : ""}
-                {query && <> for &ldquo;{query}&rdquo;</>}
-                {activeCity && <> in {activeCity}</>}
-              </div>
+              <>
+                {aiSummary && (
+                  <div className="ai-summary-box">
+                    <div className="ai-summary-label">Yana AI</div>
+                    <p className="ai-summary-text">{aiSummary}</p>
+                  </div>
+                )}
+                <div className="results-meta">
+                  <strong>{results.length}</strong> result{results.length !== 1 ? "s" : ""}
+                  {query && <> for &ldquo;{query}&rdquo;</>}
+                  {activeCity && <> in {activeCity}</>}
+                </div>
+              </>
             )}
             {loading && (
               <div className="results-grid">
@@ -227,6 +240,11 @@ function SearchPageInner() {
                       <div className="biz-name">{biz.name}</div>
                       <div className="biz-city">📍 {biz.city}</div>
                       {biz.description && <div className="biz-desc">{biz.description}</div>}
+                      {aiReasons[biz.id] && (
+                        <div className="ai-reason">
+                          <span className="ai-reason-tag">AI</span> {aiReasons[biz.id]}
+                        </div>
+                      )}
                     </div>
                   </Link>
                 ))}
@@ -295,6 +313,45 @@ const styles = `
   .results-col { flex: 1; }
   .results-meta { font-size: 0.9rem; color: #8a9a8a; margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(201,150,58,0.1); }
   .results-meta strong { color: #c9963a; }
+  .ai-summary-box {
+    background: rgba(201, 150, 58, 0.06);
+    border: 1px solid rgba(201, 150, 58, 0.2);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .ai-summary-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #c9963a;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.35rem;
+  }
+  .ai-summary-text {
+    font-size: 0.88rem;
+    color: #d0c4b0;
+    line-height: 1.6;
+    margin: 0;
+  }
+  .ai-reason {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: #8a9a8a;
+    line-height: 1.4;
+  }
+  .ai-reason-tag {
+    display: inline-block;
+    background: rgba(201, 150, 58, 0.15);
+    color: #c9963a;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    vertical-align: middle;
+    margin-right: 3px;
+  }
   .state-msg { text-align: center; padding: 4rem 2rem; }
   .state-msg h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #e8ddd0; margin-bottom: 0.5rem; }
   .state-msg p { color: #8a9a8a; font-size: 0.9rem; line-height: 1.6; }
