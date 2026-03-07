@@ -4,54 +4,6 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-function NagaWarrior({ state }: { state: "idle" | "searching" | "sad" | "happy" }) {
-  return (
-    <div className={`warrior-wrap warrior-${state}`} aria-hidden="true">
-      <svg viewBox="0 0 120 200" xmlns="http://www.w3.org/2000/svg" className="warrior-svg" fill="none">
-        <line x1="95" y1="20" x2="75" y2="140" stroke="#c9963a" strokeWidth="3" strokeLinecap="round" />
-        <polygon points="95,20 88,38 102,38" fill="#c9963a" />
-        <ellipse cx="42" cy="28" rx="5" ry="18" fill="#8B1A1A" transform="rotate(-20 42 28)" />
-        <ellipse cx="55" cy="22" rx="5" ry="20" fill="#c9963a" transform="rotate(-5 55 22)" />
-        <ellipse cx="68" cy="26" rx="5" ry="18" fill="#8B1A1A" transform="rotate(15 68 26)" />
-        <rect x="36" y="42" width="42" height="10" rx="3" fill="#c9963a" />
-        <rect x="36" y="42" width="42" height="5" rx="3" fill="#a07020" opacity="0.5" />
-        <ellipse cx="57" cy="70" rx="22" ry="24" fill="#c8956b" />
-        <ellipse cx="49" cy="66" rx="4" ry="4.5" fill="#1a0a00" />
-        <ellipse cx="65" cy="66" rx="4" ry="4.5" fill="#1a0a00" />
-        <ellipse cx="50" cy="64.5" rx="1.5" ry="1.5" fill="white" opacity="0.6" />
-        <ellipse cx="66" cy="64.5" rx="1.5" ry="1.5" fill="white" opacity="0.6" />
-        <ellipse cx="57" cy="72" rx="3" ry="2" fill="#b07050" />
-        {state === "sad" && <path d="M48 82 Q57 76 66 82" stroke="#1a0a00" strokeWidth="2" strokeLinecap="round" fill="none" />}
-        {state === "happy" && <path d="M48 78 Q57 86 66 78" stroke="#1a0a00" strokeWidth="2" strokeLinecap="round" fill="none" />}
-        {(state === "idle" || state === "searching") && <path d="M50 80 Q57 83 64 80" stroke="#1a0a00" strokeWidth="2" strokeLinecap="round" fill="none" />}
-        {state === "sad" && <>
-          <ellipse cx="47" cy="76" rx="1.5" ry="2" fill="#5599cc" className="tear left-tear" />
-          <ellipse cx="67" cy="76" rx="1.5" ry="2" fill="#5599cc" className="tear right-tear" />
-        </>}
-        <rect x="49" y="92" width="16" height="12" rx="3" fill="#c8956b" />
-        <path d="M20 105 Q30 100 57 100 Q84 100 95 105 L98 165 Q85 170 57 172 Q29 170 16 165 Z" fill="#1a2e1a" />
-        <path d="M22 120 Q57 118 92 120" stroke="#c9963a" strokeWidth="3" strokeLinecap="round" fill="none" />
-        <path d="M22 128 Q57 126 92 128" stroke="#8B1A1A" strokeWidth="2" strokeLinecap="round" fill="none" />
-        <path d="M22 136 Q57 134 92 136" stroke="#c9963a" strokeWidth="3" strokeLinecap="round" fill="none" />
-        <path d="M20 110 Q10 125 14 145" stroke="#c8956b" strokeWidth="10" strokeLinecap="round" fill="none" />
-        <path d="M95 110 Q100 125 90 140" stroke="#c8956b" strokeWidth="10" strokeLinecap="round" fill="none" />
-        <ellipse cx="13" cy="148" rx="7" ry="6" fill="#c8956b" />
-        <ellipse cx="90" cy="143" rx="7" ry="6" fill="#c8956b" />
-        <rect x="37" y="170" width="14" height="28" rx="5" fill="#c8956b" />
-        <rect x="63" y="170" width="14" height="28" rx="5" fill="#c8956b" />
-        <ellipse cx="44" cy="199" rx="10" ry="5" fill="#8a5a30" />
-        <ellipse cx="70" cy="199" rx="10" ry="5" fill="#8a5a30" />
-        {(state === "idle" || state === "searching") && (
-          <g className={state === "searching" ? "magnifier-spin" : ""}>
-            <circle cx="13" cy="148" r="10" stroke="#c9963a" strokeWidth="2.5" fill="none" />
-            <line x1="20" y1="155" x2="28" y2="163" stroke="#c9963a" strokeWidth="2.5" strokeLinecap="round" />
-          </g>
-        )}
-      </svg>
-    </div>
-  );
-}
-
 type Business = {
   id: string;
   name: string;
@@ -90,8 +42,6 @@ function SearchPageInner() {
   const CITIES = ["Kohima","Dimapur","Mokokchung","Mon","Tuensang","Wokha","Phek","Zunheboto","Peren","Longleng","Kiphire","Noklak","Shamator","Tseminyü","Chümoukedima","Niuland","Meluri"];
   const CATEGORIES = ["Restaurant","Cafe","Hotel","PG","Shop","Pharmacy","Hospital","Clinic","Salon","Turf","Coaching","School","Rental","Service"];
 
-  const warriorState = loading ? "searching" : !hasSearched ? "idle" : results.length === 0 ? "sad" : "happy";
-
   async function doSearch(q: string, city: string, category: string) {
     setLoading(true);
     setHasSearched(true);
@@ -125,19 +75,38 @@ function SearchPageInner() {
 
   const activeCity = selectedCity || detectedCity;
 
+  function getWhatsAppUrl(biz: Business) {
+    const num = biz.whatsapp || biz.phone;
+    if (!num) return null;
+    const clean = num.replace(/\D/g, '');
+    const formatted = clean.startsWith('91') ? clean : `91${clean}`;
+    return `https://wa.me/${formatted}?text=${encodeURIComponent(`Hi, I found ${biz.name} on Yana Nagaland and would like to know more.`)}`;
+  }
+
+  function getCallUrl(biz: Business) {
+    if (!biz.phone) return null;
+    return `tel:${biz.phone}`;
+  }
+
   return (
     <>
       <style>{styles}</style>
       <div className="search-page">
         <header className="search-header">
-          <Link href="/" className="logo-link">Discover<span>Nagaland</span></Link>
+          <Link href="/" className="logo-link">
+            <svg width="34" height="40" viewBox="0 0 120 140" fill="none"><defs><linearGradient id="pinG" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#8B0000"/><stop offset="50%" stopColor="#c0392b"/><stop offset="100%" stopColor="#922B21"/></linearGradient><linearGradient id="feathG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#8B0000"/><stop offset="60%" stopColor="#c0392b"/><stop offset="100%" stopColor="#1a1a1a"/></linearGradient><radialGradient id="glassG" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#1a1a1a"/><stop offset="100%" stopColor="#0d0d0d"/></radialGradient></defs><g transform="rotate(-35, 45, 30)"><path d="M20 55 C10 40 15 15 40 0 C50 10 55 30 40 45 Z" fill="url(#feathG)"/><circle cx="20" cy="55" r="3" fill="#D4A017"/><circle cx="20" cy="55" r="1.5" fill="#8B0000"/></g><path d="M60 18 C38 18 20 36 20 58 C20 82 60 120 60 120 C60 120 100 82 100 58 C100 36 82 18 60 18Z" fill="url(#pinG)"/><path d="M42 35 L60 48 L78 35" stroke="rgba(0,0,0,0.3)" strokeWidth="2" fill="none"/><path d="M50 72 L60 62 L70 72 L60 82 Z" stroke="rgba(212,160,23,0.5)" strokeWidth="1" fill="rgba(0,0,0,0.15)"/><path d="M47 88 L60 96 L73 88" stroke="rgba(212,160,23,0.3)" strokeWidth="1" fill="none"/><circle cx="60" cy="58" r="19" fill="url(#glassG)" stroke="white" strokeWidth="2.5"/><path d="M54 52 L68 66" stroke="white" strokeWidth="2.5" strokeLinecap="round"/><path d="M54 52 L54 60 L62 52 Z" fill="white"/><line x1="74" y1="72" x2="84" y2="82" stroke="white" strokeWidth="4" strokeLinecap="round"/></svg>
+            <div className="logo-text">
+              <span className="logo-yana">Yana</span>
+              <span className="logo-sub">NAGALAND</span>
+            </div>
+          </Link>
           <div style={{ flex: 1 }} />
-          <Link href="/register" className="list-btn">+ List a Business</Link>
+          <Link href="/register" className="list-btn">List your business</Link>
         </header>
 
         <div className="search-hero">
           <h1>Find Businesses in <em>Nagaland</em></h1>
-          <p>Search across all 17 districts · restaurants, hotels, shops &amp; more</p>
+          <p>Search across all 17 districts</p>
           <div className="search-box-wrap">
             <input
               className="search-input"
@@ -147,11 +116,12 @@ function SearchPageInner() {
               onChange={(e) => handleInput(e.target.value)}
               autoFocus
             />
-            <span className="search-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </span>
+            <button
+              className="search-go-btn"
+              onClick={() => { if (query.trim()) doSearch(query, selectedCity, selectedCategory); }}
+            >
+              Search
+            </button>
           </div>
           <div className="filters">
             <select className="filter-select" value={selectedCity} onChange={(e) => handleFilter(e.target.value, selectedCategory)}>
@@ -172,16 +142,6 @@ function SearchPageInner() {
         </div>
 
         <div className="content">
-          <div className="mascot-col">
-            <NagaWarrior state={warriorState} />
-            <div className="mascot-label">
-              {warriorState === "idle" && <><strong>Warrior Dzü</strong>Your guide across Nagaland</>}
-              {warriorState === "searching" && <><strong>Searching…</strong>Scouting the land!</>}
-              {warriorState === "sad" && <><strong>Alas!</strong>Nothing found here yet.</>}
-              {warriorState === "happy" && <><strong>Found them!</strong>{results.length} business{results.length !== 1 ? "es" : ""} await.</>}
-            </div>
-          </div>
-
           <div className="results-col">
             {!hasSearched && (
               <div className="state-msg">
@@ -193,8 +153,8 @@ function SearchPageInner() {
               <div className="state-msg sad">
                 <h2>No businesses found yet in this category</h2>
                 <p>
-                  Be the first to <Link href="/register" style={{ color: "#c9963a" }}>list yours</Link>!
-                  {activeCity && <> We&apos;re growing fast in <strong style={{ color: '#c9963a' }}>{activeCity}</strong>.</>}
+                  Be the first to <Link href="/register" style={{ color: "#c0392b" }}>list yours</Link>!
+                  {activeCity && <> We&apos;re growing fast in <strong style={{ color: '#c0392b' }}>{activeCity}</strong>.</>}
                 </p>
               </div>
             )}
@@ -203,7 +163,7 @@ function SearchPageInner() {
                 {aiSummary && (
                   <div className="ai-summary-box">
                     <div className="ai-summary-label">Yana AI</div>
-                    <p className="ai-summary-text">{aiSummary}</p>
+                    <p>{aiSummary}</p>
                   </div>
                 )}
                 <div className="results-meta">
@@ -230,23 +190,40 @@ function SearchPageInner() {
             {!loading && results.length > 0 && (
               <div className="results-grid">
                 {results.map((biz) => (
-                  <Link key={biz.id} href={`/business/${biz.id}`} className="biz-card">
-                    {biz.photos && biz.photos[0]
-                      ? <img src={biz.photos[0]} alt={biz.name} className="biz-photo" />
-                      : <div className="biz-photo-placeholder">🏔️</div>
-                    }
-                    <div className="biz-body">
-                      <div className="biz-category">{biz.category}</div>
-                      <div className="biz-name">{biz.name}</div>
-                      <div className="biz-city">📍 {biz.city}</div>
-                      {biz.description && <div className="biz-desc">{biz.description}</div>}
-                      {aiReasons[biz.id] && (
-                        <div className="ai-reason">
-                          <span className="ai-reason-tag">AI</span> {aiReasons[biz.id]}
-                        </div>
+                  <div key={biz.id} className="biz-card">
+                    <Link href={`/business/${biz.id}`} className="biz-card-link">
+                      {biz.photos && biz.photos[0]
+                        ? <img src={biz.photos[0]} alt={biz.name} className="biz-photo" />
+                        : <div className="biz-photo-placeholder">🏔️</div>
+                      }
+                      <div className="biz-body">
+                        <div className="biz-category">{biz.category}</div>
+                        <div className="biz-name">{biz.name}</div>
+                        <div className="biz-city">📍 {biz.city}</div>
+                        {biz.is_verified && <span className="biz-verified">✓ Verified</span>}
+                        {biz.description && <div className="biz-desc">{biz.description}</div>}
+                        {aiReasons[biz.id] && (
+                          <div className="ai-reason">
+                            <span className="ai-reason-tag">AI</span> {aiReasons[biz.id]}
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                    <div className="biz-actions">
+                      {getWhatsAppUrl(biz) && (
+                        <a href={getWhatsAppUrl(biz)!} target="_blank" rel="noopener noreferrer" className="action-btn whatsapp-btn">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                          WhatsApp
+                        </a>
+                      )}
+                      {getCallUrl(biz) && (
+                        <a href={getCallUrl(biz)!} className="action-btn call-btn">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                          Call
+                        </a>
                       )}
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}
@@ -259,63 +236,192 @@ function SearchPageInner() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div style={{ background: "#0d1a0d", minHeight: "100vh" }} />}>
+    <Suspense fallback={<div style={{ background: "#0a0a0a", minHeight: "100vh" }} />}>
       <SearchPageInner />
     </Suspense>
   );
 }
 
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0d1a0d; color: #e8ddd0; font-family: 'Outfit', sans-serif; min-height: 100vh; }
-  .search-page { min-height: 100vh; background: #0d1a0d; display: flex; flex-direction: column; }
-  .search-header { background: linear-gradient(180deg, #000d00 0%, #0d1a0d 100%); border-bottom: 1px solid rgba(201,150,58,0.15); padding: 1.25rem 2rem; display: flex; align-items: center; gap: 1.5rem; }
-  .logo-link { font-family: 'Playfair Display', serif; font-size: 1.4rem; color: #c9963a; text-decoration: none; font-weight: 700; }
-  .logo-link span { color: #e8ddd0; }
-  .list-btn { color: #c9963a; text-decoration: none; font-size: 0.85rem; border: 1px solid rgba(201,150,58,0.3); padding: 0.4rem 1rem; border-radius: 8px; }
-  .list-btn:hover { background: rgba(201,150,58,0.1); }
-  .search-hero { background: linear-gradient(135deg, #000d00 0%, #0d1a0d 60%, #1a2e1a 100%); padding: 3rem 2rem 2rem; text-align: center; position: relative; overflow: hidden; }
-  .search-hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(201,150,58,0.08) 0%, transparent 70%); pointer-events: none; }
-  .search-hero h1 { font-family: 'Playfair Display', serif; font-size: clamp(1.8rem, 4vw, 2.8rem); color: #e8ddd0; margin-bottom: 0.4rem; position: relative; }
-  .search-hero h1 em { font-style: normal; color: #c9963a; }
-  .search-hero p { color: #8a9a8a; margin-bottom: 2rem; font-size: 0.95rem; position: relative; }
-  .search-box-wrap { max-width: 660px; margin: 0 auto; position: relative; }
-  .search-input { width: 100%; padding: 1rem 3.5rem 1rem 1.4rem; background: rgba(255,255,255,0.04); border: 1.5px solid rgba(201,150,58,0.3); border-radius: 12px; color: #e8ddd0; font-family: 'Outfit', sans-serif; font-size: 1.05rem; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
-  .search-input::placeholder { color: #4a5a4a; }
-  .search-input:focus { border-color: #c9963a; box-shadow: 0 0 0 3px rgba(201,150,58,0.12); }
-  .search-icon { position: absolute; right: 1.1rem; top: 50%; transform: translateY(-50%); color: #c9963a; pointer-events: none; }
-  .filters { max-width: 660px; margin: 1rem auto 0; display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
-  .filter-select { padding: 0.5rem 1rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(201,150,58,0.2); border-radius: 8px; color: #e8ddd0; font-family: 'Outfit', sans-serif; font-size: 0.88rem; cursor: pointer; outline: none; flex: 1; min-width: 140px; }
-  .filter-select option { background: #1a2e1a; }
-  .city-detected-badge { margin-top: 0.75rem; display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(201,150,58,0.1); border: 1px solid rgba(201,150,58,0.25); color: #c9963a; padding: 0.4rem 0.85rem; border-radius: 20px; font-size: 0.82rem; }
-  .clear-city-btn { background: none; border: none; color: #8a9a8a; cursor: pointer; font-size: 0.78rem; padding: 0 0.2rem; }
-  .clear-city-btn:hover { color: #c9963a; }
-  .content { flex: 1; display: flex; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; align-items: flex-start; gap: 2rem; }
-  .mascot-col { width: 140px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; position: sticky; top: 2rem; }
-  .warrior-wrap { width: 130px; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.5)); }
-  .warrior-svg { width: 100%; height: auto; }
-  @keyframes bob { 0%,100% { transform: translateY(0) rotate(0deg); } 25% { transform: translateY(-6px) rotate(-1deg); } 75% { transform: translateY(-3px) rotate(1deg); } }
-  @keyframes search-bob { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-10px) rotate(-2deg); } }
-  @keyframes magnifier-spin { 0% { transform: rotate(0deg); } 50% { transform: rotate(20deg) translate(2px,-2px); } 100% { transform: rotate(0deg); } }
-  @keyframes droop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
-  @keyframes tear-drop { 0% { opacity: 0.8; transform: translateY(0); } 100% { opacity: 0; transform: translateY(12px); } }
-  @keyframes celebrate { 0%,100% { transform: translateY(0) rotate(0deg); } 20% { transform: translateY(-12px) rotate(-3deg); } 60% { transform: translateY(-12px) rotate(-2deg); } 80% { transform: translateY(-4px) rotate(1deg); } }
-  .warrior-idle .warrior-svg { animation: bob 3s ease-in-out infinite; }
-  .warrior-searching .warrior-svg { animation: search-bob 0.7s ease-in-out infinite; }
-  .warrior-searching .magnifier-spin { animation: magnifier-spin 0.8s ease-in-out infinite; }
-  .warrior-sad .warrior-svg { animation: droop 2s ease-in-out infinite; }
-  .warrior-sad .tear { animation: tear-drop 1.2s ease-in infinite; }
-  .warrior-sad .right-tear { animation-delay: 0.4s; }
-  .warrior-happy .warrior-svg { animation: celebrate 1s ease-in-out 3; }
-  .mascot-label { margin-top: 0.75rem; font-size: 0.78rem; color: #8a9a8a; text-align: center; font-style: italic; line-height: 1.4; }
-  .mascot-label strong { color: #c9963a; display: block; font-style: normal; margin-bottom: 0.15rem; }
-  .results-col { flex: 1; }
-  .results-meta { font-size: 0.9rem; color: #8a9a8a; margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(201,150,58,0.1); }
-  .results-meta strong { color: #c9963a; }
+  body { background: #0a0a0a; color: #e0e0e0; font-family: 'Sora', sans-serif; min-height: 100vh; }
+
+  .search-page { min-height: 100vh; background: #0a0a0a; display: flex; flex-direction: column; }
+
+  .search-header {
+    background: rgba(10, 10, 10, 0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid #1e1e1e;
+    padding: 0 2rem;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .logo-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    line-height: 1;
+  }
+  .logo-text {
+    display: flex;
+    flex-direction: column;
+  }
+  .logo-yana {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+  }
+  .logo-sub {
+    font-family: 'Sora', sans-serif;
+    font-size: 0.55rem;
+    letter-spacing: 0.35em;
+    color: #888;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+  .list-btn {
+    background: #c0392b;
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 6px;
+    transition: background 0.2s;
+  }
+  .list-btn:hover { background: #e74c3c; }
+
+  .search-hero {
+    background: #0a0a0a;
+    padding: 3rem 2rem 2rem;
+    text-align: center;
+    position: relative;
+  }
+  .search-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(192, 57, 43, 0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .search-hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    color: #fff;
+    margin-bottom: 0.3rem;
+    position: relative;
+  }
+  .search-hero h1 em { font-style: normal; color: #c0392b; }
+  .search-hero p { color: #666; margin-bottom: 1.5rem; font-size: 0.9rem; position: relative; }
+
+  .search-box-wrap {
+    max-width: 660px;
+    margin: 0 auto;
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #2a2a2a;
+    background: #141414;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-box-wrap:focus-within {
+    border-color: #c0392b;
+    box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.12);
+  }
+  .search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 14px 20px;
+    color: #fff;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.95rem;
+    min-width: 0;
+  }
+  .search-input::placeholder { color: #555; }
+  .search-go-btn {
+    background: #c0392b;
+    border: none;
+    padding: 0 28px;
+    color: #fff;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .search-go-btn:hover { background: #e74c3c; }
+
+  .filters {
+    max-width: 660px;
+    margin: 1rem auto 0;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .filter-select {
+    padding: 0.5rem 1rem;
+    background: #141414;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+    flex: 1;
+    min-width: 140px;
+  }
+  .filter-select option { background: #141414; }
+
+  .city-detected-badge {
+    margin-top: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(192, 57, 43, 0.1);
+    border: 1px solid rgba(192, 57, 43, 0.25);
+    color: #c0392b;
+    padding: 0.4rem 0.85rem;
+    border-radius: 20px;
+    font-size: 0.82rem;
+  }
+  .clear-city-btn {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.78rem;
+    padding: 0 0.2rem;
+  }
+  .clear-city-btn:hover { color: #c0392b; }
+
+  .content {
+    flex: 1;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .results-meta {
+    font-size: 0.88rem;
+    color: #888;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #1e1e1e;
+  }
+  .results-meta strong { color: #c0392b; }
+
   .ai-summary-box {
-    background: rgba(201, 150, 58, 0.06);
-    border: 1px solid rgba(201, 150, 58, 0.2);
+    background: rgba(192, 57, 43, 0.06);
+    border: 1px solid rgba(192, 57, 43, 0.2);
     border-radius: 10px;
     padding: 1rem 1.25rem;
     margin-bottom: 1.25rem;
@@ -323,27 +429,28 @@ const styles = `
   .ai-summary-label {
     font-size: 0.7rem;
     font-weight: 700;
-    color: #c9963a;
+    color: #c0392b;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-bottom: 0.35rem;
   }
-  .ai-summary-text {
+  .ai-summary-box p {
     font-size: 0.88rem;
-    color: #d0c4b0;
+    color: #ccc;
     line-height: 1.6;
     margin: 0;
   }
+
   .ai-reason {
     margin-top: 6px;
     font-size: 0.75rem;
-    color: #8a9a8a;
+    color: #888;
     line-height: 1.4;
   }
   .ai-reason-tag {
     display: inline-block;
-    background: rgba(201, 150, 58, 0.15);
-    color: #c9963a;
+    background: rgba(192, 57, 43, 0.15);
+    color: #c0392b;
     font-size: 0.6rem;
     font-weight: 700;
     padding: 1px 5px;
@@ -352,34 +459,128 @@ const styles = `
     vertical-align: middle;
     margin-right: 3px;
   }
+
   .state-msg { text-align: center; padding: 4rem 2rem; }
-  .state-msg h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #e8ddd0; margin-bottom: 0.5rem; }
-  .state-msg p { color: #8a9a8a; font-size: 0.9rem; line-height: 1.6; }
-  .state-msg.sad h2 { color: #cc6666; }
-  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
-  .biz-card { background: #1a2e1a; border: 1px solid rgba(201,150,58,0.1); border-radius: 14px; overflow: hidden; text-decoration: none; color: inherit; display: block; transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s; }
-  .biz-card:hover { transform: translateY(-4px); border-color: rgba(201,150,58,0.4); box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
-  .biz-photo { width: 100%; height: 140px; object-fit: cover; display: block; }
-  .biz-photo-placeholder { width: 100%; height: 140px; background: linear-gradient(135deg, rgba(201,150,58,0.1), rgba(26,46,26,0.8)); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; }
-  .biz-body { padding: 1rem 1.1rem 1.2rem; }
-  .biz-category { font-size: 0.72rem; color: #c9963a; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; margin-bottom: 0.3rem; }
-  .biz-name { font-family: 'Playfair Display', serif; font-size: 1.05rem; color: #e8ddd0; margin-bottom: 0.4rem; line-height: 1.3; }
-  .biz-city { font-size: 0.8rem; color: #8a9a8a; margin-bottom: 0.5rem; }
-  .biz-desc { font-size: 0.82rem; color: #6a7a6a; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .state-msg h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #fff; margin-bottom: 0.5rem; }
+  .state-msg p { color: #888; font-size: 0.9rem; line-height: 1.6; }
+  .state-msg.sad h2 { color: #e74c3c; }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .biz-card {
+    background: #141414;
+    border: 1px solid #1e1e1e;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .biz-card:hover {
+    transform: translateY(-3px);
+    border-color: #333;
+  }
+  .biz-card-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .biz-photo { width: 100%; height: 150px; object-fit: cover; display: block; }
+  .biz-photo-placeholder {
+    width: 100%;
+    height: 150px;
+    background: linear-gradient(135deg, #1a1a1a, #111);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    color: #333;
+  }
+  .biz-body { padding: 14px 16px 10px; }
+  .biz-category {
+    font-size: 0.7rem;
+    color: #c0392b;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .biz-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.05rem;
+    color: #fff;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+  .biz-city { font-size: 0.78rem; color: #666; margin-bottom: 6px; }
+  .biz-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    color: #27ae60;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .biz-desc {
+    font-size: 0.8rem;
+    color: #555;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .biz-actions {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px 14px;
+    margin-top: auto;
+  }
+  .action-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: 'Sora', sans-serif;
+    text-decoration: none;
+    transition: opacity 0.2s;
+    cursor: pointer;
+  }
+  .action-btn:hover { opacity: 0.85; }
+  .whatsapp-btn {
+    background: #25d366;
+    color: #fff;
+  }
+  .call-btn {
+    background: #2a2a2a;
+    color: #fff;
+    border: 1px solid #333;
+  }
+
   @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
-  .skeleton { background: linear-gradient(90deg, #1a2e1a 25%, #253d25 50%, #1a2e1a 75%); background-size: 800px 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
-  .skeleton-card { background: #1a2e1a; border: 1px solid rgba(201,150,58,0.05); border-radius: 14px; overflow: hidden; }
-  .skeleton-img { height: 140px; width: 100%; border-radius: 0; }
+  .skeleton { background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%); background-size: 800px 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+  .skeleton-card { background: #141414; border: 1px solid #1e1e1e; border-radius: 10px; overflow: hidden; }
+  .skeleton-img { height: 150px; width: 100%; border-radius: 0; }
   .skeleton-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
   .skeleton-line { height: 12px; }
   .skeleton-line.w40 { width: 40%; }
   .skeleton-line.w80 { width: 80%; }
   .skeleton-line.w60 { width: 60%; }
+
   @media (max-width: 700px) {
-    .content { flex-direction: column; padding: 1rem; gap: 1rem; }
-    .mascot-col { width: 100%; flex-direction: row; align-items: center; gap: 1rem; position: static; }
-    .warrior-wrap { width: 80px; }
-    .mascot-label { margin-top: 0; text-align: left; }
+    .content { padding: 1rem; }
     .search-hero { padding: 2rem 1rem 1.5rem; }
+    .results-grid { grid-template-columns: 1fr; }
   }
 `;

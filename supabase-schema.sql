@@ -16,11 +16,29 @@ CREATE TABLE businesses (
   description TEXT,
   opening_hours TEXT,
   photos TEXT[] DEFAULT '{}',
-  plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'basic', 'pro')),
+  videos TEXT[] DEFAULT '{}',
+  plan TEXT DEFAULT 'basic' CHECK (plan IN ('basic', 'pro', 'plus')),
   plan_expires_at TIMESTAMPTZ,
+  trial_ends_at TIMESTAMPTZ,
+  grace_period_ends_at TIMESTAMPTZ,
   is_verified BOOLEAN DEFAULT false,
   is_active BOOLEAN DEFAULT true,
   owner_id UUID REFERENCES auth.users(id),
+  custom_fields JSONB DEFAULT '{}',
+  tags TEXT,
+  amenities TEXT,
+  menu_url TEXT,
+  price_min NUMERIC,
+  price_max NUMERIC,
+  price_range TEXT,
+  gender TEXT,
+  vacancy BOOLEAN DEFAULT false,
+  wifi BOOLEAN DEFAULT false,
+  ac BOOLEAN DEFAULT false,
+  meals BOOLEAN DEFAULT false,
+  room_type TEXT,
+  cuisine TEXT,
+  vibe_tags TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -53,9 +71,20 @@ CREATE TABLE payments (
   business_id UUID REFERENCES businesses(id) ON DELETE CASCADE,
   razorpay_order_id TEXT UNIQUE NOT NULL,
   razorpay_payment_id TEXT,
+  razorpay_subscription_id TEXT,
   amount INTEGER NOT NULL,
   plan TEXT NOT NULL,
   status TEXT DEFAULT 'created' CHECK (status IN ('created', 'paid', 'failed')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Reviews table
+CREATE TABLE reviews (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  business_id UUID REFERENCES businesses(id) ON DELETE CASCADE,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  reviewer_name TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -63,6 +92,7 @@ CREATE TABLE payments (
 ALTER TABLE businesses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE business_analytics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 
 -- Anyone can read active businesses
 CREATE POLICY "Public can view active businesses" ON businesses
@@ -82,6 +112,14 @@ CREATE POLICY "Owners can view their analytics" ON business_analytics
     business_id IN (SELECT id FROM businesses WHERE owner_id = auth.uid())
   );
 
+-- Anyone can read reviews
+CREATE POLICY "Public can view reviews" ON reviews
+  FOR SELECT USING (true);
+
+-- Anyone can insert reviews
+CREATE POLICY "Anyone can write reviews" ON reviews
+  FOR INSERT WITH CHECK (true);
+
 -- Service role can do everything (for API routes)
 CREATE POLICY "Service role full access businesses" ON businesses
   FOR ALL USING (auth.role() = 'service_role');
@@ -90,6 +128,9 @@ CREATE POLICY "Service role full access analytics" ON business_analytics
   FOR ALL USING (auth.role() = 'service_role');
 
 CREATE POLICY "Service role full access payments" ON payments
+  FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Service role full access reviews" ON reviews
   FOR ALL USING (auth.role() = 'service_role');
 
 -- Storage bucket for business photos
@@ -113,3 +154,8 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER businesses_updated_at
   BEFORE UPDATE ON businesses
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Migration from old plan names (run once if upgrading existing database)
+-- UPDATE businesses SET plan = 'basic' WHERE plan IN ('free', 'trial');
+-- UPDATE businesses SET plan = 'pro' WHERE plan = 'basic' AND plan_expires_at IS NOT NULL;
+-- UPDATE businesses SET plan = 'plus' WHERE plan = 'pro' AND plan_expires_at IS NOT NULL;

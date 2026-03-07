@@ -18,6 +18,16 @@ const STOP_WORDS = new Set([
   'was','were','i','me','my','we','our','some','any','where','which','want'
 ]);
 
+const PLAN_RANK: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
+
+function sortByPlan(businesses: Business[]): Business[] {
+  return [...businesses].sort((a, b) => {
+    const rankA = PLAN_RANK[a.plan] ?? 3;
+    const rankB = PLAN_RANK[b.plan] ?? 3;
+    return rankA - rankB;
+  });
+}
+
 function detectPriceCondition(query: string): { max?: number; min?: number } | null {
   const lower = query.toLowerCase();
   if (lower.match(/under\s*₹?\s*(\d+)/)) {
@@ -192,7 +202,7 @@ export async function searchBusinesses(
     ? businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition))
     : businesses;
 
-  if (!cleanQuery.trim()) return { businesses: conditionFiltered, detectedCity };
+  if (!cleanQuery.trim()) return { businesses: sortByPlan(conditionFiltered), detectedCity };
 
   // Keyword search
   const keywords = cleanQuery.toLowerCase()
@@ -212,7 +222,8 @@ export async function searchBusinesses(
   }
 
   // AI ranking with Claude
-  const aiResult = await aiRankWithClaude(query, candidates);
+  const sorted = sortByPlan(candidates);
+  const aiResult = await aiRankWithClaude(query, sorted);
 
   if (aiResult && aiResult.ranked.length > 0) {
     const reasonMap: Record<string, string> = {};
@@ -221,14 +232,14 @@ export async function searchBusinesses(
       return r.id;
     });
 
-    // Reorder by AI ranking
+    // Reorder by AI ranking, keeping AI-ranked ones first
     const aiRanked = aiOrderedIds
-      .map(id => candidates.find(b => b.id === id))
+      .map(id => sorted.find(b => b.id === id))
       .filter(Boolean) as Business[];
 
     // Append any businesses AI didn't rank
     const rankedIds = new Set(aiOrderedIds);
-    const remaining = candidates.filter(b => !rankedIds.has(b.id));
+    const remaining = sorted.filter(b => !rankedIds.has(b.id));
 
     return {
       businesses: [...aiRanked, ...remaining],
@@ -238,5 +249,5 @@ export async function searchBusinesses(
     };
   }
 
-  return { businesses: candidates, detectedCity };
+  return { businesses: sorted, detectedCity };
 }

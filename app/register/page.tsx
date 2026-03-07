@@ -1,66 +1,259 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CITIES, CATEGORIES } from '@/types';
 
 const STEPS = ['Business Info', 'Location', 'Contact', 'Details', 'Media', 'Account'];
 
-// Category-specific field definitions
+// ── CATEGORY DISPLAY NAMES ──
+const CATEGORY_LABELS: Record<string, string> = {
+  restaurant: 'Restaurant',
+  cafe: 'Café',
+  pg: 'PG & Hostel',
+  hostel: 'PG & Hostel',
+  rental_house: 'Rental House',
+  gym: 'Gym',
+  turf: 'Turf & Sports',
+  study_space: 'Study Space',
+  salon: 'Salon & Parlour',
+  hotel: 'Hotel & Guesthouse',
+  coaching: 'Coaching Centre',
+  homestay: 'Homestay',
+  vehicle_rental: 'Vehicle Rental',
+  couple_spot: 'Couple Spot & Hangout',
+  school: 'School',
+  hospital: 'Hospital',
+  clinic: 'Clinic',
+  shop: 'Shop',
+  pharmacy: 'Pharmacy',
+  service: 'Service',
+  rental: 'Rental',
+  other: 'Other',
+};
+
+const CATEGORY_ICONS: Record<string, string> = {
+  restaurant: '🍽️', cafe: '☕', pg: '🏠', hostel: '🏠', rental_house: '🏡',
+  gym: '💪', turf: '⚽', study_space: '📚', salon: '💇', hotel: '🏨',
+  coaching: '📖', homestay: '🏡', vehicle_rental: '🚗', couple_spot: '🌙',
+  school: '🎓', hospital: '🏥', clinic: '🏥', shop: '🛍️', pharmacy: '💊',
+  service: '🔧', rental: '🚗', other: '🏪',
+};
+
+// ── VIBE TAGS ──
+const VIBE_TAGS = [
+  { emoji: '🌙', label: 'Date night' },
+  { emoji: '👨‍👩‍👧', label: 'Family friendly' },
+  { emoji: '👯', label: 'Friends hangout' },
+  { emoji: '🧘', label: 'Quiet and peaceful' },
+  { emoji: '📚', label: 'Study and work' },
+  { emoji: '🎉', label: 'Party and celebrations' },
+  { emoji: '💰', label: 'Budget friendly' },
+  { emoji: '✨', label: 'Premium' },
+];
+
+const DEFAULT_VIBES: Record<string, string[]> = {
+  couple_spot: ['Date night'],
+  homestay: ['Family friendly'],
+  study_space: ['Study and work'],
+};
+
+// ── FIELD DEFINITIONS ──
+type FieldDef = {
+  key: string;
+  label: string;
+  type: 'select' | 'multicheck' | 'number' | 'text' | 'range';
+  options?: string[];
+  placeholder?: string;
+  rangeLabels?: [string, string];
+};
+
 const CATEGORY_FIELDS: Record<string, { label: string; fields: FieldDef[] }> = {
-  restaurant: {
-    label: '🍽️ Restaurant Details',
-    fields: [
-      { key: 'price_range', label: 'Price Range', type: 'select', options: ['Budget (under ₹500)', 'Affordable (₹500–₹2000)', 'Mid-range (₹2000–₹5000)'] },
-      { key: 'food_type', label: 'Food Type', type: 'select', options: ['Veg only', 'Non-veg', 'Both veg & non-veg'] },
-      { key: 'services', label: 'Services', type: 'multicheck', options: ['Delivery', 'Dine-in', 'Takeaway', 'Open late'] },
-    ],
-  },
-  cafe: {
-    label: '☕ Cafe Details',
-    fields: [
-      { key: 'price_range', label: 'Price Range', type: 'select', options: ['Budget (under ₹500)', 'Affordable (₹500–₹2000)', 'Mid-range (₹2000–₹5000)'] },
-      { key: 'food_type', label: 'Food Type', type: 'select', options: ['Veg only', 'Non-veg', 'Both veg & non-veg'] },
-      { key: 'services', label: 'Services', type: 'multicheck', options: ['Delivery', 'Dine-in', 'Takeaway', 'Open late', 'WiFi'] },
-    ],
-  },
   pg: {
-    label: '🏠 PG Details',
+    label: '🏠 PG & Hostel Details',
     fields: [
-      { key: 'price_per_month', label: 'Price per Month (₹)', type: 'number', placeholder: 'e.g. 4000' },
-      { key: 'gender', label: 'For', type: 'select', options: ['Boys only', 'Girls only', 'Both'] },
-      { key: 'amenities', label: 'Amenities', type: 'multicheck', options: ['AC', 'WiFi', 'Meals included', 'Attached bathroom', 'Hot water', 'Laundry', 'Parking', 'CCTV'] },
+      { key: 'price_min', label: 'Price per month (min ₹)', type: 'number', placeholder: 'e.g. 3000' },
+      { key: 'price_max', label: 'Price per month (max ₹)', type: 'number', placeholder: 'e.g. 5000' },
+      { key: 'gender', label: 'Gender', type: 'select', options: ['Boys', 'Girls', 'Both'] },
+      { key: 'room_type', label: 'Room Type', type: 'select', options: ['Single', 'Double', 'Triple', 'Dormitory'] },
+      { key: 'meals', label: 'Meals included', type: 'select', options: ['Yes', 'No'] },
+      { key: 'wifi', label: 'WiFi', type: 'select', options: ['Yes', 'No'] },
+      { key: 'ac', label: 'AC', type: 'select', options: ['Yes', 'No'] },
+      { key: 'attached_bathroom', label: 'Attached bathroom', type: 'select', options: ['Yes', 'No'] },
+      { key: 'vacancy', label: 'Vacancy', type: 'select', options: ['Available', 'Full'] },
+      { key: 'deposit', label: 'Deposit amount (₹)', type: 'number', placeholder: 'e.g. 5000' },
     ],
   },
   hostel: {
-    label: '🏠 Hostel Details',
+    label: '🏠 PG & Hostel Details',
     fields: [
-      { key: 'price_per_month', label: 'Price per Month (₹)', type: 'number', placeholder: 'e.g. 4000' },
-      { key: 'gender', label: 'For', type: 'select', options: ['Boys only', 'Girls only', 'Both'] },
-      { key: 'amenities', label: 'Amenities', type: 'multicheck', options: ['AC', 'WiFi', 'Meals included', 'Attached bathroom', 'Hot water', 'Laundry', 'Parking', 'CCTV'] },
+      { key: 'price_min', label: 'Price per month (min ₹)', type: 'number', placeholder: 'e.g. 3000' },
+      { key: 'price_max', label: 'Price per month (max ₹)', type: 'number', placeholder: 'e.g. 5000' },
+      { key: 'gender', label: 'Gender', type: 'select', options: ['Boys', 'Girls', 'Both'] },
+      { key: 'room_type', label: 'Room Type', type: 'select', options: ['Single', 'Double', 'Triple', 'Dormitory'] },
+      { key: 'meals', label: 'Meals included', type: 'select', options: ['Yes', 'No'] },
+      { key: 'wifi', label: 'WiFi', type: 'select', options: ['Yes', 'No'] },
+      { key: 'ac', label: 'AC', type: 'select', options: ['Yes', 'No'] },
+      { key: 'attached_bathroom', label: 'Attached bathroom', type: 'select', options: ['Yes', 'No'] },
+      { key: 'vacancy', label: 'Vacancy', type: 'select', options: ['Available', 'Full'] },
+      { key: 'deposit', label: 'Deposit amount (₹)', type: 'number', placeholder: 'e.g. 5000' },
     ],
   },
-  hotel: {
-    label: '🏨 Hotel Details',
+  rental_house: {
+    label: '🏡 Rental House Details',
     fields: [
-      { key: 'price_per_night', label: 'Price per Night (₹)', type: 'number', placeholder: 'e.g. 1500' },
-      { key: 'amenities', label: 'Amenities', type: 'multicheck', options: ['AC', 'Parking', 'WiFi', 'Room service', 'Hot water', 'Restaurant', 'Conference room'] },
+      { key: 'price_min', label: 'Price per month (min ₹)', type: 'number', placeholder: 'e.g. 5000' },
+      { key: 'price_max', label: 'Price per month (max ₹)', type: 'number', placeholder: 'e.g. 10000' },
+      { key: 'bhk', label: 'BHK', type: 'select', options: ['1BHK', '2BHK', '3BHK', 'Studio'] },
+      { key: 'furnished', label: 'Furnished', type: 'select', options: ['Fully', 'Semi', 'Unfurnished'] },
+      { key: 'parking', label: 'Parking', type: 'select', options: ['Yes', 'No'] },
+      { key: 'preferred_tenant', label: 'Preferred tenant', type: 'select', options: ['Family', 'Bachelor', 'Any'] },
+      { key: 'deposit', label: 'Deposit amount (₹)', type: 'number', placeholder: 'e.g. 10000' },
+      { key: 'water_supply', label: 'Water supply', type: 'select', options: ['24hr', 'Limited'] },
+    ],
+  },
+  gym: {
+    label: '💪 Gym Details',
+    fields: [
+      { key: 'price_min', label: 'Monthly fee (min ₹)', type: 'number', placeholder: 'e.g. 500' },
+      { key: 'price_max', label: 'Monthly fee (max ₹)', type: 'number', placeholder: 'e.g. 1500' },
+      { key: 'trainer', label: 'Trainer available', type: 'select', options: ['Yes', 'No'] },
+      { key: 'ac', label: 'AC', type: 'select', options: ['Yes', 'No'] },
+      { key: 'opening_hours', label: 'Opening hours', type: 'text', placeholder: 'e.g. 6am–9pm' },
+      { key: 'equipment', label: 'Equipment', type: 'select', options: ['Basic', 'Moderate', 'Fully equipped'] },
     ],
   },
   turf: {
-    label: '⚽ Turf Details',
+    label: '⚽ Turf & Sports Details',
     fields: [
-      { key: 'price_per_hour', label: 'Price per Hour (₹)', type: 'number', placeholder: 'e.g. 600' },
-      { key: 'sport_type', label: 'Sport Type', type: 'multicheck', options: ['Football', 'Cricket', 'Badminton', 'Multi-sport'] },
-      { key: 'type', label: 'Type', type: 'select', options: ['Indoor', 'Outdoor'] },
+      { key: 'price_min', label: 'Price per hour (min ₹)', type: 'number', placeholder: 'e.g. 600' },
+      { key: 'price_max', label: 'Price per hour (max ₹)', type: 'number', placeholder: 'e.g. 1200' },
+      { key: 'sport_types', label: 'Sport types', type: 'multicheck', options: ['Football', 'Futsal', 'Cricket', 'Basketball', 'Multiple'] },
+      { key: 'covered', label: 'Covered', type: 'select', options: ['Yes', 'No'] },
+      { key: 'floodlights', label: 'Floodlights', type: 'select', options: ['Yes', 'No'] },
+      { key: 'booking', label: 'Booking', type: 'select', options: ['Walkin', 'Advance only'] },
+    ],
+  },
+  cafe: {
+    label: '☕ Café Details',
+    fields: [
+      { key: 'wifi', label: 'WiFi', type: 'select', options: ['Yes', 'No'] },
+      { key: 'study_friendly', label: 'Study friendly', type: 'select', options: ['Yes', 'No'] },
+      { key: 'price_min', label: 'Average spend (min ₹)', type: 'number', placeholder: 'e.g. 100' },
+      { key: 'price_max', label: 'Average spend (max ₹)', type: 'number', placeholder: 'e.g. 400' },
+      { key: 'opening_hours', label: 'Opening hours', type: 'text', placeholder: 'e.g. 9am–10pm' },
+      { key: 'outdoor_seating', label: 'Outdoor seating', type: 'select', options: ['Yes', 'No'] },
+      { key: 'power_outlets', label: 'Power outlets', type: 'select', options: ['Yes', 'No'] },
+    ],
+  },
+  restaurant: {
+    label: '🍽️ Restaurant Details',
+    fields: [
+      { key: 'cuisine', label: 'Cuisine type', type: 'select', options: ['Naga', 'Chinese', 'Indian', 'Continental', 'Mixed'] },
+      { key: 'price_min', label: 'Average spend (min ₹)', type: 'number', placeholder: 'e.g. 150' },
+      { key: 'price_max', label: 'Average spend (max ₹)', type: 'number', placeholder: 'e.g. 600' },
+      { key: 'pure_veg', label: 'Pure veg', type: 'select', options: ['Yes', 'No'] },
+      { key: 'home_delivery', label: 'Home delivery', type: 'select', options: ['Yes', 'No'] },
+      { key: 'outdoor_seating', label: 'Outdoor seating', type: 'select', options: ['Yes', 'No'] },
+      { key: 'opening_hours', label: 'Opening hours', type: 'text', placeholder: 'e.g. 11am–10pm' },
+      { key: 'wifi', label: 'WiFi', type: 'select', options: ['Yes', 'No'] },
+    ],
+  },
+  study_space: {
+    label: '📚 Study Space Details',
+    fields: [
+      { key: 'monthly_fee', label: 'Monthly fee (₹)', type: 'number', placeholder: 'e.g. 600' },
+      { key: 'daily_fee', label: 'Daily fee (₹)', type: 'number', placeholder: 'e.g. 50' },
+      { key: 'ac', label: 'AC', type: 'select', options: ['Yes', 'No'] },
+      { key: 'wifi', label: 'WiFi', type: 'select', options: ['Yes', 'No'] },
+      { key: 'opening_hours', label: 'Opening hours', type: 'text', placeholder: 'e.g. 6am–10pm' },
+      { key: 'private_cabins', label: 'Private cabins', type: 'select', options: ['Yes', 'No'] },
+      { key: 'printing', label: 'Printing available', type: 'select', options: ['Yes', 'No'] },
+    ],
+  },
+  salon: {
+    label: '💇 Salon & Parlour Details',
+    fields: [
+      { key: 'salon_type', label: 'Type', type: 'select', options: ['Mens', 'Ladies', 'Unisex'] },
+      { key: 'services', label: 'Services', type: 'multicheck', options: ['Haircut', 'Colour', 'Facial', 'Bridal', 'Nails', 'All'] },
+      { key: 'price_min', label: 'Price (min ₹)', type: 'number', placeholder: 'e.g. 100' },
+      { key: 'price_max', label: 'Price (max ₹)', type: 'number', placeholder: 'e.g. 2000' },
+      { key: 'appointment', label: 'Appointment required', type: 'select', options: ['Yes', 'Walkin', 'Both'] },
+      { key: 'opening_hours', label: 'Opening hours', type: 'text', placeholder: 'e.g. 10am–7pm' },
+    ],
+  },
+  hotel: {
+    label: '🏨 Hotel & Guesthouse Details',
+    fields: [
+      { key: 'price_min', label: 'Price per night (min ₹)', type: 'number', placeholder: 'e.g. 1000' },
+      { key: 'price_max', label: 'Price per night (max ₹)', type: 'number', placeholder: 'e.g. 5000' },
+      { key: 'ac_rooms', label: 'AC rooms', type: 'select', options: ['Yes', 'No'] },
+      { key: 'wifi', label: 'WiFi', type: 'select', options: ['Yes', 'No'] },
+      { key: 'parking', label: 'Parking', type: 'select', options: ['Yes', 'No'] },
+      { key: 'meals', label: 'Meals included', type: 'select', options: ['Yes', 'No'] },
+      { key: 'room_types', label: 'Room types', type: 'multicheck', options: ['Single', 'Double', 'Triple', 'Suite'] },
     ],
   },
   coaching: {
-    label: '📚 Coaching Details',
+    label: '📖 Coaching Centre Details',
     fields: [
-      { key: 'subjects', label: 'Subjects Taught', type: 'text', placeholder: 'e.g. Maths, Science, English' },
-      { key: 'board', label: 'Board', type: 'select', options: ['CBSE', 'NBSE', 'NPSC', 'Other'] },
-      { key: 'fee_range', label: 'Fee Range', type: 'select', options: ['Budget', 'Affordable', 'Mid-range'] },
-      { key: 'batch_timing', label: 'Batch Timing', type: 'multicheck', options: ['Morning', 'Afternoon', 'Evening'] },
+      { key: 'subjects', label: 'Subjects', type: 'multicheck', options: ['Science', 'Maths', 'English', 'Competitive', 'All'] },
+      { key: 'price_min', label: 'Fee per month (min ₹)', type: 'number', placeholder: 'e.g. 500' },
+      { key: 'price_max', label: 'Fee per month (max ₹)', type: 'number', placeholder: 'e.g. 2000' },
+      { key: 'timing', label: 'Timing', type: 'text', placeholder: 'e.g. 4pm–7pm' },
+      { key: 'online', label: 'Online available', type: 'select', options: ['Yes', 'No'] },
+      { key: 'demo_class', label: 'Demo class', type: 'select', options: ['Yes', 'No'] },
+    ],
+  },
+  homestay: {
+    label: '🏡 Homestay Details',
+    fields: [
+      { key: 'price_min', label: 'Price per night (min ₹)', type: 'number', placeholder: 'e.g. 1000' },
+      { key: 'price_max', label: 'Price per night (max ₹)', type: 'number', placeholder: 'e.g. 3000' },
+      { key: 'num_rooms', label: 'Number of rooms', type: 'number', placeholder: 'e.g. 4' },
+      { key: 'meals', label: 'Meals included', type: 'select', options: ['Yes', 'No'] },
+      { key: 'wifi', label: 'WiFi', type: 'select', options: ['Yes', 'No'] },
+      { key: 'parking', label: 'Parking', type: 'select', options: ['Yes', 'No'] },
+      { key: 'host_on_property', label: 'Host lives on property', type: 'select', options: ['Yes', 'No'] },
+      { key: 'best_for', label: 'Best for', type: 'select', options: ['Family', 'Couples', 'Solo', 'Any'] },
+      { key: 'pickup', label: 'Pickup available', type: 'select', options: ['Yes', 'No'] },
+    ],
+  },
+  vehicle_rental: {
+    label: '🚗 Vehicle Rental Details',
+    fields: [
+      { key: 'vehicle_types', label: 'Vehicle types available', type: 'multicheck', options: ['Bike', 'Scooter', 'Car', 'Multiple'] },
+      { key: 'price_per_day_min', label: 'Price per day (min ₹)', type: 'number', placeholder: 'e.g. 300' },
+      { key: 'price_per_day_max', label: 'Price per day (max ₹)', type: 'number', placeholder: 'e.g. 2000' },
+      { key: 'price_per_hour_min', label: 'Price per hour (min ₹)', type: 'number', placeholder: 'e.g. 50' },
+      { key: 'price_per_hour_max', label: 'Price per hour (max ₹)', type: 'number', placeholder: 'e.g. 300' },
+      { key: 'fuel_included', label: 'Fuel included', type: 'select', options: ['Yes', 'No'] },
+      { key: 'helmet_provided', label: 'Helmet provided', type: 'select', options: ['Yes', 'No'] },
+      { key: 'document_required', label: 'Document required', type: 'select', options: ['Licence', 'Aadhar', 'Both'] },
+      { key: 'delivery', label: 'Delivery available', type: 'select', options: ['Yes', 'No'] },
+      { key: 'opening_hours', label: 'Opening hours', type: 'text', placeholder: 'e.g. 7am–8pm' },
+    ],
+  },
+  couple_spot: {
+    label: '🌙 Couple Spot & Hangout Details',
+    fields: [
+      { key: 'spot_type', label: 'Type', type: 'select', options: ['Café', 'Restaurant', 'Park', 'Viewpoint', 'Resort', 'Other'] },
+      { key: 'entry_fee', label: 'Entry fee', type: 'select', options: ['Free', 'Paid'] },
+      { key: 'entry_fee_amount', label: 'Entry fee amount (₹)', type: 'number', placeholder: 'e.g. 100' },
+      { key: 'best_time', label: 'Best time to visit', type: 'select', options: ['Morning', 'Evening', 'Night', 'Any'] },
+      { key: 'private_seating', label: 'Private seating available', type: 'select', options: ['Yes', 'No'] },
+      { key: 'wifi', label: 'WiFi', type: 'select', options: ['Yes', 'No'] },
+      { key: 'price_min', label: 'Average spend (min ₹)', type: 'number', placeholder: 'e.g. 200' },
+      { key: 'price_max', label: 'Average spend (max ₹)', type: 'number', placeholder: 'e.g. 800' },
+      { key: 'opening_hours', label: 'Opening hours', type: 'text', placeholder: 'e.g. 10am–10pm' },
+    ],
+  },
+  // Legacy categories that still need some fields
+  school: {
+    label: '🎓 School Details',
+    fields: [
+      { key: 'board', label: 'Board', type: 'select', options: ['CBSE', 'NBSE', 'State board'] },
+      { key: 'school_type', label: 'Type', type: 'select', options: ['Private', 'Government'] },
+      { key: 'classes', label: 'Classes', type: 'multicheck', options: ['Nursery to 5', '6 to 10', '11 to 12', 'All classes'] },
     ],
   },
   hospital: {
@@ -79,37 +272,11 @@ const CATEGORY_FIELDS: Record<string, { label: string; fields: FieldDef[] }> = {
       { key: 'emergency', label: 'Emergency Services', type: 'select', options: ['Yes', 'No'] },
     ],
   },
-  salon: {
-    label: '💈 Salon Details',
-    fields: [
-      { key: 'for', label: 'For', type: 'select', options: ['Men only', 'Women only', 'Both'] },
-      { key: 'services', label: 'Services', type: 'multicheck', options: ['Haircut', 'Facial', 'Bridal', 'Spa', 'Threading', 'Hair color', 'Makeup', 'Nail art'] },
-    ],
-  },
-  school: {
-    label: '🏫 School Details',
-    fields: [
-      { key: 'board', label: 'Board', type: 'select', options: ['CBSE', 'NBSE', 'State board'] },
-      { key: 'type', label: 'Type', type: 'select', options: ['Private', 'Government'] },
-      { key: 'classes', label: 'Classes', type: 'multicheck', options: ['Nursery to 5', '6 to 10', '11 to 12', 'All classes'] },
-    ],
-  },
-  rental: {
-    label: '🚗 Rental Details',
-    fields: [
-      { key: 'rental_type', label: 'Vehicle Type', type: 'multicheck', options: ['Car', 'Bike', 'Scooter', 'Bicycle', 'Equipment'] },
-      { key: 'price_per_day', label: 'Price per Day (₹)', type: 'number', placeholder: 'e.g. 800' },
-      { key: 'with_driver', label: 'With Driver', type: 'select', options: ['Yes', 'No', 'Both options'] },
-      { key: 'deposit_required', label: 'Deposit Required', type: 'select', options: ['Yes', 'No'] },
-      { key: 'availability', label: 'Availability', type: 'select', options: ['Available now', 'Fully booked'] },
-    ],
-  },
   pharmacy: {
     label: '💊 Pharmacy Details',
     fields: [
       { key: 'hours', label: 'Hours', type: 'select', options: ['24 hours', 'Day only', 'Night only'] },
       { key: 'services', label: 'Services', type: 'multicheck', options: ['Home delivery', 'Online orders', 'Medical equipment'] },
-      { key: 'speciality', label: 'Speciality', type: 'select', options: ['General', 'Ayurvedic', 'Homeopathic', 'All'] },
       { key: 'emergency', label: 'Emergency', type: 'select', options: ['Yes', 'No'] },
     ],
   },
@@ -123,14 +290,7 @@ const CATEGORY_FIELDS: Record<string, { label: string; fields: FieldDef[] }> = {
   },
 };
 
-type FieldDef = {
-  key: string;
-  label: string;
-  type: 'select' | 'multicheck' | 'number' | 'text';
-  options?: string[];
-  placeholder?: string;
-};
-
+// ── CATEGORY FIELDS COMPONENT ──
 function CategoryFields({ category, values, onChange }: {
   category: string;
   values: Record<string, string | string[]>;
@@ -147,10 +307,10 @@ function CategoryFields({ category, values, onChange }: {
   };
 
   return (
-    <div className="cat-fields-wrap">
+    <div className="cat-fields-wrap" style={{ animation: 'fieldSlide 0.35s ease both' }}>
       <div className="cat-fields-title">{config.label}</div>
-      {config.fields.map(field => (
-        <div key={field.key} className="form-group">
+      {config.fields.map((field, fi) => (
+        <div key={field.key} className="form-group" style={{ animation: `fieldSlide 0.3s ${fi * 0.04}s ease both` }}>
           <label className="form-label">{field.label}</label>
           {field.type === 'select' && (
             <select className="form-select" value={(values[field.key] as string) || ''} onChange={e => onChange(field.key, e.target.value)}>
@@ -182,6 +342,32 @@ function CategoryFields({ category, values, onChange }: {
   );
 }
 
+// ── VIBE TAGS COMPONENT ──
+function VibeTagsPicker({ selected, onChange }: {
+  selected: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const toggle = (label: string) => {
+    onChange(selected.includes(label) ? selected.filter(t => t !== label) : [...selected, label]);
+  };
+  return (
+    <div className="vibe-section" style={{ animation: 'fieldSlide 0.35s 0.15s ease both' }}>
+      <div className="vibe-title">✨ Vibe tags <span className="vibe-hint">— select all that apply</span></div>
+      <div className="vibe-grid">
+        {VIBE_TAGS.map(v => {
+          const active = selected.includes(v.label);
+          return (
+            <button key={v.label} type="button" className={`vibe-chip ${active ? 'active' : ''}`} onClick={() => toggle(v.label)}>
+              <span className="vibe-emoji">{v.emoji}</span> {v.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN COMPONENT ──
 export default function RegisterPage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -192,13 +378,29 @@ export default function RegisterPage() {
     description: '', opening_hours: '',
   });
   const [customFields, setCustomFields] = useState<Record<string, string | string[]>>({});
+  const [vibeTags, setVibeTags] = useState<string[]>([]);
   const [account, setAccount] = useState({ email: '', password: '', confirm: '' });
   const [photos, setPhotos] = useState<File[]>([]);
   const [menuFile, setMenuFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [isFoundingMember, setIsFoundingMember] = useState(false);
+  const [foundingSpots, setFoundingSpots] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch('/api/founding-members')
+      .then(r => r.json())
+      .then(data => setFoundingSpots(data.remaining))
+      .catch(() => {});
+  }, []);
 
   const update = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
   const updateCustom = (key: string, val: string | string[]) => setCustomFields(f => ({ ...f, [key]: val }));
+
+  const handleCategoryChange = (cat: string) => {
+    update('category', cat);
+    setCustomFields({});
+    setVibeTags(DEFAULT_VIBES[cat] || []);
+  };
 
   const uploadPhotos = async (businessId: string) => {
     const urls: string[] = [];
@@ -240,12 +442,20 @@ export default function RegisterPage() {
       const res = await fetch('/api/businesses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, slug, email: account.email, owner_id: user.id, custom_fields: customFields }),
+        body: JSON.stringify({
+          ...form,
+          slug,
+          email: account.email,
+          owner_id: user.id,
+          custom_fields: customFields,
+          vibe_tags: vibeTags.join(','),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create listing');
 
       const businessId = data.business.id;
+      if (data.business.is_founding_member) setIsFoundingMember(true);
       const updates: Record<string, unknown> = {};
       if (photos.length > 0) updates.photos = await uploadPhotos(businessId);
       if (menuFile) updates.menu_url = await uploadMenu(businessId);
@@ -273,8 +483,15 @@ export default function RegisterPage() {
       <main className="reg-page">
         <div className="reg-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🎉</div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: '#c9963a', marginBottom: '0.75rem' }}>You&apos;re Listed!</h1>
-          <p style={{ color: '#8a9a8a', marginBottom: '2rem', lineHeight: '1.6' }}>Your business is now live on Yana Nagaland. Use your email and password to log in and manage your listing anytime.</p>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: 'var(--red)', marginBottom: '0.75rem' }}>You&apos;re Listed!</h1>
+          {isFoundingMember && (
+            <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '10px', padding: '12px 16px', marginBottom: '1rem', color: '#4ade80', fontSize: '0.9rem' }}>
+              <strong>Founding Member!</strong> You got the Pro plan free — forever. No credit card, no expiry.
+            </div>
+          )}
+          <p style={{ color: 'var(--muted)', marginBottom: '2rem', lineHeight: '1.6' }}>
+            Your business is now live on Yana Nagaland{isFoundingMember ? ' with Pro features' : ''}. Use your email and password to log in and manage your listing anytime.
+          </p>
           <a href="/login" className="btn-next" style={{ display: 'inline-block', textDecoration: 'none', padding: '0.85rem 2rem' }}>Go to Login →</a>
         </div>
       </main>
@@ -285,11 +502,21 @@ export default function RegisterPage() {
     <>
       <style>{styles}</style>
       <main className="reg-page">
+        {/* BRAND */}
         <div className="reg-brand">
-          <a href="/">Yana<span>Nagaland</span></a>
+          <a href="/">
+            <span className="brand-yana">Yana</span>
+            <span className="brand-naga">Nagaland</span>
+          </a>
           <p>List Your Business — It&apos;s Free</p>
+          {foundingSpots !== null && foundingSpots > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '0.78rem', color: '#4ade80', fontWeight: 600 }}>
+              🎉 {foundingSpots} of 100 founding member spots left — register now for free Pro!
+            </div>
+          )}
         </div>
 
+        {/* STEPPER */}
         <div className="stepper">
           {STEPS.map((s, i) => (
             <div key={s} className={`step-item ${i < step ? 'done' : i === step ? 'active' : ''}`}>
@@ -300,6 +527,7 @@ export default function RegisterPage() {
           ))}
         </div>
 
+        {/* CARD */}
         <div className="reg-card">
           <div className="step-heading">
             <h2>{STEPS[step]}</h2>
@@ -313,6 +541,7 @@ export default function RegisterPage() {
             </p>
           </div>
 
+          {/* STEP 0: BUSINESS INFO */}
           {step === 0 && (
             <div className="step-content">
               <div className="form-group">
@@ -321,10 +550,27 @@ export default function RegisterPage() {
               </div>
               <div className="form-group">
                 <label className="form-label">Category *</label>
-                <select className="form-select" value={form.category} onChange={e => { update('category', e.target.value); setCustomFields({}); }}>
-                  <option value="">Select category</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <div className="cat-grid">
+                  {CATEGORIES.filter(c => c !== 'other' && c !== 'service' && c !== 'rental').map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`cat-card ${form.category === c ? 'selected' : ''}`}
+                      onClick={() => handleCategoryChange(c)}
+                    >
+                      <span className="cat-icon">{CATEGORY_ICONS[c] || '🏪'}</span>
+                      <span className="cat-label">{CATEGORY_LABELS[c] || c}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className={`cat-card ${form.category === 'service' ? 'selected' : form.category === 'other' ? 'selected' : ''}`}
+                    onClick={() => handleCategoryChange('other')}
+                  >
+                    <span className="cat-icon">🏪</span>
+                    <span className="cat-label">Other</span>
+                  </button>
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Description</label>
@@ -337,6 +583,7 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* STEP 1: LOCATION */}
           {step === 1 && (
             <div className="step-content">
               <div className="form-group">
@@ -358,6 +605,7 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* STEP 2: CONTACT */}
           {step === 2 && (
             <div className="step-content">
               <div className="form-group">
@@ -375,26 +623,34 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* STEP 3: DETAILS (CATEGORY-SPECIFIC) */}
           {step === 3 && (
             <div className="step-content">
               {CATEGORY_FIELDS[form.category.toLowerCase()] ? (
-                <CategoryFields category={form.category} values={customFields} onChange={updateCustom} />
+                <>
+                  <CategoryFields category={form.category} values={customFields} onChange={updateCustom} />
+                  <VibeTagsPicker selected={vibeTags} onChange={setVibeTags} />
+                </>
               ) : (
-                <div className="no-fields-msg">
-                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✅</div>
-                  <p>No extra details needed for <strong>{form.category}</strong>.</p>
-                  <p style={{ fontSize: '0.82rem', color: '#6a7a6a', marginTop: '0.3rem' }}>Click Continue to add photos.</p>
-                </div>
+                <>
+                  <div className="no-fields-msg">
+                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✅</div>
+                    <p>No extra details needed for <strong>{CATEGORY_LABELS[form.category] || form.category}</strong>.</p>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: '0.3rem' }}>Click Continue to add photos.</p>
+                  </div>
+                  <VibeTagsPicker selected={vibeTags} onChange={setVibeTags} />
+                </>
               )}
             </div>
           )}
 
+          {/* STEP 4: MEDIA */}
           {step === 4 && (
             <div className="step-content">
               <div className="form-group">
-                <label className="form-label">📷 Business Photos</label>
-                <p className="form-note" style={{ marginBottom: '0.75rem' }}>Businesses with photos get <strong style={{ color: '#c9963a' }}>3× more views</strong>!</p>
-                <label className="upload-box" style={{ borderColor: photos.length > 0 ? '#c9963a' : undefined, color: photos.length > 0 ? '#c9963a' : undefined }}>
+                <label className="form-label">Business Photos</label>
+                <p className="form-note" style={{ marginBottom: '0.75rem' }}>Businesses with photos get <strong style={{ color: 'var(--red)' }}>3x more views</strong>!</p>
+                <label className={`upload-box ${photos.length > 0 ? 'has-file' : ''}`}>
                   <span className="upload-icon">{photos.length > 0 ? '✓' : '📷'}</span>
                   <span>{photos.length > 0 ? `${photos.length} photo${photos.length > 1 ? 's' : ''} selected` : 'Click to choose photos'}</span>
                   <span className="upload-sub">JPG or PNG · Max 10MB each</span>
@@ -402,8 +658,8 @@ export default function RegisterPage() {
                 </label>
               </div>
               <div className="form-group">
-                <label className="form-label">📄 Menu / Price List / Rate Card</label>
-                <label className="upload-box" style={{ borderColor: menuFile ? '#c9963a' : undefined, color: menuFile ? '#c9963a' : undefined }}>
+                <label className="form-label">Menu / Price List / Rate Card</label>
+                <label className={`upload-box ${menuFile ? 'has-file' : ''}`}>
                   <span className="upload-icon">{menuFile ? '✓' : '📄'}</span>
                   <span>{menuFile ? menuFile.name : 'Upload PDF or photo (optional)'}</span>
                   <span className="upload-sub">PDF, JPG or PNG · Max 20MB</span>
@@ -413,6 +669,7 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* STEP 5: ACCOUNT */}
           {step === 5 && (
             <div className="step-content">
               <div className="account-info-box">
@@ -431,7 +688,7 @@ export default function RegisterPage() {
                 <label className="form-label">Confirm Password *</label>
                 <input className="form-input" type="password" value={account.confirm} onChange={e => setAccount({ ...account, confirm: e.target.value })} placeholder="Same password again" />
                 {account.confirm && account.password !== account.confirm && (
-                  <p className="form-note" style={{ color: '#f87171', marginTop: '0.4rem' }}>⚠ Passwords don&apos;t match</p>
+                  <p className="form-note" style={{ color: '#f87171', marginTop: '0.4rem' }}>Passwords don&apos;t match</p>
                 )}
               </div>
             </div>
@@ -445,7 +702,7 @@ export default function RegisterPage() {
               <button className="btn-next" onClick={() => setStep(step + 1)} disabled={!canNext[step]}>Continue →</button>
             ) : (
               <button className="btn-next" onClick={handleSubmit} disabled={loading || !canNext[5] || account.password !== account.confirm}>
-                {loading ? 'Creating listing…' : 'Create Listing 🎉'}
+                {loading ? 'Creating listing…' : 'Create Listing'}
               </button>
             )}
           </div>
@@ -457,66 +714,258 @@ export default function RegisterPage() {
 }
 
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0d1a0d; color: #e8ddd0; font-family: 'Outfit', sans-serif; min-height: 100vh; }
-  .reg-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 3rem 1.5rem 4rem; background: radial-gradient(ellipse at 20% 0%, rgba(201,150,58,0.06) 0%, transparent 50%), #0d1a0d; }
-  .reg-brand { text-align: center; margin-bottom: 2.5rem; }
-  .reg-brand a { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: #e8ddd0; text-decoration: none; }
-  .reg-brand a span { color: #c9963a; }
-  .reg-brand p { font-size: 0.8rem; color: #8a9a8a; margin-top: 0.3rem; letter-spacing: 0.1em; text-transform: uppercase; }
-  .stepper { display: flex; align-items: flex-start; margin-bottom: 2rem; width: 100%; max-width: 600px; }
+
+  .reg-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 1.5rem 4rem;
+    background: var(--bg);
+    position: relative;
+  }
+  .reg-page::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 50% 40% at 15% 10%, rgba(192,57,43,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 85% 85%, rgba(212,160,23,0.03) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* BRAND */
+  .reg-brand { text-align: center; margin-bottom: 2.5rem; position: relative; z-index: 1; }
+  .reg-brand a { text-decoration: none; display: flex; align-items: baseline; gap: 4px; justify-content: center; }
+  .brand-yana { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: var(--white); letter-spacing: 1.5px; }
+  .brand-naga { font-size: 0.65rem; letter-spacing: 4px; text-transform: uppercase; color: var(--muted2); }
+  .reg-brand p { font-size: 0.8rem; color: var(--muted); margin-top: 0.4rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  /* STEPPER */
+  .stepper {
+    display: flex; align-items: flex-start;
+    margin-bottom: 2rem; width: 100%; max-width: 600px;
+    position: relative; z-index: 1;
+  }
   .step-item { display: flex; flex-direction: column; align-items: center; position: relative; gap: 0.35rem; flex: 1; }
-  .step-line { position: absolute; top: 17px; left: 50%; width: 100%; height: 2px; background: rgba(201,150,58,0.15); z-index: 0; }
-  .step-item.done .step-line, .step-item.active .step-line { background: rgba(201,150,58,0.4); }
-  .step-bubble { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(201,150,58,0.2); background: #0d1a0d; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 600; color: #8a9a8a; z-index: 1; position: relative; transition: all 0.3s; }
-  .step-item.active .step-bubble { border-color: #c9963a; color: #c9963a; background: rgba(201,150,58,0.1); box-shadow: 0 0 0 4px rgba(201,150,58,0.08); }
-  .step-item.done .step-bubble { border-color: #c9963a; background: #c9963a; color: #000d00; }
-  .step-label { font-size: 0.62rem; color: #6a7a6a; text-align: center; white-space: nowrap; transition: color 0.3s; }
-  .step-item.active .step-label { color: #c9963a; }
-  .step-item.done .step-label { color: #8a9a8a; }
-  .reg-card { background: linear-gradient(145deg, #1a2e1a, #152515); border: 1px solid rgba(201,150,58,0.15); border-radius: 18px; padding: 2.25rem; width: 100%; max-width: 600px; box-shadow: 0 24px 64px rgba(0,0,0,0.5); position: relative; overflow: hidden; }
-  .reg-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #c9963a, transparent); }
+  .step-line { position: absolute; top: 17px; left: 50%; width: 100%; height: 2px; background: var(--border); z-index: 0; }
+  .step-item.done .step-line, .step-item.active .step-line { background: rgba(192,57,43,0.4); }
+  .step-bubble {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 2px solid var(--border2);
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; font-weight: 600; color: var(--muted);
+    z-index: 1; position: relative; transition: all 0.3s;
+  }
+  .step-item.active .step-bubble { border-color: var(--red); color: var(--red); background: var(--red-bg); box-shadow: 0 0 0 4px rgba(192,57,43,0.08); }
+  .step-item.done .step-bubble { border-color: var(--red); background: var(--red); color: #fff; }
+  .step-label { font-size: 0.62rem; color: var(--muted); text-align: center; white-space: nowrap; transition: color 0.3s; }
+  .step-item.active .step-label { color: var(--red); }
+  .step-item.done .step-label { color: var(--off); }
+
+  /* CARD */
+  .reg-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 18px; padding: 2.25rem;
+    width: 100%; max-width: 600px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    position: relative; overflow: hidden; z-index: 1;
+  }
+  .reg-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--red), transparent);
+  }
   .step-heading { margin-bottom: 1.75rem; }
-  .step-heading h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #e8ddd0; margin-bottom: 0.3rem; }
-  .step-heading p { color: #8a9a8a; font-size: 0.87rem; }
-  @keyframes stepIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
-  .step-content { animation: stepIn 0.22s ease; }
+  .step-heading h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: var(--white); margin-bottom: 0.3rem; }
+  .step-heading p { color: var(--muted); font-size: 0.87rem; }
+
+  /* ANIMATIONS */
+  @keyframes fieldSlide { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .step-content { animation: fieldSlide 0.25s ease; }
+
+  /* FORM */
   .form-group { margin-bottom: 1.2rem; }
-  .form-label { display: block; font-size: 0.74rem; color: #c9963a; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.45rem; font-weight: 600; }
-  .form-note { font-size: 0.76rem; color: #6a7a6a; margin-top: 0.35rem; line-height: 1.4; }
-  .form-input, .form-select, .form-textarea { width: 100%; padding: 0.8rem 1rem; background: rgba(0,0,0,0.25); border: 1.5px solid rgba(201,150,58,0.15); border-radius: 10px; color: #e8ddd0; font-family: 'Outfit', sans-serif; font-size: 0.95rem; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
-  .form-input::placeholder, .form-textarea::placeholder { color: #3a4a3a; }
-  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: #c9963a; box-shadow: 0 0 0 3px rgba(201,150,58,0.1); }
-  .form-select option { background: #1a2e1a; }
+  .form-label {
+    display: block; font-size: 0.74rem; color: var(--red);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 0.45rem; font-weight: 600;
+  }
+  .form-note { font-size: 0.76rem; color: var(--muted); margin-top: 0.35rem; line-height: 1.4; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; padding: 0.8rem 1rem;
+    background: rgba(0,0,0,0.3);
+    border: 1.5px solid var(--border2);
+    border-radius: 10px; color: var(--white);
+    font-family: 'Sora', sans-serif; font-size: 0.95rem;
+    outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .form-input::placeholder, .form-textarea::placeholder { color: var(--muted2); }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(192,57,43,0.1);
+  }
+  .form-select option { background: var(--bg2); }
   .form-textarea { resize: vertical; min-height: 90px; line-height: 1.55; }
-  .cat-fields-wrap { background: rgba(201,150,58,0.05); border: 1px solid rgba(201,150,58,0.15); border-radius: 12px; padding: 1.25rem; }
-  .cat-fields-title { font-size: 0.88rem; font-weight: 600; color: #c9963a; margin-bottom: 1.25rem; }
+
+  /* CATEGORY GRID */
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+  .cat-card {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+    padding: 14px 8px;
+    background: rgba(0,0,0,0.2);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer; transition: all 0.2s;
+    font-family: 'Sora', sans-serif;
+    color: var(--muted);
+  }
+  .cat-card:hover {
+    border-color: var(--border2);
+    background: rgba(255,255,255,0.03);
+    color: var(--off);
+  }
+  .cat-card.selected {
+    border-color: var(--red);
+    background: var(--red-bg);
+    color: var(--white);
+    box-shadow: 0 0 0 3px rgba(192,57,43,0.08);
+  }
+  .cat-icon { font-size: 1.4rem; }
+  .cat-label { font-size: 0.7rem; font-weight: 500; text-align: center; line-height: 1.3; }
+
+  /* CATEGORY FIELDS */
+  .cat-fields-wrap {
+    background: rgba(192,57,43,0.04);
+    border: 1px solid rgba(192,57,43,0.12);
+    border-radius: 14px; padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .cat-fields-title { font-size: 0.88rem; font-weight: 600; color: var(--red); margin-bottom: 1.25rem; }
   .tags-wrap { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .tag-btn { padding: 0.4rem 0.85rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(201,150,58,0.15); border-radius: 20px; color: #8a9a8a; font-family: 'Outfit', sans-serif; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; }
-  .tag-btn:hover { border-color: rgba(201,150,58,0.4); color: #c9963a; }
-  .tag-btn.selected { background: rgba(201,150,58,0.12); border-color: #c9963a; color: #c9963a; }
-  .no-fields-msg { text-align: center; padding: 2rem 1rem; color: #8a9a8a; }
-  .no-fields-msg strong { color: #e8ddd0; }
-  .upload-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; width: 100%; padding: 1.75rem 1rem; border: 2px dashed rgba(201,150,58,0.25); border-radius: 12px; color: #8a9a8a; cursor: pointer; transition: border-color 0.2s, color 0.2s; text-align: center; }
-  .upload-box:hover { border-color: #c9963a; color: #c9963a; }
+  .tag-btn {
+    padding: 0.4rem 0.85rem;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--border2);
+    border-radius: 20px; color: var(--muted);
+    font-family: 'Sora', sans-serif; font-size: 0.78rem;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .tag-btn:hover { border-color: rgba(192,57,43,0.4); color: var(--off); }
+  .tag-btn.selected { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+
+  /* VIBE TAGS */
+  .vibe-section {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+  .vibe-title {
+    font-size: 0.82rem; font-weight: 600; color: var(--gold);
+    margin-bottom: 0.75rem;
+  }
+  .vibe-hint { font-weight: 300; color: var(--muted); font-size: 0.75rem; }
+  .vibe-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vibe-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    background: rgba(0,0,0,0.2);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    color: var(--muted);
+    font-family: 'Sora', sans-serif; font-size: 0.78rem;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .vibe-chip:hover {
+    border-color: rgba(212,160,23,0.4);
+    color: var(--off);
+    background: rgba(212,160,23,0.04);
+  }
+  .vibe-chip.active {
+    border-color: var(--gold);
+    background: var(--gold-bg);
+    color: var(--gold);
+  }
+  .vibe-emoji { font-size: 0.9rem; }
+
+  /* NO FIELDS */
+  .no-fields-msg { text-align: center; padding: 2rem 1rem; color: var(--muted); }
+  .no-fields-msg strong { color: var(--white); }
+
+  /* UPLOAD */
+  .upload-box {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 0.4rem;
+    width: 100%; padding: 1.75rem 1rem;
+    border: 2px dashed var(--border2);
+    border-radius: 12px; color: var(--muted);
+    cursor: pointer; transition: border-color 0.2s, color 0.2s;
+    text-align: center;
+    font-family: 'Sora', sans-serif; font-size: 0.88rem;
+  }
+  .upload-box:hover { border-color: var(--red); color: var(--off); }
+  .upload-box.has-file { border-color: var(--red); color: var(--red); }
   .upload-icon { font-size: 1.8rem; }
-  .upload-sub { font-size: 0.72rem; color: #4a5a4a; margin-top: 0.2rem; }
-  .account-info-box { display: flex; gap: 0.75rem; background: rgba(201,150,58,0.07); border: 1px solid rgba(201,150,58,0.15); border-radius: 10px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: #8a9a8a; line-height: 1.5; }
-  .account-info-box strong { color: #e8ddd0; }
-  .error-msg { background: rgba(180,40,40,0.12); border: 1px solid rgba(180,40,40,0.3); border-radius: 8px; padding: 0.7rem 1rem; font-size: 0.85rem; color: #ff8080; margin-top: 1rem; }
+  .upload-sub { font-size: 0.72rem; color: var(--muted2); margin-top: 0.2rem; }
+
+  /* ACCOUNT INFO */
+  .account-info-box {
+    display: flex; gap: 0.75rem;
+    background: var(--red-bg);
+    border: 1px solid rgba(192,57,43,0.15);
+    border-radius: 10px; padding: 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem; color: var(--muted); line-height: 1.5;
+  }
+  .account-info-box strong { color: var(--white); }
+
+  /* ERROR */
+  .error-msg {
+    background: rgba(180,40,40,0.12);
+    border: 1px solid rgba(180,40,40,0.3);
+    border-radius: 8px; padding: 0.7rem 1rem;
+    font-size: 0.85rem; color: #ff8080; margin-top: 1rem;
+  }
+
+  /* BUTTONS */
   .btn-row { display: flex; gap: 0.75rem; margin-top: 1.75rem; }
-  .btn-back { flex: 0 0 auto; padding: 0.85rem 1.4rem; background: transparent; border: 1.5px solid rgba(201,150,58,0.2); border-radius: 10px; color: #8a9a8a; font-family: 'Outfit', sans-serif; font-size: 0.95rem; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
-  .btn-back:hover { border-color: #c9963a; color: #c9963a; }
-  .btn-next { flex: 1; padding: 0.85rem; background: linear-gradient(135deg, #c9963a 0%, #a07020 100%); border: none; border-radius: 10px; color: #000d00; font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s; }
-  .btn-next:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,150,58,0.35); }
-  .btn-next:disabled { opacity: 0.45; cursor: not-allowed; }
-  .login-link { margin-top: 1.5rem; font-size: 0.85rem; color: #8a9a8a; }
-  .login-link a { color: #c9963a; text-decoration: none; }
+  .btn-back {
+    flex: 0 0 auto; padding: 0.85rem 1.4rem;
+    background: transparent;
+    border: 1.5px solid var(--border2);
+    border-radius: 10px; color: var(--muted);
+    font-family: 'Sora', sans-serif; font-size: 0.95rem;
+    cursor: pointer; transition: border-color 0.2s, color 0.2s;
+  }
+  .btn-back:hover { border-color: var(--red); color: var(--red); }
+  .btn-next {
+    flex: 1; padding: 0.85rem;
+    background: var(--red);
+    border: none; border-radius: 10px;
+    color: white; font-family: 'Sora', sans-serif;
+    font-size: 1rem; font-weight: 700;
+    cursor: pointer; transition: all 0.15s;
+    box-shadow: 0 4px 16px rgba(192,57,43,0.25);
+  }
+  .btn-next:hover:not(:disabled) { background: var(--red2); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(192,57,43,0.35); }
+  .btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* LOGIN LINK */
+  .login-link { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); position: relative; z-index: 1; }
+  .login-link a { color: var(--red); text-decoration: none; }
   .login-link a:hover { text-decoration: underline; }
-  @media (max-width: 480px) {
+
+  /* RESPONSIVE */
+  @media (max-width: 520px) {
     .reg-card { padding: 1.5rem 1.1rem; }
     .step-label { display: none; }
     .reg-page { padding: 2rem 1rem 3rem; }
+    .cat-grid { grid-template-columns: repeat(3, 1fr); }
   }
 `;
