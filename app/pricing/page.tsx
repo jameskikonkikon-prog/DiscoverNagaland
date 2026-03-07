@@ -1,6 +1,13 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
+
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
 
 const PLANS = [
   {
@@ -29,10 +36,10 @@ const PLANS = [
     name: 'Pro',
     price: '₹299',
     priceSub: '/month',
-    cta: 'Start Free Trial',
+    cta: 'Upgrade to Pro',
     ctaStyle: 'cta-pro',
     badge: 'Most Popular',
-    trial: '30 days free, no card needed',
+    trial: '30 days free trial for new users',
     features: [
       { text: 'Full listing with all details', included: true },
       { text: '10 photos, 3 videos', included: true },
@@ -51,7 +58,7 @@ const PLANS = [
     name: 'Plus',
     price: '₹499',
     priceSub: '/month',
-    cta: 'Start Now',
+    cta: 'Upgrade to Plus',
     ctaStyle: 'cta-plus',
     badge: null,
     trial: null,
@@ -103,7 +110,7 @@ const FAQ = [
   },
   {
     q: 'Can I upgrade later?',
-    a: 'Absolutely! Start with the free Basic plan and upgrade to Pro or Plus whenever you\'re ready. You can also upgrade from Pro to Plus at any time.',
+    a: 'Absolutely! Start with the free Basic plan and upgrade to Pro or Plus whenever you\'re ready. You can also upgrade from Pro to Plus at any time — you only pay the difference.',
   },
   {
     q: 'What happens if I miss a payment?',
@@ -121,6 +128,105 @@ const FAQ = [
 
 export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [upgrading, setUpgrading] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+
+  const ensureRazorpayScript = useCallback((): Promise<void> => {
+    return new Promise((resolve) => {
+      if (typeof window !== 'undefined' && window.Razorpay) { resolve(); return; }
+      const existing = document.querySelector('script[src*="razorpay"]');
+      if (existing) { existing.addEventListener('load', () => resolve()); return; }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve();
+      document.head.appendChild(script);
+    });
+  }, []);
+
+  const handlePlanClick = useCallback(async (planId: string) => {
+    if (planId === 'basic') {
+      window.location.href = '/register';
+      return;
+    }
+
+    setUpgrading(planId);
+    setMessage('');
+
+    try {
+      // Check if user is logged in and has a business
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        // Not logged in — send to register
+        window.location.href = '/register';
+        return;
+      }
+
+      const { data: business } = await supabase
+        .from('businesses')
+        .select('id, plan, trial_ends_at')
+        .eq('owner_id', user.id)
+        .single();
+
+      if (!business) {
+        // Logged in but no business — send to register
+        window.location.href = '/register';
+        return;
+      }
+
+      // Already on this plan or higher
+      const planOrder = ['basic', 'pro', 'plus'];
+      if (planOrder.indexOf(business.plan) >= planOrder.indexOf(planId)) {
+        setMessage(`You're already on the ${business.plan.charAt(0).toUpperCase() + business.plan.slice(1)} plan.`);
+        setUpgrading(null);
+        return;
+      }
+
+      // Create payment order
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: business.id, plan: planId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create order');
+
+      // Pro trial activation
+      if (data.trial) {
+        setMessage('Pro trial activated! Redirecting to dashboard...');
+        setTimeout(() => { window.location.href = '/dashboard?success=upgraded'; }, 1200);
+        return;
+      }
+
+      // Open Razorpay checkout
+      await ensureRazorpayScript();
+      const rzp = new window.Razorpay({
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: data.order.amount,
+        currency: 'INR',
+        order_id: data.order.id,
+        name: 'Yana Nagaland',
+        description: data.description || `${planId.charAt(0).toUpperCase() + planId.slice(1)} Plan`,
+        theme: { color: '#c0392b' },
+        handler: async (response: Record<string, string>) => {
+          setMessage('Verifying payment...');
+          await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...response, businessId: business.id, plan: planId }),
+          });
+          window.location.href = '/dashboard?success=upgraded';
+        },
+        modal: {
+          ondismiss: () => { setUpgrading(null); },
+        },
+      });
+      rzp.open();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      setUpgrading(null);
+    }
+  }, [ensureRazorpayScript]);
 
   return (
     <main className="pricing-page">
@@ -142,6 +248,10 @@ export default function PricingPage() {
         <p>Every plan gives you a full listing with all business details. Upgrade for more photos, AI tools, and premium visibility.</p>
       </section>
 
+      {message && (
+        <div className="pricing-msg">{message}</div>
+      )}
+
       <section className="plans-grid">
         {PLANS.map((plan) => (
           <div key={plan.id} className={`plan-card ${plan.id === 'pro' ? 'popular' : ''}`}>
@@ -152,7 +262,13 @@ export default function PricingPage() {
               <span className="price-sub">{plan.priceSub}</span>
             </div>
             {plan.trial && <div className="plan-trial">{plan.trial}</div>}
-            <Link href="/register" className={`plan-cta ${plan.ctaStyle}`}>{plan.cta}</Link>
+            <button
+              className={`plan-cta ${plan.ctaStyle}`}
+              onClick={() => handlePlanClick(plan.id)}
+              disabled={upgrading === plan.id}
+            >
+              {upgrading === plan.id ? 'Processing...' : plan.cta}
+            </button>
             <ul className="plan-features">
               {plan.features.map((f) => (
                 <li key={f.text} className={f.included ? 'included' : 'excluded'}>
@@ -181,10 +297,10 @@ export default function PricingPage() {
               {COMPARISON.map((row) => (
                 <tr key={row.feature}>
                   <td className="feature-name">{row.feature}</td>
-                  {(['basic', 'pro', 'plus'] as const).map((plan) => {
-                    const val = row[plan];
+                  {(['basic', 'pro', 'plus'] as const).map((p) => {
+                    const val = row[p];
                     return (
-                      <td key={plan} className={plan === 'pro' ? 'highlight-col' : ''}>
+                      <td key={p} className={p === 'pro' ? 'highlight-col' : ''}>
                         {val === true ? <span className="check">✓</span> :
                          val === false ? <span className="cross">—</span> :
                          <span className="text-val">{val}</span>}
@@ -228,7 +344,6 @@ export default function PricingPage() {
 }
 
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=Sora:wght@300;400;500;600;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   .pricing-page {
@@ -282,7 +397,7 @@ const styles = `
   .pricing-hero h1 {
     font-family: 'Playfair Display', serif;
     font-size: clamp(2rem, 5vw, 3.2rem);
-    font-weight: 900;
+    font-weight: 700;
     color: #fff;
     margin-bottom: 16px;
   }
@@ -292,6 +407,19 @@ const styles = `
     max-width: 560px;
     margin: 0 auto;
     line-height: 1.7;
+  }
+
+  /* Message */
+  .pricing-msg {
+    max-width: 600px;
+    margin: 0 auto 24px;
+    padding: 12px 20px;
+    background: rgba(192,57,43,0.08);
+    border: 1px solid rgba(192,57,43,0.2);
+    border-radius: 10px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--off, #e0e0e0);
   }
 
   /* Plans Grid */
@@ -373,11 +501,15 @@ const styles = `
     text-decoration: none;
     margin: 16px 0 24px;
     transition: opacity 0.2s, transform 0.15s;
+    border: none;
+    cursor: pointer;
+    font-family: 'Sora', sans-serif;
   }
-  .plan-cta:hover { transform: translateY(-1px); }
+  .plan-cta:hover:not(:disabled) { transform: translateY(-1px); }
+  .plan-cta:disabled { opacity: 0.5; cursor: not-allowed; }
   .cta-basic { background: #222; color: #fff; border: 1px solid #333; }
-  .cta-pro { background: #c0392b; color: #fff; }
-  .cta-plus { background: linear-gradient(135deg, #c0392b, #8B0000); color: #fff; }
+  .cta-pro { background: #c0392b; color: #fff; box-shadow: 0 4px 14px rgba(192,57,43,0.3); }
+  .cta-plus { background: linear-gradient(135deg, #c0392b, #8B0000); color: #fff; box-shadow: 0 4px 14px rgba(139,0,0,0.3); }
   .plan-features { list-style: none; }
   .plan-features li {
     font-size: 0.84rem;

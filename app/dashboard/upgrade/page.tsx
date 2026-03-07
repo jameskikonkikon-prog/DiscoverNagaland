@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
@@ -67,10 +68,24 @@ const PLAN_DATA = [
   },
 ];
 
-export default function UpgradePage() {
+function UpgradeInner() {
+  const searchParams = useSearchParams();
   const [business, setBusiness] = useState<Business | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+
+  // Preload Razorpay script immediately
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.Razorpay) {
+      setScriptLoaded(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => setScriptLoaded(true);
+    document.head.appendChild(script);
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -83,8 +98,8 @@ export default function UpgradePage() {
     load();
   }, []);
 
-  const handleUpgrade = async (plan: string) => {
-    if (!business || plan === 'basic') return;
+  const handleUpgrade = useCallback(async (plan: string) => {
+    if (!business || plan === 'basic' || loading) return;
     setLoading(true);
     setMessage('');
 
@@ -95,44 +110,57 @@ export default function UpgradePage() {
         body: JSON.stringify({ businessId: business.id, plan }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create order');
 
       // Pro trial activation (no payment needed)
       if (data.trial) {
         setMessage('Pro trial activated! Redirecting...');
-        setTimeout(() => { window.location.href = '/dashboard?success=upgraded'; }, 1500);
+        setTimeout(() => { window.location.href = '/dashboard?success=upgraded'; }, 1200);
         return;
       }
 
-      // Razorpay payment
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      document.body.appendChild(script);
+      if (!window.Razorpay) {
+        throw new Error('Payment system loading. Please try again in a moment.');
+      }
 
-      script.onload = () => {
-        const rzp = new window.Razorpay({
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-          amount: data.order.amount,
-          currency: 'INR',
-          order_id: data.order.id,
-          name: 'Yana Nagaland',
-          description: `${plan.toUpperCase()} Plan - Monthly`,
-          theme: { color: '#c0392b' },
-          handler: async (response: Record<string, string>) => {
-            await fetch('/api/payments/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...response, businessId: business.id, plan }),
-            });
-            window.location.href = '/dashboard?success=upgraded';
-          },
-        });
-        rzp.open();
-      };
-    } catch {
-      setMessage('Payment failed. Please try again.');
+      // Open Razorpay checkout immediately
+      const rzp = new window.Razorpay({
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: data.order.amount,
+        currency: 'INR',
+        order_id: data.order.id,
+        name: 'Yana Nagaland',
+        description: data.description || `${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan - Monthly`,
+        theme: { color: '#c0392b' },
+        handler: async (response: Record<string, string>) => {
+          setMessage('Verifying payment...');
+          await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...response, businessId: business.id, plan }),
+          });
+          window.location.href = '/dashboard?success=upgraded';
+        },
+        modal: {
+          ondismiss: () => { setLoading(false); },
+        },
+      });
+      rzp.open();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Payment failed. Please try again.');
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }, [business, loading]);
+
+  // Auto-trigger upgrade if plan param is in URL (e.g. /dashboard/upgrade?plan=pro)
+  useEffect(() => {
+    const autoPlan = searchParams.get('plan');
+    if (autoPlan && ['pro', 'plus'].includes(autoPlan) && business && scriptLoaded && !loading) {
+      handleUpgrade(autoPlan);
+    }
+  // only run once when business and script are ready
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [business, scriptLoaded]);
 
   const handleCancel = async () => {
     if (!business || business.plan === 'basic') return;
@@ -183,6 +211,7 @@ export default function UpgradePage() {
             const isCurrentPlan = currentPlan === plan.id;
             const isDowngrade = planOrder.indexOf(plan.id) < currentIndex;
             const isUpgrade = planOrder.indexOf(plan.id) > currentIndex;
+            const isProToPlus = currentPlan === 'pro' && plan.id === 'plus';
 
             return (
               <div key={plan.id} className={`plan-card ${plan.id === 'pro' ? 'popular' : ''} ${isCurrentPlan ? 'current' : ''}`}>
@@ -193,7 +222,7 @@ export default function UpgradePage() {
                   <span className="amount">{plan.price}</span>
                   <span className="sub">{plan.priceSub}</span>
                 </div>
-                {plan.trial && <div className="plan-trial">{plan.trial}</div>}
+                {plan.trial && !business?.trial_ends_at && isUpgrade && <div className="plan-trial">{plan.trial}</div>}
                 <button
                   className={`plan-cta ${plan.id}`}
                   disabled={loading || isCurrentPlan || isDowngrade}
@@ -201,6 +230,8 @@ export default function UpgradePage() {
                 >
                   {isCurrentPlan ? 'Current Plan' :
                    isDowngrade ? 'Downgrade' :
+                   loading ? 'Processing...' :
+                   isProToPlus ? 'Upgrade to Plus — Pay Difference' :
                    isUpgrade && plan.id === 'pro' && !business?.trial_ends_at ? 'Start Free Trial' :
                    plan.id === 'basic' ? 'Free Forever' :
                    `Upgrade to ${plan.name}`}
@@ -223,8 +254,15 @@ export default function UpgradePage() {
   );
 }
 
+export default function UpgradePage() {
+  return (
+    <Suspense fallback={<div style={{ background: '#0a0a0a', minHeight: '100vh' }} />}>
+      <UpgradeInner />
+    </Suspense>
+  );
+}
+
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=Sora:wght@300;400;500;600;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #0a0a0a; }
 
@@ -371,8 +409,8 @@ const styles = `
   .plan-cta:hover:not(:disabled) { transform: translateY(-1px); }
   .plan-cta:disabled { opacity: 0.5; cursor: not-allowed; }
   .plan-cta.basic { background: #222; color: #888; }
-  .plan-cta.pro { background: #c0392b; color: #fff; }
-  .plan-cta.plus { background: linear-gradient(135deg, #c0392b, #8B0000); color: #fff; }
+  .plan-cta.pro { background: #c0392b; color: #fff; box-shadow: 0 4px 14px rgba(192,57,43,0.3); }
+  .plan-cta.plus { background: linear-gradient(135deg, #c0392b, #8B0000); color: #fff; box-shadow: 0 4px 14px rgba(139,0,0,0.3); }
   .features { list-style: none; }
   .features li {
     font-size: 0.82rem;

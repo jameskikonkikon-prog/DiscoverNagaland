@@ -1,10 +1,16 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Suspense } from 'react';
 import { PLANS } from '@/types';
 import type { PlanType } from '@/types';
+
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
 
 type Business = {
   id: string; name: string; category: string; city: string;
@@ -52,6 +58,71 @@ function DashboardInner() {
     }
     load();
   }, [router]);
+
+  const [upgrading, setUpgrading] = useState(false);
+  const [upgradeMsg, setUpgradeMsg] = useState('');
+
+  const ensureRazorpayScript = useCallback((): Promise<void> => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) { resolve(); return; }
+      const existing = document.querySelector('script[src*="razorpay"]');
+      if (existing) { existing.addEventListener('load', () => resolve()); return; }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve();
+      document.head.appendChild(script);
+    });
+  }, []);
+
+  const handleUpgrade = useCallback(async (plan: 'pro' | 'plus') => {
+    if (!biz || upgrading) return;
+    setUpgrading(true);
+    setUpgradeMsg('');
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: biz.id, plan }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create order');
+
+      // Pro trial activation (no payment needed)
+      if (data.trial) {
+        setUpgradeMsg('Pro trial activated! Refreshing...');
+        setTimeout(() => { window.location.href = '/dashboard?success=upgraded'; }, 1200);
+        return;
+      }
+
+      // Open Razorpay checkout
+      await ensureRazorpayScript();
+      const rzp = new window.Razorpay({
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: data.order.amount,
+        currency: 'INR',
+        order_id: data.order.id,
+        name: 'Yana Nagaland',
+        description: data.description || `${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
+        theme: { color: '#c0392b' },
+        handler: async (response: Record<string, string>) => {
+          setUpgradeMsg('Verifying payment...');
+          await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...response, businessId: biz.id, plan }),
+          });
+          window.location.href = '/dashboard?success=upgraded';
+        },
+        modal: {
+          ondismiss: () => { setUpgrading(false); },
+        },
+      });
+      rzp.open();
+    } catch (err) {
+      setUpgradeMsg(err instanceof Error ? err.message : 'Payment failed. Please try again.');
+      setUpgrading(false);
+    }
+  }, [biz, upgrading, ensureRazorpayScript]);
 
   const update = (field: string, value: string | number | boolean) => setForm(f => ({ ...f, [field]: value }));
 
@@ -154,14 +225,20 @@ function DashboardInner() {
             <div className="success-banner">Plan upgraded successfully! Your listing now has enhanced visibility.</div>
           )}
 
+          {upgradeMsg && (
+            <div className="success-banner">{upgradeMsg}</div>
+          )}
+
           {/* Pro trial banner */}
           {isOnTrial && (
             <div className="trial-banner">
               <div>
                 <strong>Pro Trial — {trialDays} day{trialDays !== 1 ? 's' : ''} remaining</strong>
-                <p>You have full Pro features during your trial. Upgrade before it ends to keep analytics and higher ranking.</p>
+                <p>You have full Pro features during your trial. Pay now to keep analytics and higher ranking after trial ends.</p>
               </div>
-              <a href="/dashboard/upgrade" className="trial-upgrade-btn">Upgrade Now</a>
+              <button className="trial-upgrade-btn" onClick={() => handleUpgrade('pro')} disabled={upgrading}>
+                {upgrading ? 'Processing...' : 'Pay ₹299/mo'}
+              </button>
             </div>
           )}
 
@@ -171,7 +248,9 @@ function DashboardInner() {
                 <strong>Your Pro trial has ended</strong>
                 <p>Your listing is now on the Basic plan. Upgrade to Pro for ₹299/month to regain analytics and higher search ranking.</p>
               </div>
-              <a href="/dashboard/upgrade" className="trial-upgrade-btn danger">Upgrade to Pro — ₹299/mo</a>
+              <button className="trial-upgrade-btn danger" onClick={() => handleUpgrade('pro')} disabled={upgrading}>
+                {upgrading ? 'Processing...' : 'Upgrade to Pro — ₹299/mo'}
+              </button>
             </div>
           )}
 
@@ -181,7 +260,9 @@ function DashboardInner() {
                 <strong>You&apos;re on the Basic (Free) plan</strong>
                 <p>Your listing is live but ranked lower in search. Upgrade to Pro for analytics, AI tools, and higher visibility.</p>
               </div>
-              <a href="/dashboard/upgrade" className="trial-upgrade-btn">See Plans</a>
+              <button className="trial-upgrade-btn" onClick={() => handleUpgrade('pro')} disabled={upgrading}>
+                {upgrading ? 'Processing...' : 'Upgrade to Pro — Free Trial'}
+              </button>
             </div>
           )}
 
@@ -233,9 +314,9 @@ function DashboardInner() {
               {isOnTrial && <div className="plan-info-trial">{trialDays} days left in trial</div>}
             </div>
             {!isPlus && (
-              <a href="/dashboard/upgrade" className="upgrade-cta-btn">
-                {isBasic ? 'Upgrade Plan' : isPro ? 'Upgrade to Plus' : 'View Plans'}
-              </a>
+              <button className="upgrade-cta-btn" onClick={() => handleUpgrade(isPro ? 'plus' : 'pro')} disabled={upgrading} style={{ border: 'none', cursor: upgrading ? 'not-allowed' : 'pointer', fontFamily: "'Sora', sans-serif" }}>
+                {upgrading ? 'Processing...' : isBasic ? 'Upgrade to Pro' : isPro ? 'Upgrade to Plus — ₹200' : 'Upgrade'}
+              </button>
             )}
           </div>
 
@@ -472,7 +553,7 @@ function DashboardInner() {
               )}
               {editing && !canAddPhotos && (
                 <div className="photo-limit-msg">
-                  Photo limit reached ({maxPhotos}). <a href="/dashboard/upgrade">Upgrade for more</a>
+                  Photo limit reached ({maxPhotos}). <button onClick={() => handleUpgrade(isPro ? 'plus' : 'pro')} style={{ background: 'none', border: 'none', color: '#c0392b', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', textDecoration: 'underline', padding: 0 }}>Upgrade for more</button>
                 </div>
               )}
             </div>
@@ -561,9 +642,14 @@ const styles = `
   .trial-upgrade-btn {
     padding: 0.65rem 1.25rem;
     background: #c0392b; color: #fff;
-    text-decoration: none; border-radius: 8px;
+    text-decoration: none; border-radius: 8px; border: none;
     font-size: 0.85rem; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+    cursor: pointer; font-family: 'Sora', sans-serif;
+    transition: background 0.15s, transform 0.15s;
+    box-shadow: 0 4px 14px rgba(192,57,43,0.25);
   }
+  .trial-upgrade-btn:hover:not(:disabled) { background: #a93226; transform: translateY(-1px); }
+  .trial-upgrade-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .trial-upgrade-btn.danger { background: #dc2626; }
 
   .dash-welcome {
