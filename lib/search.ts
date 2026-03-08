@@ -18,48 +18,6 @@ const STOP_WORDS = new Set([
   'was','were','i','me','my','we','our','some','any','where','which','want'
 ]);
 
-/** Synonym map: trigger term (lower) -> list of terms to match (trigger + synonyms). */
-const SEARCH_SYNONYMS: Record<string, string[]> = {
-  turf: ['turf', 'football ground', 'court', 'futsal', 'sports ground'],
-  pg: ['pg', 'paying guest', 'hostel', 'accommodation', 'guest house'],
-  parlour: ['parlour', 'parlor', 'salon', 'beauty'],
-  parlor: ['parlor', 'parlour', 'salon', 'beauty'],
-  salon: ['salon', 'parlour', 'parlor', 'beauty'],
-  food: ['food', 'restaurant', 'cafe', 'eatery', 'dining'],
-  gym: ['gym', 'fitness', 'workout', 'gymnasium'],
-};
-const SEARCH_COLUMNS = ['category', 'name', 'tags', 'vibe_tags', 'description', 'city'] as const;
-
-function escapeIlikePattern(term: string): string {
-  return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
-}
-
-/** Expand query words with synonyms; return unique terms (min length 2, not stop words). */
-function expandQueryWithSynonyms(query: string): string[] {
-  const words = query.toLowerCase().split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w));
-  const termSet = new Set<string>();
-  for (const word of words) {
-    const expanded = SEARCH_SYNONYMS[word] ?? [word];
-    expanded.forEach(t => termSet.add(t));
-  }
-  return Array.from(termSet).filter(t => t.length >= 2);
-}
-
-const MIN_QUERY_LEN = 4;
-const MIN_WORD_LEN_AFTER_SHORTEN = 3;
-
-/** Shorten the search part of the query by n chars (from the last word) for typo fallback. */
-function shortenSearchQuery(query: string, n: number): string {
-  const trimmed = query.trim();
-  if (trimmed.length < MIN_QUERY_LEN || n < 1) return trimmed;
-  const parts = trimmed.split(/\s+/);
-  const last = parts[parts.length - 1];
-  if (last.length <= n || last.length - n < MIN_WORD_LEN_AFTER_SHORTEN) return trimmed;
-  const shortened = last.slice(0, -n);
-  if (parts.length === 1) return shortened;
-  return [...parts.slice(0, -1), shortened].join(' ');
-}
-
 const PLAN_RANK: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
 
 function sortByPlan(businesses: Business[]): Business[] {
@@ -216,48 +174,32 @@ Return ONLY valid JSON, no markdown fences.`,
   return null;
 }
 
-/** Run one DB search with the given cleanQuery; returns filtered business list (no AI ranking). */
-async function runOneSearch(
-  serviceClient: ReturnType<typeof getServiceClient>,
-  cleanQuery: string,
-  activeCity: string | null,
-  queryHasAC: boolean,
-  conditions: string[],
-  priceCondition: { max?: number; min?: number } | null
-): Promise<Business[]> {
-  const searchTerms = expandQueryWithSynonyms(cleanQuery);
+const MIN_QUERY_LEN = 4;
+const MIN_WORD_LEN_AFTER_SHORTEN = 3;
 
-  let dbQuery = serviceClient.from('businesses').select('*').eq('is_active', true);
-  if (activeCity) dbQuery = dbQuery.eq('city', activeCity);
-  if (queryHasAC) dbQuery = dbQuery.eq('ac', true);
+/** Shorten the last word of the query by n chars for typo fallback. */
+function shortenSearchQuery(query: string, n: number): string {
+  const trimmed = query.trim();
+  if (trimmed.length < MIN_QUERY_LEN || n < 1) return trimmed;
+  const parts = trimmed.split(/\s+/);
+  const last = parts[parts.length - 1];
+  if (last.length <= n || last.length - n < MIN_WORD_LEN_AFTER_SHORTEN) return trimmed;
+  const shortened = last.slice(0, -n);
+  if (parts.length === 1) return shortened;
+  return [...parts.slice(0, -1), shortened].join(' ');
+}
 
-  if (searchTerms.length > 0) {
-    const orParts: string[] = [];
-    for (const term of searchTerms.slice(0, 25)) {
-      const escaped = escapeIlikePattern(term);
-      const pat = `%${escaped}%`;
-      for (const col of SEARCH_COLUMNS) {
-        orParts.push(`${col}.ilike.${pat}`);
-      }
-    }
-    if (orParts.length > 0) {
-      dbQuery = dbQuery.or(orParts.join(','));
-    }
-  }
-
-  const { data: businesses, error } = await dbQuery;
-  if (error) {
-    console.error('Search query error:', error);
-    return [];
-  }
-  if (!businesses || businesses.length === 0) return [];
-
-  let conditionFiltered = businesses;
-  if (conditions.length > 0 || priceCondition) {
-    const strict = businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition));
-    if (strict.length > 0) conditionFiltered = strict;
-  }
-  return conditionFiltered;
+/** Filter a list of businesses by keyword match (same logic as main search). */
+function filterByKeywords(pool: Business[], searchQuery: string): Business[] {
+  const keywords = searchQuery.toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
+  if (keywords.length === 0) return [];
+  return pool.filter((b: Business) => {
+    const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
+      .filter(Boolean).join(' ').toLowerCase();
+    return keywords.some(kw => haystack.includes(kw));
+  });
 }
 
 export async function searchBusinesses(
@@ -274,30 +216,76 @@ export async function searchBusinesses(
   let cleanQuery = query.trim();
   if (detectedCity) cleanQuery = query.replace(new RegExp(detectedCity, 'gi'), '').trim();
 
-  const queryHasAC = /\bAC\b/i.test(query);
+  let dbQuery = serviceClient.from('businesses').select('*').eq('is_active', true);
+  if (activeCity) dbQuery = dbQuery.eq('city', activeCity);
 
-  const hadSearchTerms = expandQueryWithSynonyms(cleanQuery).length > 0;
-  let list = await runOneSearch(serviceClient, cleanQuery, activeCity, queryHasAC, conditions, priceCondition);
+  const { data: businesses } = await dbQuery;
+  if (!businesses || businesses.length === 0) {
+    return { businesses: [], detectedCity };
+  }
+
+  let conditionFiltered = businesses;
+  if (conditions.length > 0 || priceCondition) {
+    const strict = businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition));
+    if (strict.length > 0) conditionFiltered = strict;
+  }
+
+  if (!cleanQuery.trim()) {
+    return { businesses: sortByPlan(conditionFiltered), detectedCity };
+  }
+
+  const keywords = cleanQuery.toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
+
+  let candidates: Business[] = conditionFiltered;
+  if (keywords.length > 0) {
+    const keywordResults = conditionFiltered.filter((b: Business) => {
+      const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
+        .filter(Boolean).join(' ').toLowerCase();
+      return keywords.some(kw => haystack.includes(kw));
+    });
+    if (keywordResults.length > 0) {
+      candidates = keywordResults;
+    } else {
+      const broadResults = businesses.filter((b: Business) => {
+        const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
+          .filter(Boolean).join(' ').toLowerCase();
+        return keywords.some(kw => haystack.includes(kw));
+      });
+      if (broadResults.length > 0) {
+        candidates = broadResults;
+      }
+    }
+  }
 
   let correctedQuery: string | undefined;
-  if (list.length === 0 && hadSearchTerms && cleanQuery.length >= MIN_QUERY_LEN) {
+  if (candidates.length === 0 && keywords.length > 0 && cleanQuery.length >= MIN_QUERY_LEN) {
     const shortened2 = shortenSearchQuery(cleanQuery, 2);
     const shortened3 = shortenSearchQuery(cleanQuery, 3);
     if (shortened2 !== cleanQuery) {
-      list = await runOneSearch(serviceClient, shortened2, activeCity, queryHasAC, conditions, priceCondition);
-      if (list.length > 0) correctedQuery = shortened2;
+      let fallback = filterByKeywords(conditionFiltered, shortened2);
+      if (fallback.length === 0) fallback = filterByKeywords(businesses, shortened2);
+      if (fallback.length > 0) {
+        candidates = fallback;
+        correctedQuery = shortened2;
+      }
     }
-    if (list.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortened2) {
-      list = await runOneSearch(serviceClient, shortened3, activeCity, queryHasAC, conditions, priceCondition);
-      if (list.length > 0) correctedQuery = shortened3;
+    if (candidates.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortenSearchQuery(cleanQuery, 2)) {
+      let fallback = filterByKeywords(conditionFiltered, shortened3);
+      if (fallback.length === 0) fallback = filterByKeywords(businesses, shortened3);
+      if (fallback.length > 0) {
+        candidates = fallback;
+        correctedQuery = shortened3;
+      }
     }
   }
 
-  if (list.length === 0) {
+  if (candidates.length === 0) {
     return { businesses: [], detectedCity, correctedQuery };
   }
 
-  const sorted = sortByPlan(list);
+  const sorted = sortByPlan(candidates);
   const aiResult = await aiRankWithClaude(query, sorted);
 
   if (aiResult && aiResult.ranked.length > 0) {
