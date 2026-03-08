@@ -29,7 +29,6 @@ function SearchPageInner() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedCity, setSelectedCity] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiReasons, setAiReasons] = useState<Record<string, string>>({});
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
@@ -89,17 +88,13 @@ function SearchPageInner() {
     };
   }, []);
 
-  const CITIES = ["Kohima","Dimapur","Mokokchung","Mon","Tuensang","Wokha","Phek","Zunheboto","Peren","Longleng","Kiphire","Noklak","Shamator","Tseminyü","Chümoukedima","Niuland","Meluri"];
-  const CATEGORIES = ["Cafés", "PG & Hostels", "Restaurants", "Study Spaces", "Gyms", "Turfs & Sports", "shop"];
-
-  async function doSearch(q: string, city: string, category: string) {
+  async function doSearch(q: string, city?: string) {
     setLoading(true);
     setHasSearched(true);
     try {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q);
       if (city) params.set("city", city);
-      if (category) params.set("category", category);
       const res = await fetch(`/api/search?${params}`);
       const json = await res.json();
       setDetectedCity(json.detectedCity || null);
@@ -222,13 +217,7 @@ function SearchPageInner() {
   function handleInput(val: string) {
     setQuery(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(val, selectedCity, selectedCategory), 400);
-  }
-
-  function handleFilter(city: string, category: string) {
-    setSelectedCity(city);
-    setSelectedCategory(category);
-    doSearch(query, city, category);
+    debounceRef.current = setTimeout(() => doSearch(val, selectedCity), 400);
   }
 
   const activeCity = selectedCity || detectedCity;
@@ -284,25 +273,15 @@ function SearchPageInner() {
             />
             <button
               className="search-go-btn"
-              onClick={() => { if (query.trim()) doSearch(query, selectedCity, selectedCategory); }}
+              onClick={() => { if (query.trim()) doSearch(query, selectedCity); }}
             >
               Search
             </button>
           </div>
-          <div className="filters">
-            <select className="filter-select" value={selectedCity} onChange={(e) => handleFilter(e.target.value, selectedCategory)}>
-              <option value="">All Districts</option>
-              {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select className="filter-select" value={selectedCategory} onChange={(e) => handleFilter(selectedCity, e.target.value)}>
-              <option value="">All Categories</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
           {detectedCity && !selectedCity && (
             <div className="city-detected-badge">
               📍 Showing results in <strong>{detectedCity}</strong>
-              <button onClick={() => { setDetectedCity(null); doSearch(query.replace(new RegExp(detectedCity, 'gi'), '').trim(), '', selectedCategory); }} className="clear-city-btn">✕ Show all</button>
+              <button onClick={() => { setDetectedCity(null); doSearch(query.replace(new RegExp(detectedCity, 'gi'), '').trim(), ''); }} className="clear-city-btn">✕ Show all</button>
             </div>
           )}
           {!loading && query.trim() !== "" && results.length > 0 && (
@@ -334,7 +313,7 @@ function SearchPageInner() {
                       key={label}
                       type="button"
                       className="chip-btn"
-                      onClick={() => { setQuery(label); doSearch(label, selectedCity, selectedCategory); }}
+                      onClick={() => { setQuery(label); doSearch(label, selectedCity); }}
                     >
                       {label}
                     </button>
@@ -352,7 +331,7 @@ function SearchPageInner() {
                       key={label}
                       type="button"
                       className="chip-btn"
-                      onClick={() => { setQuery(label); doSearch(label, selectedCity, selectedCategory); }}
+                      onClick={() => { setQuery(label); doSearch(label, selectedCity); }}
                     >
                       {label}
                     </button>
@@ -365,7 +344,7 @@ function SearchPageInner() {
                       key={label}
                       type="button"
                       className="chip-btn"
-                      onClick={() => { setQuery(label); doSearch(label, selectedCity, selectedCategory); }}
+                      onClick={() => { setQuery(label); doSearch(label, selectedCity); }}
                     >
                       {label}
                     </button>
@@ -744,24 +723,29 @@ const styles = `
     padding: 0 0.5rem;
   }
   .filter-chip {
-    padding: 0.4rem 0.9rem;
+    padding: 0.5rem 1rem;
     background: transparent;
     border: 1px solid #333;
-    color: #aaa;
+    color: #999;
     font-family: 'Sora', sans-serif;
-    font-size: 0.82rem;
-    border-radius: 20px;
+    font-size: 0.85rem;
+    border-radius: 999px;
     cursor: pointer;
     transition: background 0.2s, border-color 0.2s, color 0.2s;
   }
   .filter-chip:hover {
     border-color: #555;
     color: #ccc;
+    background: rgba(255,255,255,0.03);
   }
   .filter-chip.active {
     background: #c0392b;
     border-color: #c0392b;
     color: #fff;
+  }
+  .filter-chip.active:hover {
+    background: #e74c3c;
+    border-color: #e74c3c;
   }
 
   .content {

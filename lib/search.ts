@@ -302,6 +302,46 @@ function shortenSearchQuery(query: string, n: number): string {
   return [...parts.slice(0, -1), shortened].join(' ');
 }
 
+/** Columns to search with ilike (no "location" — use city and area). */
+const SEARCH_COLUMNS = ['name', 'category', 'tags', 'vibe_tags', 'description', 'city', 'area'] as const;
+
+function escapeIlike(term: string): string {
+  return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+/** Build Supabase .or() ilike filter for name, category, tags, vibe_tags, description, city, area. */
+function buildSearchOrClause(keywords: string[]): string {
+  const parts: string[] = [];
+  for (const kw of keywords.slice(0, 15)) {
+    const escaped = escapeIlike(kw);
+    const pat = `%${escaped}%`;
+    for (const col of SEARCH_COLUMNS) {
+      parts.push(`${col}.ilike.${pat}`);
+    }
+  }
+  return parts.join(',');
+}
+
+/** Run one Supabase query with optional text filter (ilike). Returns matching businesses only. */
+async function fetchBusinessesWithFilter(
+  serviceClient: ReturnType<typeof getServiceClient>,
+  activeCity: string | null,
+  keywords: string[]
+): Promise<Business[]> {
+  let q = serviceClient.from('businesses').select('*').eq('is_active', true);
+  if (activeCity) q = q.eq('city', activeCity);
+  if (keywords.length > 0) {
+    const orClause = buildSearchOrClause(keywords);
+    if (orClause) q = q.or(orClause);
+  }
+  const { data, error } = await q;
+  if (error) {
+    console.error('Search query error:', error);
+    return [];
+  }
+  return (data as Business[]) || [];
+}
+
 /** Filter a list of businesses by keyword match (same logic as main search). */
 function filterByKeywords(pool: Business[], searchQuery: string): Business[] {
   const keywords = searchQuery.toLowerCase()
@@ -329,48 +369,37 @@ export async function searchBusinesses(
   let cleanQuery = query.trim();
   if (detectedCity) cleanQuery = query.replace(new RegExp(detectedCity, 'gi'), '').trim();
 
-  let dbQuery = serviceClient.from('businesses').select('*').eq('is_active', true);
-  if (activeCity) dbQuery = dbQuery.eq('city', activeCity);
+  const keywords = cleanQuery.toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 
-  const { data: businesses } = await dbQuery;
-  if (!businesses || businesses.length === 0) {
-    return { businesses: [], detectedCity };
+  let businesses: Business[];
+  if (cleanQuery.trim() === '') {
+    const { data } = await serviceClient.from('businesses').select('*').eq('is_active', true);
+    if (activeCity) {
+      businesses = ((data as Business[]) || []).filter(b => b.city === activeCity);
+    } else {
+      businesses = (data as Business[]) || [];
+    }
+  } else {
+    businesses = await fetchBusinessesWithFilter(serviceClient, activeCity, keywords);
   }
 
-  let conditionFiltered = businesses;
+  if (!businesses || businesses.length === 0) {
+    if (cleanQuery.trim() === '') return { businesses: [], detectedCity };
+  }
+
+  let conditionFiltered = businesses || [];
   if (conditions.length > 0 || priceCondition) {
     const strict = businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition));
     if (strict.length > 0) conditionFiltered = strict;
   }
 
-  if (!cleanQuery.trim()) {
+  if (cleanQuery.trim() === '') {
     return { businesses: sortByPlan(conditionFiltered), detectedCity };
   }
 
-  const keywords = cleanQuery.toLowerCase()
-    .split(/\s+/)
-    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
-
   let candidates: Business[] = conditionFiltered;
-  if (keywords.length > 0) {
-    const keywordResults = conditionFiltered.filter((b: Business) => {
-      const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
-        .filter(Boolean).join(' ').toLowerCase();
-      return keywords.some(kw => haystack.includes(kw));
-    });
-    if (keywordResults.length > 0) {
-      candidates = keywordResults;
-    } else {
-      const broadResults = businesses.filter((b: Business) => {
-        const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
-          .filter(Boolean).join(' ').toLowerCase();
-        return keywords.some(kw => haystack.includes(kw));
-      });
-      if (broadResults.length > 0) {
-        candidates = broadResults;
-      }
-    }
-  }
 
   const categoryIntent = getCategoryIntent(cleanQuery);
   if (categoryIntent && candidates.length > 0) {
@@ -384,19 +413,31 @@ export async function searchBusinesses(
   if (candidates.length === 0 && keywords.length > 0 && cleanQuery.length >= MIN_QUERY_LEN) {
     const shortened2 = shortenSearchQuery(cleanQuery, 2);
     const shortened3 = shortenSearchQuery(cleanQuery, 3);
-    if (shortened2 !== cleanQuery) {
-      let fallback = filterByKeywords(conditionFiltered, shortened2);
-      if (fallback.length === 0) fallback = filterByKeywords(businesses, shortened2);
-      if (fallback.length > 0) {
-        candidates = fallback;
+    const kw2 = shortened2.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+    const kw3 = shortened3.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+    if (shortened2 !== cleanQuery && kw2.length > 0) {
+      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, kw2);
+      let filtered = fallback;
+      if (conditions.length > 0 || priceCondition) {
+        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
+        if (strict.length > 0) filtered = strict;
+      }
+      const withIntent = categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      if (withIntent.length > 0) {
+        candidates = withIntent;
         correctedQuery = shortened2;
       }
     }
-    if (candidates.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortenSearchQuery(cleanQuery, 2)) {
-      let fallback = filterByKeywords(conditionFiltered, shortened3);
-      if (fallback.length === 0) fallback = filterByKeywords(businesses, shortened3);
-      if (fallback.length > 0) {
-        candidates = fallback;
+    if (candidates.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortenSearchQuery(cleanQuery, 2) && kw3.length > 0) {
+      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, kw3);
+      let filtered = fallback;
+      if (conditions.length > 0 || priceCondition) {
+        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
+        if (strict.length > 0) filtered = strict;
+      }
+      const withIntent = categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      if (withIntent.length > 0) {
+        candidates = withIntent;
         correctedQuery = shortened3;
       }
     }
