@@ -90,7 +90,7 @@ function SearchPageInner() {
   function handleInput(val: string) {
     setQuery(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(val, selectedCity, selectedCategory), 800);
+    debounceRef.current = setTimeout(() => doSearch(val, selectedCity, selectedCategory), 400);
   }
 
   function handleFilter(city: string, category: string) {

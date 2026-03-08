@@ -28,7 +28,7 @@ const SEARCH_SYNONYMS: Record<string, string[]> = {
   food: ['food', 'restaurant', 'cafe', 'eatery', 'dining'],
   gym: ['gym', 'fitness', 'workout', 'gymnasium'],
 };
-const SEARCH_COLUMNS = ['category', 'name', 'tags', 'vibe_tags', 'description', 'area', 'city'] as const;
+const SEARCH_COLUMNS = ['category', 'name', 'tags', 'vibe_tags', 'description', 'city'] as const;
 
 function escapeIlikePattern(term: string): string {
   return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
@@ -234,8 +234,8 @@ async function runOneSearch(
   if (searchTerms.length > 0) {
     const orParts: string[] = [];
     for (const term of searchTerms.slice(0, 25)) {
-      const escaped = escapeIlikePattern(term).replace(/'/g, "''");
-      const pat = `'%${escaped}%'`;
+      const escaped = escapeIlikePattern(term);
+      const pat = `%${escaped}%`;
       for (const col of SEARCH_COLUMNS) {
         orParts.push(`${col}.ilike.${pat}`);
       }
@@ -276,10 +276,11 @@ export async function searchBusinesses(
 
   const queryHasAC = /\bAC\b/i.test(query);
 
+  const hadSearchTerms = expandQueryWithSynonyms(cleanQuery).length > 0;
   let list = await runOneSearch(serviceClient, cleanQuery, activeCity, queryHasAC, conditions, priceCondition);
 
   let correctedQuery: string | undefined;
-  if (list.length === 0 && cleanQuery.length >= MIN_QUERY_LEN) {
+  if (list.length === 0 && hadSearchTerms && cleanQuery.length >= MIN_QUERY_LEN) {
     const shortened2 = shortenSearchQuery(cleanQuery, 2);
     const shortened3 = shortenSearchQuery(cleanQuery, 3);
     if (shortened2 !== cleanQuery) {
