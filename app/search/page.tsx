@@ -65,7 +65,7 @@ function SearchPageInner() {
   }, []);
 
   const CITIES = ["Kohima","Dimapur","Mokokchung","Mon","Tuensang","Wokha","Phek","Zunheboto","Peren","Longleng","Kiphire","Noklak","Shamator","Tseminyü","Chümoukedima","Niuland","Meluri"];
-  const CATEGORIES = ["Restaurant","Cafe","Hotel","PG","Shop","Pharmacy","Hospital","Clinic","Salon","Turf","Coaching","School","Rental","Service"];
+  const CATEGORIES = ["Cafés", "PG & Hostels", "Restaurants", "Study Spaces", "Gyms", "Turfs & Sports", "shop"];
 
   async function doSearch(q: string, city: string, category: string) {
     setLoading(true);

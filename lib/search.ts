@@ -18,26 +18,68 @@ const STOP_WORDS = new Set([
   'was','were','i','me','my','we','our','some','any','where','which','want'
 ]);
 
-/** When query implies a category, only keep businesses whose category matches. Prevents "cafe" matching sports shops. */
-const CATEGORY_INTENT: Record<string, string[]> = {
-  food: ['cafe', 'café', 'restaurant', 'food', 'eatery', 'dining', 'coffee', 'bakery', 'bistro', 'diner', 'eating'],
-  gym: ['gym', 'fitness', 'workout', 'sports'],
-  turf: ['turf', 'sports', 'court', 'futsal', 'football', 'ground'],
-  pg: ['pg', 'hostel', 'accommodation', 'guest house', 'paying guest', 'lodging'],
-  hotel: ['hotel', 'lodge', 'resort', 'stay'],
-  salon: ['salon', 'parlour', 'parlor', 'beauty', 'spa'],
+/** Exact category names as stored in Supabase. */
+const SUPABASE_CATEGORIES = [
+  'Cafés',
+  'PG & Hostels',
+  'Restaurants',
+  'Study Spaces',
+  'Gyms',
+  'Turfs & Sports',
+  'shop',
+] as const;
+
+/** Normalize for comparison: lowercase, strip accents (e.g. Cafés → cafes). */
+function normalizeCategory(cat: string): string {
+  return (cat || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .trim();
+}
+
+/** Search trigger words → intent key → allowed Supabase category names. */
+const CATEGORY_INTENT: Record<string, readonly string[]> = {
+  cafe: ['Cafés'],
+  pg: ['PG & Hostels'],
+  restaurant: ['Restaurants'],
+  study: ['Study Spaces'],
+  gym: ['Gyms'],
+  turf: ['Turfs & Sports'],
+  shop: ['shop'],
 };
 const CATEGORY_TRIGGERS: Record<string, string> = {
-  cafe: 'food', coffee: 'food', restaurant: 'food', food: 'food', eat: 'food', eating: 'food', dining: 'food', eatery: 'food', bakery: 'food', bistro: 'food',
-  gym: 'gym', fitness: 'gym', workout: 'gym',
-  turf: 'turf', football: 'turf', court: 'turf', futsal: 'turf',
-  pg: 'pg', hostel: 'pg', accommodation: 'pg', paying: 'pg', guest: 'pg',
-  hotel: 'hotel', lodge: 'hotel', resort: 'hotel',
-  salon: 'salon', parlour: 'salon', parlor: 'salon', beauty: 'salon',
+  cafe: 'cafe',
+  cafes: 'cafe',
+  café: 'cafe',
+  cafés: 'cafe',
+  pg: 'pg',
+  hostel: 'pg',
+  hostels: 'pg',
+  restaurant: 'restaurant',
+  restaurants: 'restaurant',
+  food: 'restaurant',
+  study: 'study',
+  library: 'study',
+  coworking: 'study',
+  gym: 'gym',
+  gyms: 'gym',
+  fitness: 'gym',
+  turf: 'turf',
+  turfs: 'turf',
+  sports: 'turf',
+  football: 'turf',
+  shop: 'shop',
+  shops: 'shop',
 };
 
 function getCategoryIntent(query: string): string[] | null {
-  const words = query.toLowerCase().split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w));
+  const words = query
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
   let intent: string | null = null;
   for (const w of words) {
     const t = CATEGORY_TRIGGERS[w];
@@ -47,13 +89,14 @@ function getCategoryIntent(query: string): string[] | null {
     }
   }
   if (!intent || !CATEGORY_INTENT[intent]) return null;
-  return CATEGORY_INTENT[intent];
+  return [...CATEGORY_INTENT[intent]];
 }
 
-function filterByCategoryIntent(candidates: Business[], allowedCategoryTerms: string[]): Business[] {
+function filterByCategoryIntent(candidates: Business[], allowedCategoryNames: string[]): Business[] {
+  const allowedNormalized = new Set(allowedCategoryNames.map(normalizeCategory));
   return candidates.filter((b) => {
-    const cat = (b.category || '').toLowerCase();
-    return allowedCategoryTerms.some((term) => cat.includes(term));
+    const norm = normalizeCategory(b.category || '');
+    return norm.length > 0 && allowedNormalized.has(norm);
   });
 }
 
