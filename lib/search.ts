@@ -303,7 +303,7 @@ function shortenSearchQuery(query: string, n: number): string {
 }
 
 /** Plain text columns only — ilike does not work on array columns (tags, vibe_tags). */
-const SEARCH_COLUMNS = ['name', 'category', 'description', 'city'] as const;
+const SEARCH_COLUMNS = ['name', 'category', 'description', 'city'];
 
 function buildSearchOrClause(keywords: string[]): string {
   const parts: string[] = [];
