@@ -466,7 +466,7 @@ export default function RegisterPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to create listing');
 
       const businessId = data.business.id;
-      if (data.business.is_founding_member) setIsFoundingMember(true);
+      if (data.business.plan === 'pro') setIsFoundingMember(true);
       const updates: Record<string, unknown> = {};
       if (photos.length > 0) updates.photos = await uploadPhotos(businessId);
       if (menuFile) updates.menu_url = await uploadMenu(businessId);

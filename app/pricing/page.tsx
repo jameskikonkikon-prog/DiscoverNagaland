@@ -231,7 +231,7 @@ export default function PricingPage() {
 
       const { data: business } = await supabase
         .from('businesses')
-        .select('id, plan, is_founding_member')
+        .select('id, plan, plan_expires_at')
         .eq('owner_id', user.id)
         .single();
 

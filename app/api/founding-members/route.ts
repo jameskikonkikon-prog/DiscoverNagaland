@@ -9,7 +9,8 @@ export async function GET() {
     const { count } = await serviceClient
       .from('businesses')
       .select('*', { count: 'exact', head: true })
-      .eq('is_founding_member', true);
+      .eq('plan', 'pro')
+      .is('plan_expires_at', null);
 
     const claimed = count || 0;
     const remaining = Math.max(0, FOUNDING_MEMBER_LIMIT - claimed);
