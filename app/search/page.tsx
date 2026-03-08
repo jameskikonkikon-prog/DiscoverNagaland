@@ -260,12 +260,13 @@ function SearchPageInner() {
                         <div className="biz-name">{biz.name}</div>
                         <div className="biz-city">📍 {biz.city}</div>
                         {biz.is_verified && <span className="biz-verified">✓ Verified</span>}
-                        {biz.description && <div className="biz-desc">{biz.description}</div>}
                         {aiReasons[biz.id] && (
-                          <div className="ai-reason">
-                            <span className="ai-reason-tag">AI</span> {aiReasons[biz.id]}
+                          <div className="biz-ai-matched">
+                            <span className="ai-matched-label">✨ AI matched</span>
+                            <span className="ai-reason-text">{aiReasons[biz.id]}</span>
                           </div>
                         )}
+                        {biz.description && <div className="biz-desc">{biz.description}</div>}
                       </div>
                     </Link>
                     <div className="biz-actions">
@@ -522,6 +523,25 @@ const styles = `
     margin: 0;
   }
 
+  .biz-ai-matched {
+    margin-top: 6px;
+    padding: 6px 8px;
+    background: rgba(192, 57, 43, 0.08);
+    border-radius: 6px;
+    border-left: 3px solid rgba(192, 57, 43, 0.4);
+  }
+  .ai-matched-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #c0392b;
+    margin-bottom: 2px;
+  }
+  .ai-reason-text {
+    font-size: 0.78rem;
+    color: #aaa;
+    line-height: 1.4;
+  }
   .ai-reason {
     margin-top: 6px;
     font-size: 0.75rem;

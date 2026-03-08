@@ -18,6 +18,45 @@ const STOP_WORDS = new Set([
   'was','were','i','me','my','we','our','some','any','where','which','want'
 ]);
 
+/** When query implies a category, only keep businesses whose category matches. Prevents "cafe" matching sports shops. */
+const CATEGORY_INTENT: Record<string, string[]> = {
+  food: ['cafe', 'café', 'restaurant', 'food', 'eatery', 'dining', 'coffee', 'bakery', 'bistro', 'diner', 'eating'],
+  gym: ['gym', 'fitness', 'workout', 'sports'],
+  turf: ['turf', 'sports', 'court', 'futsal', 'football', 'ground'],
+  pg: ['pg', 'hostel', 'accommodation', 'guest house', 'paying guest', 'lodging'],
+  hotel: ['hotel', 'lodge', 'resort', 'stay'],
+  salon: ['salon', 'parlour', 'parlor', 'beauty', 'spa'],
+};
+const CATEGORY_TRIGGERS: Record<string, string> = {
+  cafe: 'food', coffee: 'food', restaurant: 'food', food: 'food', eat: 'food', eating: 'food', dining: 'food', eatery: 'food', bakery: 'food', bistro: 'food',
+  gym: 'gym', fitness: 'gym', workout: 'gym',
+  turf: 'turf', football: 'turf', court: 'turf', futsal: 'turf',
+  pg: 'pg', hostel: 'pg', accommodation: 'pg', paying: 'pg', guest: 'pg',
+  hotel: 'hotel', lodge: 'hotel', resort: 'hotel',
+  salon: 'salon', parlour: 'salon', parlor: 'salon', beauty: 'salon',
+};
+
+function getCategoryIntent(query: string): string[] | null {
+  const words = query.toLowerCase().split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w));
+  let intent: string | null = null;
+  for (const w of words) {
+    const t = CATEGORY_TRIGGERS[w];
+    if (t) {
+      intent = t;
+      break;
+    }
+  }
+  if (!intent || !CATEGORY_INTENT[intent]) return null;
+  return CATEGORY_INTENT[intent];
+}
+
+function filterByCategoryIntent(candidates: Business[], allowedCategoryTerms: string[]): Business[] {
+  return candidates.filter((b) => {
+    const cat = (b.category || '').toLowerCase();
+    return allowedCategoryTerms.some((term) => cat.includes(term));
+  });
+}
+
 /** Plus first, then Pro, then Basic. */
 const PLAN_RANK: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
 
@@ -164,7 +203,7 @@ async function aiRankWithClaude(
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
-      system: 'You are Yana AI for Nagaland. The businesses are already ordered by plan: Plus first, then Pro, then Basic. Re-order them ONLY within each plan tier by relevance to the search query. For each business give a short 4-6 word reason (e.g. "Good for dates", "Affordable near PR Hill"). Return valid JSON only.',
+      system: 'You are Yana AI for Nagaland. You must FILTER first: remove any business that is clearly irrelevant to the search query (e.g. if the user searched "cafe", remove sports shops, PG hostels, clothing stores—only keep cafes, restaurants, food places). Then rank the REMAINING businesses by relevance within each plan tier (Plus first, then Pro, then Basic) and give each a short 4-6 word reason (e.g. "Good for dates", "Affordable near PR Hill"). Return ONLY the businesses that genuinely match the search intent. Return valid JSON only.',
       messages: [
         {
           role: 'user',
@@ -173,9 +212,15 @@ async function aiRankWithClaude(
 Businesses (id, name, category, plan, description):
 ${JSON.stringify(businessList, null, 2)}
 
+Steps:
+1. REMOVE businesses that do not match the search intent (e.g. for "cafe" remove sports shops, PG, unrelated categories).
+2. Keep ONLY businesses that genuinely match (cafes, restaurants, food for "cafe"; gyms/fitness for "gym"; etc.).
+3. Order the remaining by plan (Plus, then Pro, then Basic) and within each tier by relevance to the query.
+4. For each kept business give a 4-6 word reason.
+
 Return a JSON object:
-1. "summary": Brief 1-2 sentence overview of what you found.
-2. "ranked": Array of ALL business IDs in the order you recommend. Keep plan order: all Plus first (reordered by relevance within Plus), then all Pro (reordered within Pro), then all Basic (reordered within Basic). Each object: { "id": "<uuid>", "reason": "4-6 word reason e.g. Good for dates" }.
+- "summary": Brief 1-2 sentence overview of what you found (only for the relevant businesses).
+- "ranked": Array of objects ONLY for businesses that match: { "id": "<uuid>", "reason": "4-6 word reason" }. Order: Plus (by relevance), then Pro (by relevance), then Basic (by relevance). Do NOT include any business that is irrelevant to the search.
 
 Return ONLY valid JSON, no markdown.`,
         },
@@ -284,6 +329,14 @@ export async function searchBusinesses(
     }
   }
 
+  const categoryIntent = getCategoryIntent(cleanQuery);
+  if (categoryIntent && candidates.length > 0) {
+    const categoryFiltered = filterByCategoryIntent(candidates, categoryIntent);
+    if (categoryFiltered.length > 0) {
+      candidates = categoryFiltered;
+    }
+  }
+
   let correctedQuery: string | undefined;
   if (candidates.length === 0 && keywords.length > 0 && cleanQuery.length >= MIN_QUERY_LEN) {
     const shortened2 = shortenSearchQuery(cleanQuery, 2);
@@ -322,7 +375,9 @@ export async function searchBusinesses(
     for (const r of aiResult.ranked) {
       if (r.id && r.reason) reasonMap[r.id] = r.reason;
     }
-    const ordered = applyAiRankWithinPlanTiers(sorted, aiResult.ranked);
+    const relevantIds = new Set(aiResult.ranked.map((r) => r.id));
+    const onlyRelevant = sorted.filter((b) => relevantIds.has(b.id));
+    const ordered = applyAiRankWithinPlanTiers(onlyRelevant, aiResult.ranked);
     return {
       businesses: ordered,
       detectedCity,
