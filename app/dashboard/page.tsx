@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 
 // ── TYPES ──────────────────────────────────────────────────────────────────
@@ -65,8 +65,11 @@ const FOUNDING_LIMIT = 100
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const supabase = createClientComponentClient()
-  const router   = useRouter()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+  const router = useRouter()
 
   const [userId,       setUserId]       = useState<string | null>(null)
   const [userEmail,    setUserEmail]    = useState<string>('')
