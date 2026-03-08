@@ -127,7 +127,7 @@ function SearchPageInner() {
         body: JSON.stringify({
           query,
           occasion: occasion.trim(),
-          area: area.trim(),
+          area: activeCity || area.trim(),
           budget,
           businesses: baseResults.map((b) => ({
             id: b.id,
@@ -328,16 +328,18 @@ function SearchPageInner() {
                         </div>
                       )}
                     </div>
-                    <div className="ai-panel-q">
-                      <label>Which area?</label>
-                      <input
-                        type="text"
-                        className="ai-panel-input"
-                        placeholder="e.g. Kohima, Dimapur, or leave blank"
-                        value={area}
-                        onChange={(e) => setArea(e.target.value)}
-                      />
-                    </div>
+                    {!activeCity && (
+                      <div className="ai-panel-q">
+                        <label>Which area?</label>
+                        <input
+                          type="text"
+                          className="ai-panel-input"
+                          placeholder="e.g. Kohima, Dimapur, or leave blank"
+                          value={area}
+                          onChange={(e) => setArea(e.target.value)}
+                        />
+                      </div>
+                    )}
                     <div className="ai-panel-q">
                       <label>Budget?</label>
                       <div className="ai-panel-options">
