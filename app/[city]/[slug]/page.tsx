@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 export default function BusinessPage() {
   const params = useParams();
   const [business, setBusiness] = useState<Record<string, string & string[]> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     fetch(`/api/businesses/slug/${params.slug}`)
@@ -17,6 +19,23 @@ export default function BusinessPage() {
       .catch(() => setLoading(false));
   }, [params.slug]);
 
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setLoggedIn(!!data.session);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setLoggedIn(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></div>;
   if (!business) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Business not found</p></div>;
 
@@ -25,7 +44,18 @@ export default function BusinessPage() {
       <header className="bg-white shadow-sm">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
           <a href="javascript:history.back()" className="text-orange-600">← Back</a>
-          <a href="/" className="text-lg font-bold text-orange-600 ml-auto">🏔️ Yana Nagaland</a>
+          <div className="ml-auto flex items-center gap-3">
+            <a href="/" className="text-lg font-bold text-orange-600">🏔️ Yana Nagaland</a>
+            {loggedIn && (
+              <a
+                href="/dashboard"
+                aria-label="Open dashboard"
+                className="w-9 h-9 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-sm font-semibold"
+              >
+                👤
+              </a>
+            )}
+          </div>
         </div>
       </header>
       <div className="max-w-3xl mx-auto px-4 py-6">

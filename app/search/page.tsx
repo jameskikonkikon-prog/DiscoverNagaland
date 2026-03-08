@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
 import { useState, useRef, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 type Business = {
   id: string;
@@ -27,6 +28,7 @@ function SearchPageInner() {
   const [aiReasons, setAiReasons] = useState<Record<string, string>>({});
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   const searchParams = useSearchParams();
 
@@ -37,6 +39,23 @@ function SearchPageInner() {
       doSearch(q, "", "");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return;
+        setLoggedIn(!!data.session);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setLoggedIn(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const CITIES = ["Kohima","Dimapur","Mokokchung","Mon","Tuensang","Wokha","Phek","Zunheboto","Peren","Longleng","Kiphire","Noklak","Shamator","Tseminyü","Chümoukedima","Niuland","Meluri"];
@@ -101,7 +120,13 @@ function SearchPageInner() {
             </div>
           </Link>
           <div style={{ flex: 1 }} />
-          <Link href="/register" className="list-btn">List your business</Link>
+          {loggedIn ? (
+            <Link href="/dashboard" className="list-avatar" aria-label="Open dashboard">
+              <span className="list-avatar-icon">👤</span>
+            </Link>
+          ) : (
+            <Link href="/register" className="list-btn">List your business</Link>
+          )}
         </header>
 
         <div className="search-hero">
@@ -294,6 +319,27 @@ const styles = `
     transition: background 0.2s;
   }
   .list-btn:hover { background: #e74c3c; }
+  .list-avatar{
+    width:32px;
+    height:32px;
+    border-radius:999px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid #333;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    text-decoration:none;
+    color:#aaa;
+    transition:background 0.15s,border-color 0.15s,color 0.15s,transform 0.1s;
+  }
+  .list-avatar:hover{
+    background:#c0392b;
+    border-color:#e74c3c;
+    color:#fff;
+    transform:translateY(-1px);
+  }
+  .list-avatar-icon{font-size:0.9rem;}
 
   .search-hero {
     background: #0a0a0a;

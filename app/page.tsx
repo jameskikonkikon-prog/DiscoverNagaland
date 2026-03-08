@@ -224,7 +224,9 @@ export default function HomePage() {
         </div>
         <a href="/pricing" className="nl" style={{ color: '#D4A017', fontWeight: 700 }}>Pricing</a>
         {loggedIn ? (
-          <a href="/dashboard" className="nav-cta-btn">Dashboard</a>
+          <a href="/dashboard" className="nav-avatar" aria-label="Open dashboard">
+            <span className="nav-avatar-icon">👤</span>
+          </a>
         ) : (
           <>
             <a href="/login" className="nl" style={{ color: '#999' }}>Sign in</a>
@@ -506,6 +508,28 @@ const pageStyles = `
     text-decoration:none;
   }
   .nav-cta-btn:hover{background:var(--red2);transform:translateY(-1px);}
+  .nav-avatar{
+    width:32px;
+    height:32px;
+    border-radius:999px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid var(--border);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin-left:10px;
+    cursor:pointer;
+    text-decoration:none;
+    color:var(--muted);
+    transition:background 0.15s,border-color 0.15s,color 0.15s,transform 0.1s;
+  }
+  .nav-avatar:hover{
+    background:var(--red-bg);
+    border-color:var(--red);
+    color:#fff;
+    transform:translateY(-1px);
+  }
+  .nav-avatar-icon{font-size:0.9rem;}
 
   /* ── HERO ── */
   .hero{

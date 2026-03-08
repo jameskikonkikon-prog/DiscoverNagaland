@@ -105,6 +105,7 @@ export default function BusinessPage() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -118,6 +119,23 @@ export default function BusinessPage() {
     }
     load();
   }, [params.id, router]);
+
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setLoggedIn(!!data.session);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setLoggedIn(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const submitReview = async () => {
     if (!reviewForm.name || !reviewForm.comment) return;
@@ -166,7 +184,14 @@ export default function BusinessPage() {
         {/* Top nav */}
         <nav className="biz-nav">
           <Link href="/" className="nav-logo">Yana<span>Nagaland</span></Link>
-          <Link href={`/search?q=${biz.city}`} className="nav-back">← {biz.city}</Link>
+          <div className="biz-nav-right">
+            <Link href={`/search?q=${biz.city}`} className="nav-back">← {biz.city}</Link>
+            {loggedIn && (
+              <a href="/dashboard" className="nav-avatar" aria-label="Open dashboard">
+                <span className="nav-avatar-icon">👤</span>
+              </a>
+            )}
+          </div>
         </nav>
 
         {/* Photo gallery */}
@@ -482,8 +507,30 @@ const styles = `
   .biz-nav { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: rgba(13,26,13,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(201,150,58,0.1); }
   .nav-logo { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: #c9963a; text-decoration: none; font-weight: 700; }
   .nav-logo span { color: #e8ddd0; }
+  .biz-nav-right { display:flex; align-items:center; gap:0.75rem; }
   .nav-back { color: #8a9a8a; text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
   .nav-back:hover { color: #c9963a; }
+  .nav-avatar{
+    width:32px;
+    height:32px;
+    border-radius:999px;
+    background:rgba(0,0,0,0.4);
+    border:1px solid rgba(201,150,58,0.5);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-decoration:none;
+    color:#c9963a;
+    font-size:0.9rem;
+    cursor:pointer;
+    transition:background 0.15s,border-color 0.15s,transform 0.1s;
+  }
+  .nav-avatar:hover{
+    background:rgba(201,150,58,0.2);
+    border-color:#c9963a;
+    transform:translateY(-1px);
+  }
+  .nav-avatar-icon{font-size:0.9rem;}
 
   /* Gallery */
   .gallery { position: relative; width: 100%; height: clamp(260px, 45vw, 500px); background: #1a2e1a; overflow: hidden; }
