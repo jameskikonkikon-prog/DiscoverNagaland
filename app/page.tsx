@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 import { supabase } from '@/lib/supabase';
 
 const ROTATING_PLACEHOLDERS = [
@@ -87,6 +88,13 @@ export default function HomePage() {
   const placeholderIndex = useRef(0);
   const router = useRouter();
 
+  const supabaseBrowser = useState(() =>
+    createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+  )[0];
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -139,8 +147,9 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     let isMounted = true;
-    supabase.auth
+    supabaseBrowser.auth
       .getSession()
       .then(({ data }) => {
         if (!isMounted) return;
@@ -150,10 +159,14 @@ export default function HomePage() {
         if (!isMounted) return;
         setLoggedIn(false);
       });
+    const { data: { subscription } } = supabaseBrowser.auth.onAuthStateChange((_event, session) => {
+      if (isMounted) setLoggedIn(!!session);
+    });
     return () => {
       isMounted = false;
+      subscription.unsubscribe();
     };
-  }, []);
+  }, [mounted, supabaseBrowser]);
 
   const handleSearch = () => {
     if (query.trim()) router.push(`/search?q=${encodeURIComponent(query.trim())}`);
