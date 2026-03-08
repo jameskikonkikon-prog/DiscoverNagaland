@@ -309,7 +309,7 @@ function escapeIlike(term: string): string {
   return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
 
-/** Build Supabase .or() ilike filter for name, category, tags, vibe_tags, description, city, area. */
+/** Build Supabase .or() ilike filter for name, category, tags, vibe_tags, description, city. */
 function buildSearchOrClause(keywords: string[]): string {
   const parts: string[] = [];
   for (const kw of keywords.slice(0, 15)) {
@@ -328,13 +328,16 @@ async function fetchBusinessesWithFilter(
   activeCity: string | null,
   keywords: string[]
 ): Promise<Business[]> {
-  let q = serviceClient.from('businesses').select('*').eq('is_active', true);
+  const isActiveFilter = 'is_active.eq.true,is_active.is.null';
+  let q = serviceClient.from('businesses').select('*').or(isActiveFilter);
   if (activeCity) q = q.eq('city', activeCity);
+  let orClause = '';
   if (keywords.length > 0) {
-    const orClause = buildSearchOrClause(keywords);
+    orClause = buildSearchOrClause(keywords);
     if (orClause) q = q.or(orClause);
   }
   const { data, error } = await q;
+  console.log('[search] Supabase query:', { keywords, orClause: orClause || '(none)', dataLength: data?.length ?? 0, error: error?.message ?? null });
   if (error) {
     console.error('Search query error:', error);
     return [];
@@ -374,13 +377,30 @@ export async function searchBusinesses(
     .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 
   let businesses: Business[];
-  if (cleanQuery.trim() === '') {
-    const { data } = await serviceClient.from('businesses').select('*').eq('is_active', true);
+
+  if (query.trim() === 'test123') {
+    const { data } = await serviceClient.from('businesses').select('*').or('is_active.eq.true,is_active.is.null');
+    businesses = (data as Business[]) || [];
+    console.log('[search] test123: returning all businesses', businesses.length);
+  } else if (cleanQuery.trim() === '') {
+    const { data } = await serviceClient.from('businesses').select('*').or('is_active.eq.true,is_active.is.null');
     if (activeCity) {
       businesses = ((data as Business[]) || []).filter(b => b.city === activeCity);
     } else {
       businesses = (data as Business[]) || [];
     }
+  } else if (keywords.length === 0) {
+    const { data } = await serviceClient.from('businesses').select('*').or('is_active.eq.true,is_active.is.null');
+    let all = (data as Business[]) || [];
+    if (activeCity) all = all.filter(b => b.city === activeCity);
+    const qLower = cleanQuery.toLowerCase();
+    businesses = all.filter(
+      (b) =>
+        (b.name && b.name.toLowerCase().includes(qLower)) ||
+        (b.category && b.category.toLowerCase().includes(qLower)) ||
+        (b.description && b.description.toLowerCase().includes(qLower))
+    );
+    console.log('[search] Fallback (no keywords): query=', cleanQuery, 'results=', businesses.length);
   } else {
     businesses = await fetchBusinessesWithFilter(serviceClient, activeCity, keywords);
   }
