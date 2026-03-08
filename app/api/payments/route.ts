@@ -43,12 +43,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'You already have founding member Pro access.' }, { status: 400 });
       }
 
-      // Check founding member spots (founding members = pro plan with no expiry)
+      // Early Access: first 100 on pro or plus get free Pro
       const { count } = await serviceClient
         .from('businesses')
         .select('*', { count: 'exact', head: true })
-        .eq('plan', 'pro')
-        .is('plan_expires_at', null);
+        .in('plan', ['pro', 'plus']);
 
       if ((count || 0) < FOUNDING_MEMBER_LIMIT) {
         // Grant free Pro as founding member
@@ -101,8 +100,14 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ order, amount, description, key: process.env.RAZORPAY_KEY_ID });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (error: unknown) {
+    const err = error as Record<string, unknown>;
+    const msg =
+      (err?.error as { description?: string })?.description ??
+      (err?.description as string) ??
+      (err?.reason as string) ??
+      (error instanceof Error ? error.message : null) ??
+      (typeof err === 'object' && err !== null ? JSON.stringify(err) : String(error));
     console.error('Razorpay order creation error:', msg, error);
     return NextResponse.json({ error: `Failed to create order: ${msg}` }, { status: 500 });
   }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
+import { PLANS } from '@/types'
 
 declare global {
   interface Window {
@@ -66,9 +67,6 @@ function calcHealth(biz: Business | null) {
   return { score: Math.round((done / checks.length) * 100), tips: checks }
 }
 
-// ── FOUNDING SPOTS ────────────────────────────────────────────────────────
-const FOUNDING_LIMIT = 100
-
 // ── DASHBOARD ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [supabase] = useState(() =>
@@ -83,7 +81,8 @@ export default function DashboardPage() {
   const [userEmail,    setUserEmail]    = useState<string>('')
   const [business,     setBusiness]     = useState<Business | null>(null)
   const [analytics,    setAnalytics]    = useState<Analytics | null>(null)
-  const [foundingLeft, setFoundingLeft] = useState<number>(FOUNDING_LIMIT)
+  const [foundingLeft, setFoundingLeft] = useState<number>(100)
+  const [earlyAccessFull, setEarlyAccessFull] = useState<boolean>(false)
   const [activeTab,    setActiveTab]    = useState<'overview' | 'listing' | 'ai' | 'analytics' | 'billing'>('overview')
   const [loading,      setLoading]      = useState(true)
   const [upgrading,    setUpgrading]    = useState<string | null>(null)
@@ -158,12 +157,11 @@ export default function DashboardPage() {
         })
       }
 
-      // Founding spots: count pro/plus businesses
-      const { count } = await supabase
-        .from('businesses')
-        .select('id', { count: 'exact', head: true })
-        .in('plan', ['pro', 'plus'])
-      setFoundingLeft(Math.max(0, FOUNDING_LIMIT - (count ?? 0)))
+      // Early Access spots from API (live from Supabase)
+      const spotsRes = await fetch('/api/founding-members')
+      const spotsData = await spotsRes.json().catch(() => ({}))
+      setFoundingLeft(Math.max(0, spotsData.remaining ?? spotsData.spotsRemaining ?? 100))
+      setEarlyAccessFull(!!spotsData.isFull)
 
       setLoading(false)
     }
@@ -252,10 +250,12 @@ export default function DashboardPage() {
   }, [business, ensureRazorpayScript])
 
   // ── HELPERS ───────────────────────────────────────────────────────────────
-  const plan    = business?.plan ?? 'basic'
+  const plan    = (business?.plan ?? 'basic') as 'basic' | 'pro' | 'plus'
   const isPro   = plan === 'pro' || plan === 'plus'
   const isPlus  = plan === 'plus'
   const health  = calcHealth(business)
+  const maxPhotos = typeof PLANS[plan]?.maxPhotos === 'number' ? PLANS[plan].maxPhotos : (plan === 'plus' ? Infinity : plan === 'pro' ? 10 : 2)
+  const canAddMorePhotos = (business?.photos?.length ?? 0) < maxPhotos
 
   const delta = (today: number, yesterday: number) => {
     if (today === 0 && yesterday === 0) return { label: 'No data yet',         color: 'var(--muted)' }
@@ -418,13 +418,13 @@ export default function DashboardPage() {
                     <div className="hook-title">You're invisible to half your customers</div>
                     <div className="hook-sub">
                       Pro businesses rank <span>4x higher</span> in search.{' '}
-                      <span>{foundingLeft} founding spots left</span> — Pro is free right now.
+                      {earlyAccessFull ? <span>Pro now ₹299/month</span> : <span>Only {foundingLeft} Early Access spots left — Get Pro free for your first month</span>}
                     </div>
                   </div>
                 </div>
                 <div className="hook-stats">
                   <div className="hook-stat"><div className="val">4x</div><div className="lbl">More clicks</div></div>
-                  <div className="hook-stat"><div className="val">Free</div><div className="lbl">Right now</div></div>
+                  <div className="hook-stat"><div className="val">{earlyAccessFull ? '₹299' : 'Free'}</div><div className="lbl">Right now</div></div>
                 </div>
                 <button className="red-btn">See Plans →</button>
               </div>
@@ -515,10 +515,10 @@ export default function DashboardPage() {
                 </div>
                 <div className="ai-grid">
                   {[
-                    { icon:'✨', name:'Write Description', desc: isPro ? 'Unlimited' : 'One free use',  locked:false },
-                    { icon:'📈', name:'Growth Advisor',    desc: isPro ? 'Unlimited' : 'One free use',  locked:false },
-                    { icon:'📷', name:'Menu Reader',       desc:'Read price boards',                    locked:!isPro,  badge:'Pro'  },
-                    { icon:'⚔️', name:'Competitor Intel',  desc:'Beat the competition',                 locked:!isPlus, badge:'Plus' },
+                    { icon:'✨', name:'Write Description', desc: isPro ? 'Unlimited' : 'One free use',  locked: false, badge: null as string | null },
+                    { icon:'📈', name:'Growth Advisor',    desc: isPro ? 'Weekly' : 'One free use',     locked: false, badge: null },
+                    { icon:'📷', name:'Menu Reader',       desc:'Read price boards',                   locked: !isPro,  badge: 'Pro' },
+                    { icon:'⚔️', name:'Competitor Intel',  desc:'Beat the competition',                locked: !isPlus, badge: 'Plus' },
                   ].map((tool, i) => (
                     <div key={i} className={`ai-tool${tool.locked ? ' locked' : ''}`}
                       onClick={() => !tool.locked && setActiveTab('ai')}>
@@ -527,7 +527,7 @@ export default function DashboardPage() {
                         <div className="ai-name">{tool.name}</div>
                         <div className="ai-desc">{tool.desc}</div>
                       </div>
-                      {tool.locked && <span className="lock-badge">{tool.badge}</span>}
+                      {tool.locked && <span className="lock-badge">🔒 Upgrade</span>}
                     </div>
                   ))}
                 </div>
@@ -546,10 +546,8 @@ export default function DashboardPage() {
                   <div className="listing-preview">
                     <div className="biz-name">
                       {business.name}
-                      {(business.verified || business.is_verified) && (
-                        <span className={`verified-badge${isPlus ? ' gold' : ''}`}>
-                          {isPlus ? '⭐ Verified' : '✓ Verified'}
-                        </span>
+                      {isPlus && (
+                        <span className="verified-badge gold">⭐ Verified</span>
                       )}
                     </div>
                     <div className="biz-cat">{business.category}{location ? ` · ${location}` : ''}</div>
@@ -559,7 +557,7 @@ export default function DashboardPage() {
                         { label:'WhatsApp',    value: business.whatsapp },
                         { label:'Price',       value: business.price_range },
                         { label:'Hours',       value: business.opening_hours },
-                        { label:'Photos',      value: business.photos?.length ? `${business.photos.length} added` : null },
+                        { label:'Photos',      value: business.photos?.length ? `${business.photos.length} / ${maxPhotos === Infinity ? '∞' : maxPhotos}` : `0 / ${maxPhotos === Infinity ? '∞' : maxPhotos}` },
                         { label:'Description', value: business.description ? business.description.slice(0,48)+'…' : null },
                       ].map((f, i) => (
                         <div key={i} className="lf-row">
@@ -684,8 +682,8 @@ export default function DashboardPage() {
                   {[
                     { icon:'✨', name:'Write Description', desc:'Auto-generate a compelling business description', locked:false,   href:'/dashboard/ai/description' },
                     { icon:'📈', name:'Growth Advisor',    desc:'Get personalised tips to attract more customers', locked:false,   href:'/dashboard/ai/growth'      },
-                    { icon:'📷', name:'Menu Reader',       desc:'Upload a photo of your menu to extract prices',  locked:!isPro,  badge:'Pro',  href:'/dashboard/ai/menu'        },
-                    { icon:'⚔️', name:'Competitor Intel',  desc:'See how you compare to similar businesses',      locked:!isPlus, badge:'Plus', href:'/dashboard/ai/competitor'  },
+                    { icon:'📷', name:'Menu Reader',       desc:'Upload a photo of your menu to extract prices',  locked:!isPro,  href:'/dashboard/ai/menu'        },
+                    { icon:'⚔️', name:'Competitor Intel',  desc:'See how you compare to similar businesses',      locked:!isPlus, href:'/dashboard/ai/competitor'  },
                   ].map((tool, i) =>
                     tool.locked ? (
                       <div key={i} className="ai-tool locked">
@@ -694,7 +692,7 @@ export default function DashboardPage() {
                           <div className="ai-name">{tool.name}</div>
                           <div className="ai-desc">{tool.desc}</div>
                         </div>
-                        <span className="lock-badge">{tool.badge}</span>
+                        <span className="lock-badge">🔒 Upgrade</span>
                       </div>
                     ) : (
                       <a key={i} href={tool.href} className="ai-tool" style={{ textDecoration:'none' }}>
@@ -714,10 +712,10 @@ export default function DashboardPage() {
                     <span className="hook-emoji">🤖</span>
                     <div>
                       <div className="hook-title">Unlock all AI tools</div>
-                      <div className="hook-sub">Pro gives unlimited AI. <span>{foundingLeft} founding spots left.</span></div>
+                      <div className="hook-sub">Pro gives unlimited AI. {earlyAccessFull ? <span>Pro now ₹299/month</span> : <span>Only {foundingLeft} Early Access spots left.</span>}</div>
                     </div>
                   </div>
-                  <button className="red-btn">Upgrade Free →</button>
+                  <button className="red-btn">{earlyAccessFull ? 'Upgrade →' : 'Upgrade Free →'}</button>
                 </div>
               )}
             </>
@@ -773,9 +771,9 @@ export default function DashboardPage() {
                   <div style={{ fontSize:40 }}>🔒</div>
                   <div style={{ fontSize:15, fontWeight:700, margin:'10px 0 6px' }}>Analytics is a Pro feature</div>
                   <div style={{ fontSize:13, color:'var(--muted)', marginBottom:20 }}>
-                    {foundingLeft} founding spots left — Pro is free right now
+                    {earlyAccessFull ? 'Pro now ₹299/month' : `Only ${foundingLeft} Early Access spots left — Get Pro free for your first month`}
                   </div>
-                  <button className="red-btn" onClick={() => setActiveTab('billing')}>Upgrade Free →</button>
+                  <button className="red-btn" onClick={() => setActiveTab('billing')}>{earlyAccessFull ? 'Upgrade →' : 'Upgrade Free →'}</button>
                 </div>
               )}
             </div>
@@ -810,51 +808,64 @@ export default function DashboardPage() {
               <div className="plan-grid">
                 {([
                   {
-                    key:'basic', name:'Basic', price:'Free', sub:'Forever',
-                    color:'#888',
-                    features:['List your business','Basic profile page','1x AI description','1x Growth Advisor'],
-                    locked:['Analytics','Menu Reader','Competitor Intel','Verified badge'],
+                    key: 'basic',
+                    name: 'Basic',
+                    price: 'Free',
+                    sub: 'Forever',
+                    border: '1px solid var(--border)',
+                    features: ['Full listing', '2 photos', 'WhatsApp & Call', 'Your own stats', 'AI description once', 'AI growth advisor once'],
                   },
                   {
-                    key:'pro', name:'Pro',
-                    price: foundingLeft > 0 ? 'Free*' : '₹299',
-                    sub:   foundingLeft > 0 ? `${foundingLeft} founding spots left` : '/month',
-                    color:'var(--red)',
-                    features:['Everything in Basic','Full analytics','Unlimited AI tools','Founding Member badge','Menu Reader'],
-                    locked:['Gold verified badge','Always first placement'],
+                    key: 'pro',
+                    name: 'Pro',
+                    price: earlyAccessFull ? '₹299' : (foundingLeft > 0 ? 'Free*' : '₹299'),
+                    sub: earlyAccessFull ? '/month' : (foundingLeft > 0 ? 'founding members' : '/month'),
+                    border: '1px solid var(--red)',
+                    popular: true,
+                    features: ['Everything in Basic', '10 photos', 'Higher search ranking', 'Weekly analytics', 'AI description unlimited', 'AI menu reader', 'AI growth advisor weekly', 'WhatsApp booking button'],
                   },
                   {
-                    key:'plus', name:'Plus', price:'₹499', sub:'/month',
-                    color:'var(--gold)',
-                    features:['Everything in Pro','Gold verified badge','Always first in search','Competitor Intel','Priority support'],
-                    locked:[],
+                    key: 'plus',
+                    name: 'Plus',
+                    price: '₹499',
+                    sub: '/month',
+                    border: '1px solid var(--gold)',
+                    features: ['Everything in Pro', 'Unlimited photos', 'Always first in search', 'Gold verified badge', 'Featured on homepage weekly', 'AI competitor intel', 'AI full business report', 'Weekly WhatsApp analytics', 'Festival promotion banner'],
                   },
                 ] as const).map(p => (
-                  <div key={p.key} className="card" style={{ border: plan === p.key ? '1px solid var(--red)' : undefined }}>
+                  <div key={p.key} className="card" style={{ border: p.key === 'pro' ? '1px solid var(--red)' : p.key === 'plus' ? '1px solid var(--gold)' : '1px solid var(--border)', background: plan === p.key ? 'var(--surface2)' : undefined }}>
+                    {p.popular && <div style={{ fontSize:10, fontWeight:800, letterSpacing:1, color: 'var(--red)', marginBottom:8 }}>MOST POPULAR</div>}
                     <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>{p.name}</div>
-                    <div style={{ fontSize:26, fontWeight:800, marginBottom:14, color: p.color }}>
-                      {p.price} <span style={{ fontSize:12, fontWeight:400, color:'var(--muted)' }}>{p.sub}</span>
+                    <div style={{ fontSize:26, fontWeight:800, marginBottom:6, color: p.key === 'basic' ? '#888' : p.key === 'pro' ? 'var(--red)' : 'var(--gold)' }}>
+                      {p.price} <span style={{ fontSize:12, fontWeight:400, color: 'var(--muted)' }}>{p.sub}</span>
                     </div>
-                    <div style={{ borderBottom:'1px solid var(--border)', marginBottom:12 }}/>
+                    {p.key === 'pro' && !earlyAccessFull && (
+                      <div style={{ marginBottom:12, fontSize:11, color: foundingLeft < 20 ? 'var(--red)' : 'var(--muted)', fontWeight:600 }}>
+                        🔥 Only {foundingLeft} Early Access spots left — Get Pro free for your first month
+                      </div>
+                    )}
+                    {p.key === 'pro' && earlyAccessFull && (
+                      <div style={{ marginBottom:12, fontSize:11, color: 'var(--muted)', fontWeight:600 }}>
+                        Early Access full — Pro now ₹299/month
+                      </div>
+                    )}
+                    <div style={{ borderBottom: '1px solid var(--border)', marginBottom: 12 }} />
                     {p.features.map((f, i) => (
-                      <div key={i} style={{ fontSize:12, color:'#ccc', marginBottom:6 }}>✓ {f}</div>
+                      <div key={i} style={{ fontSize: 12, color: '#ccc', marginBottom: 6 }}>✓ {f}</div>
                     ))}
-                    {p.locked.map((f, i) => (
-                      <div key={i} style={{ fontSize:12, color:'#444', marginBottom:6, textDecoration:'line-through' }}>{f}</div>
-                    ))}
-                    <div style={{ marginTop:16 }}>
+                    <div style={{ marginTop: 16 }}>
                       {plan === p.key ? (
-                        <div style={{ textAlign:'center', fontSize:12, color:'var(--green)', fontWeight:700 }}>✓ Current Plan</div>
+                        <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--green)', fontWeight: 700 }}>✓ Current Plan</div>
                       ) : p.key === 'basic' ? (
-                        <div style={{ textAlign:'center', fontSize:12, color:'var(--muted)' }}>—</div>
+                        <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>—</div>
                       ) : (
                         <button
                           className="red-btn"
-                          style={{ width:'100%', padding:'10px', fontSize:13 }}
+                          style={{ width: '100%', padding: '10px', fontSize: 13 }}
                           onClick={() => handleUpgrade(p.key as 'pro' | 'plus')}
                           disabled={!!upgrading}
                         >
-                          {upgrading === p.key ? 'Processing…' : (p.key === 'pro' && foundingLeft > 0 ? 'Claim Free Pro →' : 'Upgrade →')}
+                          {upgrading === p.key ? 'Processing…' : (p.key === 'pro' && foundingLeft > 0 && !earlyAccessFull ? 'Claim Free Pro →' : 'Upgrade →')}
                         </button>
                       )}
                     </div>
@@ -999,7 +1010,7 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 .chart-labels{display:flex;gap:6px;}
 .chart-label{flex:1;text-align:center;font-size:9px;color:var(--muted);}
 .locked-wrap{position:relative;}
-.locked-wrap::after{content:'🔒 Pro feature — Upgrade to unlock';position:absolute;inset:0;background:rgba(10,10,10,0.85);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);border-radius:10px;backdrop-filter:blur(2px);}
+.locked-wrap::after{content:'🔒 Upgrade';position:absolute;inset:0;background:rgba(10,10,10,0.85);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);border-radius:10px;backdrop-filter:blur(2px);}
 
 /* MISC */
 .empty-state{text-align:center;padding:32px 0;color:var(--muted);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:8px;}

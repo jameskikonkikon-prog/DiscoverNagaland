@@ -385,16 +385,21 @@ export default function RegisterPage() {
   const [customFields, setCustomFields] = useState<Record<string, string | string[]>>({});
   const [vibeTags, setVibeTags] = useState<string[]>([]);
   const [account, setAccount] = useState({ email: '', password: '', confirm: '' });
+  const MAX_PHOTOS_NEW = 2;
   const [photos, setPhotos] = useState<File[]>([]);
   const [menuFile, setMenuFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isFoundingMember, setIsFoundingMember] = useState(false);
   const [foundingSpots, setFoundingSpots] = useState<number | null>(null);
+  const [earlyAccessFull, setEarlyAccessFull] = useState(false);
 
   useEffect(() => {
     fetch('/api/founding-members')
       .then(r => r.json())
-      .then(data => setFoundingSpots(data.remaining))
+      .then(data => {
+        setFoundingSpots(data.spotsRemaining ?? data.remaining ?? null);
+        setEarlyAccessFull(!!data.isFull);
+      })
       .catch(() => {});
   }, []);
 
@@ -516,9 +521,16 @@ export default function RegisterPage() {
             <span className="brand-naga">Nagaland</span>
           </a>
           <p>List Your Business — It&apos;s Free</p>
-          {foundingSpots !== null && foundingSpots > 0 && (
-            <div style={{ marginTop: '8px', fontSize: '0.78rem', color: '#4ade80', fontWeight: 600 }}>
-              🎉 {foundingSpots} of 100 founding member spots left — register now for free Pro!
+          {foundingSpots !== null && (
+            <div style={{
+              marginTop: '8px',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              color: earlyAccessFull ? 'var(--muted)' : foundingSpots < 20 ? 'var(--red)' : '#4ade80',
+            }}>
+              {earlyAccessFull
+                ? 'Early Access full — Pro now ₹299/month'
+                : `🔥 Only ${foundingSpots} Early Access spots left — Get Pro free for your first month`}
             </div>
           )}
         </div>
@@ -659,9 +671,15 @@ export default function RegisterPage() {
                 <p className="form-note" style={{ marginBottom: '0.75rem' }}>Businesses with photos get <strong style={{ color: 'var(--red)' }}>3x more views</strong>!</p>
                 <label className={`upload-box ${photos.length > 0 ? 'has-file' : ''}`}>
                   <span className="upload-icon">{photos.length > 0 ? '✓' : '📷'}</span>
-                  <span>{photos.length > 0 ? `${photos.length} photo${photos.length > 1 ? 's' : ''} selected` : 'Click to choose photos'}</span>
+                  <span>{photos.length > 0 ? `${photos.length} / ${MAX_PHOTOS_NEW} photo${photos.length > 1 ? 's' : ''} selected` : `Click to choose photos (max ${MAX_PHOTOS_NEW})`}</span>
                   <span className="upload-sub">JPG or PNG · Max 10MB each</span>
-                  <input type="file" multiple accept="image/*" onChange={e => setPhotos(Array.from(e.target.files || []))} style={{ display: 'none' }} />
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={e => setPhotos(prev => (Array.from(e.target.files || [])).slice(0, MAX_PHOTOS_NEW))}
+                    style={{ display: 'none' }}
+                  />
                 </label>
               </div>
               <div className="form-group">

@@ -9,14 +9,26 @@ export async function GET() {
     const { count } = await serviceClient
       .from('businesses')
       .select('*', { count: 'exact', head: true })
-      .eq('plan', 'pro')
-      .is('plan_expires_at', null);
+      .in('plan', ['pro', 'plus']);
 
     const claimed = count || 0;
-    const remaining = Math.max(0, FOUNDING_MEMBER_LIMIT - claimed);
+    const spotsRemaining = Math.max(0, FOUNDING_MEMBER_LIMIT - claimed);
+    const isFull = spotsRemaining === 0;
 
-    return NextResponse.json({ claimed, remaining, total: FOUNDING_MEMBER_LIMIT });
+    return NextResponse.json({
+      claimed,
+      remaining: spotsRemaining,
+      spotsRemaining,
+      isFull,
+      total: FOUNDING_MEMBER_LIMIT,
+    });
   } catch {
-    return NextResponse.json({ claimed: 0, remaining: FOUNDING_MEMBER_LIMIT, total: FOUNDING_MEMBER_LIMIT });
+    return NextResponse.json({
+      claimed: 0,
+      remaining: FOUNDING_MEMBER_LIMIT,
+      spotsRemaining: FOUNDING_MEMBER_LIMIT,
+      isFull: false,
+      total: FOUNDING_MEMBER_LIMIT,
+    });
   }
 }

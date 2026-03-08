@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { PLANS } from '@/types';
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -20,7 +21,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
   const body = await request.json();
 
-  // Only allow columns that exist in the businesses table
   const ALLOWED_COLUMNS = new Set([
     'name','slug','category','city','address','landmark','phone','whatsapp','email',
     'description','opening_hours','photos','plan','plan_expires_at','is_verified',
@@ -38,6 +38,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   const { createClient } = await import('@supabase/supabase-js');
   const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+
+  if (Array.isArray(sanitized.photos)) {
+    const { data: biz } = await client.from('businesses').select('plan').eq('id', params.id).single();
+    const plan = (biz?.plan ?? 'basic') as 'basic' | 'pro' | 'plus';
+    const maxPhotos = PLANS[plan]?.maxPhotos ?? (plan === 'plus' ? Infinity : plan === 'pro' ? 10 : 2);
+    if (typeof maxPhotos === 'number' && sanitized.photos.length > maxPhotos) {
+      sanitized.photos = sanitized.photos.slice(0, maxPhotos);
+    }
+  }
+
   const { data, error } = await client.from('businesses').update(sanitized).eq('id', params.id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ business: data });

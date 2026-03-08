@@ -81,6 +81,8 @@ export default function HomePage() {
   const [totalBusinesses, setTotalBusinesses] = useState(0);
   const [totalCities, setTotalCities] = useState(0);
   const [totalCategories, setTotalCategories] = useState(0);
+  const [earlyAccessSpots, setEarlyAccessSpots] = useState<number | null>(null);
+  const [earlyAccessFull, setEarlyAccessFull] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const placeholderIndex = useRef(0);
@@ -181,6 +183,11 @@ export default function HomePage() {
           .map(([category, count]) => ({ category, count }))
           .sort((a, b) => b.count - a.count)
       );
+
+      const spotsRes = await fetch('/api/founding-members');
+      const spotsData = await spotsRes.json().catch(() => ({}));
+      setEarlyAccessSpots(spotsData.spotsRemaining ?? spotsData.remaining ?? null);
+      setEarlyAccessFull(!!spotsData.isFull);
     }
     fetchData();
   }, []);
@@ -445,7 +452,15 @@ export default function HomePage() {
           <div className="cta-box">
             <div className="cta-icon">🏪</div>
             <div className="cta-title">Own a business?</div>
-            <div className="cta-sub">Get found by thousands searching in Nagaland. First 100 businesses get Pro free — forever!</div>
+            {earlyAccessSpots !== null && !earlyAccessFull && (
+              <div className={`cta-urgency ${earlyAccessSpots < 20 ? 'cta-urgency-red' : ''}`}>
+                🔥 Only {earlyAccessSpots} Early Access spots left — Get Pro free for your first month
+              </div>
+            )}
+            {earlyAccessFull && (
+              <div className="cta-urgency">Early Access full — Pro now ₹299/month</div>
+            )}
+            <div className="cta-sub">Get found by thousands searching in Nagaland.</div>
             <a href="/register" className="cta-btn">List your business free</a>
             <span className="cta-free">No credit card · No contract · Cancel anytime</span>
             <a href="/login" className="cta-signin">Already own a business? Sign in</a>
@@ -787,6 +802,8 @@ const pageStyles = `
     text-decoration:none;text-align:center;
   }
   .cta-btn:hover{background:var(--red2);}
+  .cta-urgency{font-size:11px;font-weight:700;margin-bottom:8px;color:var(--muted);}
+  .cta-urgency-red{color:var(--red);}
   .cta-free{font-size:10.5px;color:var(--muted2);margin-top:8px;display:block;}
   .cta-signin{display:block;margin-top:12px;font-size:0.8rem;color:var(--muted);text-decoration:none;transition:color 0.2s;}
   .cta-signin:hover{color:var(--red);text-decoration:underline;}
