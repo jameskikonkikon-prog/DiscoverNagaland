@@ -71,9 +71,11 @@ const FOUNDING_LIMIT = 100
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const [supabase] = useState(() =>
+    createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
   )
   const router = useRouter()
 
@@ -295,8 +297,47 @@ export default function DashboardPage() {
         {/* ── SIDEBAR ─────────────────────────────────────────────────── */}
         <aside className="sidebar">
           <div className="sidebar-logo">
-            <div className="logo-mark">📍</div>
-            <div className="logo-text">Yana <span>Nagaland</span></div>
+            <a href="/" className="sidebar-brand">
+              <svg width="30" height="36" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="dashPinG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#8B0000"/>
+                    <stop offset="50%" stopColor="#c0392b"/>
+                    <stop offset="100%" stopColor="#922B21"/>
+                  </linearGradient>
+                  <linearGradient id="dashFeathG" x1="0%" y1="100%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#8B0000"/>
+                    <stop offset="60%" stopColor="#c0392b"/>
+                    <stop offset="100%" stopColor="#1a1a1a"/>
+                  </linearGradient>
+                  <radialGradient id="dashGlassG" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#1a1a1a"/>
+                    <stop offset="100%" stopColor="#0d0d0d"/>
+                  </radialGradient>
+                </defs>
+                <g transform="rotate(-35, 45, 30)">
+                  <path d="M20 55 C10 40 15 15 40 0 C50 10 55 30 40 45 Z" fill="url(#dashFeathG)"/>
+                  <line x1="20" y1="55" x2="38" y2="3" stroke="#1a1a1a" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
+                  <circle cx="20" cy="55" r="3" fill="#D4A017"/>
+                  <circle cx="20" cy="55" r="1.5" fill="#8B0000"/>
+                </g>
+                <path d="M60 18 C38 18 20 36 20 58 C20 82 60 120 60 120 C60 120 100 82 100 58 C100 36 82 18 60 18Z" fill="url(#dashPinG)"/>
+                <path d="M42 35 L60 48 L78 35" stroke="rgba(0,0,0,0.3)" strokeWidth="2" fill="none" strokeLinejoin="round"/>
+                <path d="M50 72 L60 62 L70 72 L60 82 Z" stroke="rgba(212,160,23,0.5)" strokeWidth="1" fill="rgba(0,0,0,0.15)"/>
+                <path d="M47 88 L60 96 L73 88" stroke="rgba(212,160,23,0.3)" strokeWidth="1" fill="none"/>
+                <path d="M60 18 C38 18 20 36 20 58 C20 82 60 120 60 120 C60 120 100 82 100 58 C100 36 82 18 60 18Z" fill="none" stroke="rgba(212,160,23,0.2)" strokeWidth="1"/>
+                <circle cx="60" cy="58" r="19" fill="url(#dashGlassG)" stroke="white" strokeWidth="2.5"/>
+                <circle cx="60" cy="58" r="15" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                <path d="M54 52 L68 66" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                <path d="M54 52 L54 60 L62 52 Z" fill="white"/>
+                <line x1="74" y1="72" x2="84" y2="82" stroke="white" strokeWidth="4" strokeLinecap="round"/>
+                <circle cx="85" cy="83" r="2" fill="rgba(212,160,23,0.6)"/>
+              </svg>
+              <div className="sidebar-wordmark">
+                <div className="sidebar-wordmark-main">Yana</div>
+                <div className="sidebar-wordmark-sub">Nagaland</div>
+              </div>
+            </a>
           </div>
 
           <nav className="sidebar-nav">
@@ -844,10 +885,11 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 
 /* SIDEBAR */
 .sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);padding:24px 0;flex-shrink:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;}
-.sidebar-logo{display:flex;align-items:center;gap:10px;padding:0 20px 24px;border-bottom:1px solid var(--border);}
-.logo-mark{width:32px;height:32px;background:var(--red);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;}
-.logo-text{font-size:15px;font-weight:800;letter-spacing:-0.5px;}
-.logo-text span{color:var(--red);}
+.sidebar-logo{padding:0 20px 24px;border-bottom:1px solid var(--border);}
+.sidebar-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;}
+.sidebar-wordmark{display:flex;flex-direction:column;}
+.sidebar-wordmark-main{font-family:'Playfair Display',serif;font-size:16px;color:#fff;letter-spacing:1px;line-height:1;}
+.sidebar-wordmark-sub{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-top:2px;}
 .sidebar-nav{padding:16px 12px;flex:1;display:flex;flex-direction:column;gap:4px;}
 .nav-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);padding:12px 12px 6px;}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;transition:all 0.2s;text-decoration:none;font-family:'Sora',sans-serif;border:none;background:none;width:100%;}
