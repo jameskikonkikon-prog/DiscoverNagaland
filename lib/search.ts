@@ -302,18 +302,13 @@ function shortenSearchQuery(query: string, n: number): string {
   return [...parts.slice(0, -1), shortened].join(' ');
 }
 
-/** Columns to search with ilike (no "location" — use city). */
-const SEARCH_COLUMNS = ['name', 'category', 'tags', 'vibe_tags', 'description', 'city'] as const;
+/** Plain text columns only — ilike does not work on array columns (tags, vibe_tags). */
+const SEARCH_COLUMNS = ['name', 'category', 'description', 'city'] as const;
 
-function escapeIlike(term: string): string {
-  return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
-}
-
-/** Build Supabase .or() ilike filter for name, category, tags, vibe_tags, description, city. */
 function buildSearchOrClause(keywords: string[]): string {
   const parts: string[] = [];
   for (const kw of keywords.slice(0, 15)) {
-    const escaped = escapeIlike(kw);
+    const escaped = kw.replace(/%/g, '\\%').replace(/_/g, '\\_');
     const pat = `%${escaped}%`;
     for (const col of SEARCH_COLUMNS) {
       parts.push(`${col}.ilike.${pat}`);
@@ -402,7 +397,12 @@ export async function searchBusinesses(
     );
     console.log('[search] Fallback (no keywords): query=', cleanQuery, 'results=', businesses.length);
   } else {
-    businesses = await fetchBusinessesWithFilter(serviceClient, activeCity, keywords);
+    // Expand keywords with category synonyms so e.g. "cafe" → "Cafés" and ilike on category matches
+    const categoryIntent = getCategoryIntent(cleanQuery);
+    const searchTerms = categoryIntent
+      ? [...new Set([...keywords, ...categoryIntent])]
+      : keywords;
+    businesses = await fetchBusinessesWithFilter(serviceClient, activeCity, searchTerms);
   }
 
   if (!businesses || businesses.length === 0) {
@@ -436,7 +436,8 @@ export async function searchBusinesses(
     const kw2 = shortened2.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
     const kw3 = shortened3.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
     if (shortened2 !== cleanQuery && kw2.length > 0) {
-      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, kw2);
+      const terms2 = categoryIntent ? [...new Set([...kw2, ...categoryIntent])] : kw2;
+      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms2);
       let filtered = fallback;
       if (conditions.length > 0 || priceCondition) {
         const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
@@ -449,7 +450,8 @@ export async function searchBusinesses(
       }
     }
     if (candidates.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortenSearchQuery(cleanQuery, 2) && kw3.length > 0) {
-      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, kw3);
+      const terms3 = categoryIntent ? [...new Set([...kw3, ...categoryIntent])] : kw3;
+      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms3);
       let filtered = fallback;
       if (conditions.length > 0 || priceCondition) {
         const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
