@@ -27,6 +27,7 @@ function SearchPageInner() {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiReasons, setAiReasons] = useState<Record<string, string>>({});
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
+  const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -80,6 +81,7 @@ function SearchPageInner() {
       setResults(json.businesses ?? []);
       setAiSummary(json.aiSummary || null);
       setAiReasons(json.aiReasons || {});
+      setCorrectedQuery(json.correctedQuery ?? null);
     } finally {
       setLoading(false);
     }
@@ -183,15 +185,32 @@ function SearchPageInner() {
             )}
             {hasSearched && !loading && results.length === 0 && (
               <div className="state-msg sad">
-                <h2>No businesses found yet in this category</h2>
+                <h2>No results found</h2>
                 <p>
-                  Be the first to <Link href="/register" style={{ color: "#c0392b" }}>list yours</Link>!
-                  {activeCity && <> We&apos;re growing fast in <strong style={{ color: '#c0392b' }}>{activeCity}</strong>.</>}
+                  Try a popular search below or <Link href="/register" style={{ color: "#c0392b" }}>list your business</Link>.
+                  {activeCity && <> We&apos;re growing in <strong style={{ color: '#c0392b' }}>{activeCity}</strong>.</>}
                 </p>
+                <div className="popular-chips">
+                  {['Cafes', 'PG rooms', 'Gyms', 'Turfs', 'Hotels'].map((label) => (
+                    <button
+                      key={label}
+                      type="button"
+                      className="chip-btn"
+                      onClick={() => { setQuery(label); doSearch(label, selectedCity, selectedCategory); }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             {hasSearched && !loading && results.length > 0 && (
               <>
+                {correctedQuery && (
+                  <div className="corrected-msg">
+                    Showing results for <strong>&ldquo;{correctedQuery}&rdquo;</strong>
+                  </div>
+                )}
                 {aiSummary && (
                   <div className="ai-summary-box">
                     <div className="ai-summary-label">Yana AI</div>
@@ -518,6 +537,38 @@ const styles = `
   .state-msg h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #fff; margin-bottom: 0.5rem; }
   .state-msg p { color: #888; font-size: 0.9rem; line-height: 1.6; }
   .state-msg.sad h2 { color: #e74c3c; }
+
+  .popular-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1.25rem;
+  }
+  .chip-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid #333;
+    color: #ccc;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .chip-btn:hover {
+    background: rgba(192, 57, 43, 0.15);
+    border-color: rgba(192, 57, 43, 0.4);
+    color: #e74c3c;
+  }
+
+  .corrected-msg {
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0;
+  }
+  .corrected-msg strong { color: #aaa; }
 
   .results-grid {
     display: grid;

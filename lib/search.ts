@@ -45,6 +45,21 @@ function expandQueryWithSynonyms(query: string): string[] {
   return Array.from(termSet).filter(t => t.length >= 2);
 }
 
+const MIN_QUERY_LEN = 4;
+const MIN_WORD_LEN_AFTER_SHORTEN = 3;
+
+/** Shorten the search part of the query by n chars (from the last word) for typo fallback. */
+function shortenSearchQuery(query: string, n: number): string {
+  const trimmed = query.trim();
+  if (trimmed.length < MIN_QUERY_LEN || n < 1) return trimmed;
+  const parts = trimmed.split(/\s+/);
+  const last = parts[parts.length - 1];
+  if (last.length <= n || last.length - n < MIN_WORD_LEN_AFTER_SHORTEN) return trimmed;
+  const shortened = last.slice(0, -n);
+  if (parts.length === 1) return shortened;
+  return [...parts.slice(0, -1), shortened].join(' ');
+}
+
 const PLAN_RANK: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
 
 function sortByPlan(businesses: Business[]): Business[] {
@@ -201,22 +216,16 @@ Return ONLY valid JSON, no markdown fences.`,
   return null;
 }
 
-export async function searchBusinesses(
-  query: string,
-  cityFilter?: string
-): Promise<{ businesses: Business[]; detectedCity: string | null; aiSummary?: string; aiReasons?: Record<string, string> }> {
-  const serviceClient = getServiceClient();
-
-  const detectedCity = detectCity(query);
-  const activeCity = cityFilter || detectedCity;
-  const priceCondition = detectPriceCondition(query);
-  const conditions = detectConditions(query);
-
-  let cleanQuery = query.trim();
-  if (detectedCity) cleanQuery = query.replace(new RegExp(detectedCity, 'gi'), '').trim();
-
+/** Run one DB search with the given cleanQuery; returns filtered business list (no AI ranking). */
+async function runOneSearch(
+  serviceClient: ReturnType<typeof getServiceClient>,
+  cleanQuery: string,
+  activeCity: string | null,
+  queryHasAC: boolean,
+  conditions: string[],
+  priceCondition: { max?: number; min?: number } | null
+): Promise<Business[]> {
   const searchTerms = expandQueryWithSynonyms(cleanQuery);
-  const queryHasAC = /\bAC\b/i.test(query);
 
   let dbQuery = serviceClient.from('businesses').select('*').eq('is_active', true);
   if (activeCity) dbQuery = dbQuery.eq('city', activeCity);
@@ -237,22 +246,57 @@ export async function searchBusinesses(
   }
 
   const { data: businesses, error } = await dbQuery;
-
   if (error) {
     console.error('Search query error:', error);
-    return { businesses: [], detectedCity };
+    return [];
   }
-  if (!businesses || businesses.length === 0) {
-    return { businesses: [], detectedCity };
-  }
+  if (!businesses || businesses.length === 0) return [];
 
   let conditionFiltered = businesses;
   if (conditions.length > 0 || priceCondition) {
     const strict = businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition));
     if (strict.length > 0) conditionFiltered = strict;
   }
+  return conditionFiltered;
+}
 
-  const sorted = sortByPlan(conditionFiltered);
+export async function searchBusinesses(
+  query: string,
+  cityFilter?: string
+): Promise<{ businesses: Business[]; detectedCity: string | null; correctedQuery?: string; aiSummary?: string; aiReasons?: Record<string, string> }> {
+  const serviceClient = getServiceClient();
+
+  const detectedCity = detectCity(query);
+  const activeCity = cityFilter || detectedCity;
+  const priceCondition = detectPriceCondition(query);
+  const conditions = detectConditions(query);
+
+  let cleanQuery = query.trim();
+  if (detectedCity) cleanQuery = query.replace(new RegExp(detectedCity, 'gi'), '').trim();
+
+  const queryHasAC = /\bAC\b/i.test(query);
+
+  let list = await runOneSearch(serviceClient, cleanQuery, activeCity, queryHasAC, conditions, priceCondition);
+
+  let correctedQuery: string | undefined;
+  if (list.length === 0 && cleanQuery.length >= MIN_QUERY_LEN) {
+    const shortened2 = shortenSearchQuery(cleanQuery, 2);
+    const shortened3 = shortenSearchQuery(cleanQuery, 3);
+    if (shortened2 !== cleanQuery) {
+      list = await runOneSearch(serviceClient, shortened2, activeCity, queryHasAC, conditions, priceCondition);
+      if (list.length > 0) correctedQuery = shortened2;
+    }
+    if (list.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortened2) {
+      list = await runOneSearch(serviceClient, shortened3, activeCity, queryHasAC, conditions, priceCondition);
+      if (list.length > 0) correctedQuery = shortened3;
+    }
+  }
+
+  if (list.length === 0) {
+    return { businesses: [], detectedCity, correctedQuery };
+  }
+
+  const sorted = sortByPlan(list);
   const aiResult = await aiRankWithClaude(query, sorted);
 
   if (aiResult && aiResult.ranked.length > 0) {
@@ -269,10 +313,11 @@ export async function searchBusinesses(
     return {
       businesses: [...aiRanked, ...remaining],
       detectedCity,
+      correctedQuery,
       aiSummary: aiResult.summary,
       aiReasons: reasonMap,
     };
   }
 
-  return { businesses: sorted, detectedCity };
+  return { businesses: sorted, detectedCity, correctedQuery };
 }
