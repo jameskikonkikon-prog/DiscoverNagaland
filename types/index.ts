@@ -110,7 +110,6 @@ export interface Business {
   trial_ends_at?: string;
   is_verified: boolean;
   is_active: boolean;
-  is_founding_member?: boolean;
   owner_id: string;
   created_at: string;
   updated_at: string;

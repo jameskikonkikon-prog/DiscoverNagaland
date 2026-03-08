@@ -13,11 +13,12 @@ export async function POST(req: NextRequest) {
 
     const supabase = getServiceClient();
 
-    // Check founding member spots for auto-Pro
+    // Check founding member spots for auto-Pro (founding members have plan=pro with no expiry)
     const { count } = await supabase
       .from('businesses')
       .select('*', { count: 'exact', head: true })
-      .eq('is_founding_member', true);
+      .eq('plan', 'pro')
+      .is('plan_expires_at', null);
 
     const isFoundingMember = (count || 0) < FOUNDING_MEMBER_LIMIT;
 
@@ -48,7 +49,6 @@ export async function POST(req: NextRequest) {
       cuisine: cuisine || null,
       owner_id: owner_id || null,
       plan: isFoundingMember ? 'pro' : 'basic',
-      is_founding_member: isFoundingMember,
       is_active: true,
       is_verified: false,
     }).select().single();

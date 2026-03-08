@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const serviceClient = getServiceClient();
     const { data: business } = await serviceClient
       .from('businesses')
-      .select('plan, plan_expires_at, is_founding_member')
+      .select('plan, plan_expires_at')
       .eq('id', businessId)
       .single();
 
@@ -38,16 +38,17 @@ export async function POST(request: NextRequest) {
 
     // Pro plan: check if eligible for founding member (free Pro)
     if (plan === 'pro') {
-      // Already a founding member
-      if (business.is_founding_member) {
+      // Already a founding member (pro with no expiry)
+      if (business.plan === 'pro' && !business.plan_expires_at) {
         return NextResponse.json({ error: 'You already have founding member Pro access.' }, { status: 400 });
       }
 
-      // Check founding member spots
+      // Check founding member spots (founding members = pro plan with no expiry)
       const { count } = await serviceClient
         .from('businesses')
         .select('*', { count: 'exact', head: true })
-        .eq('is_founding_member', true);
+        .eq('plan', 'pro')
+        .is('plan_expires_at', null);
 
       if ((count || 0) < FOUNDING_MEMBER_LIMIT) {
         // Grant free Pro as founding member
@@ -55,7 +56,6 @@ export async function POST(request: NextRequest) {
           .from('businesses')
           .update({
             plan: 'pro',
-            is_founding_member: true,
             plan_expires_at: null, // no expiry for founding members
           })
           .eq('id', businessId);
