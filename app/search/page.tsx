@@ -10,11 +10,17 @@ type Business = {
   name: string;
   category: string;
   city: string;
-  description?: string;
-  photos?: string[];
+  area?: string | null;
+  description?: string | null;
+  photos?: string[] | null;
   phone?: string;
   whatsapp?: string;
   is_verified?: boolean;
+  verified?: boolean;
+  opening_hours?: string | null;
+  price_range?: string | null;
+  price_min?: number | null;
+  plan?: string;
 };
 
 function SearchPageInner() {
@@ -38,9 +44,18 @@ function SearchPageInner() {
   const [aiPickLoading, setAiPickLoading] = useState(false);
   const [aiPickedActive, setAiPickedActive] = useState(false);
   const [aiPickedReasons, setAiPickedReasons] = useState<Record<string, string>>({});
+  const [filterOpenNow, setFilterOpenNow] = useState(false);
+  const [filterCity, setFilterCity] = useState<"" | "Kohima" | "Dimapur">("");
+  const [filterBudget, setFilterBudget] = useState(false);
+  const [filterPremium, setFilterPremium] = useState(false);
+  const [filterVerified, setFilterVerified] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+
+  const DID_YOU_MEAN = ["Cafés", "Restaurants", "Gyms", "PG & Hostels", "Turfs & Sports", "Study Spaces"];
+  const POPULAR_SEARCHES = ["Cafes", "PG rooms", "Gyms", "Turfs", "Hotels"];
+  const TRENDING_CHIPS = ["Cafes Kohima", "PG rooms", "Gyms", "Turfs", "Hotels Dimapur", "Study space"];
 
   const searchParams = useSearchParams();
 
@@ -95,6 +110,11 @@ function SearchPageInner() {
       setAiReasons(json.aiReasons || {});
       setCorrectedQuery(json.correctedQuery ?? null);
       setAiPickedActive(false);
+      setFilterOpenNow(false);
+      setFilterCity("");
+      setFilterBudget(false);
+      setFilterPremium(false);
+      setFilterVerified(false);
     } finally {
       setLoading(false);
     }
@@ -160,6 +180,44 @@ function SearchPageInner() {
 
   const displayReasons = aiPickedActive ? aiPickedReasons : aiReasons;
   const budgetOptions = ["Affordable", "Mid-range", "Premium", "Any"];
+
+  function applyFilterChips(list: Business[]): Business[] {
+    return list.filter((b) => {
+      if (filterOpenNow && !(b.opening_hours && b.opening_hours.trim() !== "")) return false;
+      if (filterCity && b.city !== filterCity) return false;
+      if (filterBudget) {
+        const pr = (b.price_range || "").toLowerCase();
+        const low = b.price_min != null && b.price_min < 500;
+        if (pr !== "budget" && pr !== "affordable" && !low) return false;
+      }
+      if (filterPremium) {
+        const pr = (b.price_range || "").toLowerCase();
+        const plus = (b.plan || "").toLowerCase() === "plus";
+        if (pr !== "premium" && !plus) return false;
+      }
+      if (filterVerified && !b.is_verified && !(b as Business & { verified?: boolean }).verified) return false;
+      return true;
+    });
+  }
+
+  const filteredResults = results.length > 0 ? applyFilterChips(results) : results;
+  const hasActiveFilter = filterOpenNow || filterCity || filterBudget || filterPremium || filterVerified;
+
+  function toggleFilterCity(city: "" | "Kohima" | "Dimapur") {
+    setFilterCity((c) => (c === city ? "" : city));
+  }
+
+  function getBizDescription(biz: Business): string {
+    if (biz.description && biz.description.trim() !== "") return biz.description;
+    const loc = [biz.area, biz.city].filter(Boolean).join(", ") || biz.city;
+    return `${biz.category} in ${loc}`;
+  }
+
+  function getBizPhotoUrl(biz: Business): string | null {
+    const p = biz.photos;
+    if (Array.isArray(p) && p.length > 0 && p[0]) return p[0];
+    return null;
+  }
 
   function handleInput(val: string) {
     setQuery(val);
@@ -247,25 +305,31 @@ function SearchPageInner() {
               <button onClick={() => { setDetectedCity(null); doSearch(query.replace(new RegExp(detectedCity, 'gi'), '').trim(), '', selectedCategory); }} className="clear-city-btn">✕ Show all</button>
             </div>
           )}
+          {!loading && query.trim() !== "" && results.length > 0 && (
+            <div className="filter-chips-wrap">
+              <button type="button" className={`filter-chip ${filterOpenNow ? "active" : ""}`} onClick={() => setFilterOpenNow((v) => !v)}>Open Now</button>
+              <button type="button" className={`filter-chip ${filterCity === "Kohima" ? "active" : ""}`} onClick={() => toggleFilterCity("Kohima")}>Kohima</button>
+              <button type="button" className={`filter-chip ${filterCity === "Dimapur" ? "active" : ""}`} onClick={() => toggleFilterCity("Dimapur")}>Dimapur</button>
+              <button type="button" className={`filter-chip ${filterBudget ? "active" : ""}`} onClick={() => setFilterBudget((v) => !v)}>Budget</button>
+              <button type="button" className={`filter-chip ${filterPremium ? "active" : ""}`} onClick={() => setFilterPremium((v) => !v)}>Premium</button>
+              <button type="button" className={`filter-chip ${filterVerified ? "active" : ""}`} onClick={() => setFilterVerified((v) => !v)}>Verified</button>
+            </div>
+          )}
         </div>
 
         <div className="content">
           <div className="results-col">
-            {!hasSearched && (
-              <div className="state-msg">
-                <h2>Start your search above</h2>
-                <p>Type a name, or filter by district and category to explore.</p>
-              </div>
-            )}
-            {hasSearched && !loading && results.length === 0 && (
-              <div className="state-msg sad">
-                <h2>No results found</h2>
-                <p>
-                  Try a popular search below or <Link href="/register" style={{ color: "#c0392b" }}>list your business</Link>.
-                  {activeCity && <> We&apos;re growing in <strong style={{ color: '#c0392b' }}>{activeCity}</strong>.</>}
-                </p>
-                <div className="popular-chips">
-                  {['Cafes', 'PG rooms', 'Gyms', 'Turfs', 'Hotels'].map((label) => (
+            {!loading && query.trim() === "" && (
+              <div className="state-msg trending-section">
+                {!hasSearched && (
+                  <>
+                    <h2>Start your search above</h2>
+                    <p>Type a name, or pick a trending search below.</p>
+                  </>
+                )}
+                <p className="trending-label">Trending:</p>
+                <div className="popular-chips trending-chips">
+                  {TRENDING_CHIPS.map((label) => (
                     <button
                       key={label}
                       type="button"
@@ -278,7 +342,42 @@ function SearchPageInner() {
                 </div>
               </div>
             )}
-            {hasSearched && !loading && results.length > 0 && (
+            {hasSearched && !loading && query.trim() !== "" && results.length === 0 && (
+              <div className="state-msg sad zero-results-ui">
+                <h2>No results for &ldquo;{query || "your search"}&rdquo;</h2>
+                <p className="did-you-mean-label">Did you mean:</p>
+                <div className="popular-chips">
+                  {DID_YOU_MEAN.slice(0, 3).map((label) => (
+                    <button
+                      key={label}
+                      type="button"
+                      className="chip-btn"
+                      onClick={() => { setQuery(label); doSearch(label, selectedCity, selectedCategory); }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="popular-label">Popular searches:</p>
+                <div className="popular-chips">
+                  {POPULAR_SEARCHES.map((label) => (
+                    <button
+                      key={label}
+                      type="button"
+                      className="chip-btn"
+                      onClick={() => { setQuery(label); doSearch(label, selectedCity, selectedCategory); }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="zero-register">
+                  <Link href="/register" style={{ color: "#c0392b" }}>List your business</Link>
+                  {activeCity && <> · Growing in <strong style={{ color: "#c0392b" }}>{activeCity}</strong></>}
+                </p>
+              </div>
+            )}
+            {hasSearched && !loading && query.trim() !== "" && results.length > 0 && (
               <>
                 {correctedQuery && (
                   <div className="corrected-msg">
@@ -297,9 +396,10 @@ function SearchPageInner() {
                   </div>
                 )}
                 <div className="results-meta">
-                  <strong>{results.length}</strong> result{results.length !== 1 ? "s" : ""}
+                  <strong>{hasActiveFilter ? filteredResults.length : results.length}</strong> result{(hasActiveFilter ? filteredResults.length : results.length) !== 1 ? "s" : ""}
                   {query && <> for &ldquo;{query}&rdquo;</>}
                   {activeCity && <> in {activeCity}</>}
+                  {hasActiveFilter && <span className="filtered-hint"> (filtered)</span>}
                 </div>
                 {!aiPanelOpen && (
                   <button type="button" className="ask-ai-btn" onClick={openAiPanel}>
@@ -378,7 +478,7 @@ function SearchPageInner() {
                   {query.trim() ? "Finding results and ranking with AI…" : "Loading…"}
                 </div>
                 <div className="results-grid">
-                  {Array.from({ length: 6 }).map((_, i) => (
+                  {Array.from({ length: 3 }).map((_, i) => (
                     <div className="skeleton-card" key={i}>
                       <div className="skeleton skeleton-img" />
                       <div className="skeleton-body">
@@ -391,27 +491,33 @@ function SearchPageInner() {
                 </div>
               </>
             )}
+            {!loading && results.length > 0 && hasActiveFilter && filteredResults.length === 0 && (
+              <p className="no-filter-match">No results match your filters. Try clearing a filter above.</p>
+            )}
             {!loading && results.length > 0 && (
               <div className="results-grid">
-                {results.map((biz) => (
+                {(hasActiveFilter ? filteredResults : results).map((biz) => (
                   <div key={biz.id} className="biz-card">
                     <Link href={`/business/${biz.id}`} className="biz-card-link">
-                      {biz.photos && biz.photos[0]
-                        ? <img src={biz.photos[0]} alt={biz.name} className="biz-photo" />
-                        : <div className="biz-photo-placeholder">🏔️</div>
-                      }
+                      {getBizPhotoUrl(biz) ? (
+                        <img src={getBizPhotoUrl(biz)!} alt={biz.name} className="biz-photo" />
+                      ) : (
+                        <div className="biz-photo-placeholder biz-photo-category">
+                          <span>{biz.category}</span>
+                        </div>
+                      )}
                       <div className="biz-body">
                         <div className="biz-category">{biz.category}</div>
                         <div className="biz-name">{biz.name}</div>
                         <div className="biz-city">📍 {biz.city}</div>
-                        {biz.is_verified && <span className="biz-verified">✓ Verified</span>}
+                        {(biz.is_verified || (biz as Business & { verified?: boolean }).verified) && <span className="biz-verified">✓ Verified</span>}
                         {displayReasons[biz.id] && (
                           <div className="biz-ai-matched">
                             <span className="ai-matched-label">{aiPickedActive ? "✨ AI picked for you" : "✨ AI matched"}</span>
                             <span className="ai-reason-text">{displayReasons[biz.id]}</span>
                           </div>
                         )}
-                        {biz.description && <div className="biz-desc">{biz.description}</div>}
+                        <div className="biz-desc">{getBizDescription(biz)}</div>
                       </div>
                     </Link>
                     <div className="biz-actions">
@@ -629,6 +735,35 @@ const styles = `
   }
   .clear-city-btn:hover { color: #c0392b; }
 
+  .filter-chips-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+    padding: 0 0.5rem;
+  }
+  .filter-chip {
+    padding: 0.4rem 0.9rem;
+    background: transparent;
+    border: 1px solid #333;
+    color: #aaa;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.82rem;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .filter-chip:hover {
+    border-color: #555;
+    color: #ccc;
+  }
+  .filter-chip.active {
+    background: #c0392b;
+    border-color: #c0392b;
+    color: #fff;
+  }
+
   .content {
     flex: 1;
     padding: 2rem;
@@ -710,6 +845,14 @@ const styles = `
   .state-msg h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #fff; margin-bottom: 0.5rem; }
   .state-msg p { color: #888; font-size: 0.9rem; line-height: 1.6; }
   .state-msg.sad h2 { color: #e74c3c; }
+  .zero-results-ui .did-you-mean-label,
+  .zero-results-ui .popular-label { margin-top: 1rem; margin-bottom: 0.4rem; font-size: 0.88rem; color: #888; }
+  .zero-results-ui .popular-label { margin-top: 1.25rem; }
+  .zero-register { margin-top: 1rem; font-size: 0.85rem; }
+  .trending-section .trending-label { margin-top: 1rem; margin-bottom: 0.4rem; font-size: 0.88rem; color: #888; }
+  .trending-chips { margin-top: 0.5rem; }
+  .results-meta .filtered-hint { color: #888; font-weight: normal; }
+  .no-filter-match { color: #888; font-size: 0.9rem; margin-bottom: 1rem; }
 
   .popular-chips {
     display: flex;
@@ -897,12 +1040,27 @@ const styles = `
   .biz-photo-placeholder {
     width: 100%;
     height: 150px;
-    background: linear-gradient(135deg, #1a1a1a, #111);
+    background: linear-gradient(135deg, #1a1a1a, #0a0a0a);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 2.5rem;
     color: #333;
+  }
+  .biz-photo-placeholder.biz-photo-category {
+    font-size: 0.9rem;
+    color: #666;
+    font-family: 'Sora', sans-serif;
+    text-align: center;
+    padding: 0.5rem;
+    background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+  }
+  .biz-photo-placeholder.biz-photo-category span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .biz-body { padding: 14px 16px 10px; }
   .biz-category {
