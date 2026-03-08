@@ -302,8 +302,8 @@ function shortenSearchQuery(query: string, n: number): string {
   return [...parts.slice(0, -1), shortened].join(' ');
 }
 
-/** Columns to search with ilike (no "location" — use city and area). */
-const SEARCH_COLUMNS = ['name', 'category', 'tags', 'vibe_tags', 'description', 'city', 'area'] as const;
+/** Columns to search with ilike (no "location" — use city). */
+const SEARCH_COLUMNS = ['name', 'category', 'tags', 'vibe_tags', 'description', 'city'] as const;
 
 function escapeIlike(term: string): string {
   return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
