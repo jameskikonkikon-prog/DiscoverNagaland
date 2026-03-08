@@ -92,6 +92,9 @@ function getCategoryIntent(query: string): string[] | null {
   return [...CATEGORY_INTENT[intent]];
 }
 
+/** Only apply category filter when query is an exact category keyword; e.g. "football" skips filter so Fut-Tribe shows. */
+const CATEGORY_FILTER_KEYWORDS = ['cafe', 'cafes', 'restaurant', 'restaurants', 'pg', 'hostel', 'hostels', 'gym', 'gyms', 'turf', 'turfs', 'study', 'hotel', 'hotels'];
+
 function filterByCategoryIntent(candidates: Business[], allowedCategoryNames: string[]): Business[] {
   const allowedNormalized = new Set(allowedCategoryNames.map(normalizeCategory));
   return candidates.filter((b) => {
@@ -371,6 +374,8 @@ export async function searchBusinesses(
     .split(/\s+/)
     .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 
+  const shouldFilterByCategory = CATEGORY_FILTER_KEYWORDS.includes(cleanQuery.toLowerCase().trim());
+
   let businesses: Business[];
 
   if (query.trim() === 'test123') {
@@ -432,7 +437,7 @@ export async function searchBusinesses(
   let candidates: Business[] = conditionFiltered;
 
   const categoryIntent = getCategoryIntent(cleanQuery);
-  if (categoryIntent && candidates.length > 0) {
+  if (shouldFilterByCategory && categoryIntent && candidates.length > 0) {
     const categoryFiltered = filterByCategoryIntent(candidates, categoryIntent);
     if (categoryFiltered.length > 0) {
       candidates = categoryFiltered;
@@ -454,7 +459,7 @@ export async function searchBusinesses(
         const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
         if (strict.length > 0) filtered = strict;
       }
-      const withIntent = categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      const withIntent = shouldFilterByCategory && categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
       if (withIntent.length > 0) {
         candidates = withIntent;
         correctedQuery = shortened2;
@@ -469,7 +474,7 @@ export async function searchBusinesses(
         const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
         if (strict.length > 0) filtered = strict;
       }
-      const withIntent = categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      const withIntent = shouldFilterByCategory && categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
       if (withIntent.length > 0) {
         candidates = withIntent;
         correctedQuery = shortened3;
