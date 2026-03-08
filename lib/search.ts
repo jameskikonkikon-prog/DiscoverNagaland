@@ -397,11 +397,15 @@ export async function searchBusinesses(
     );
     console.log('[search] Fallback (no keywords): query=', cleanQuery, 'results=', businesses.length);
   } else {
-    // Expand keywords with category synonyms so e.g. "cafe" → "Cafés" and ilike on category matches
+    // Full phrase + each word (length >= 3) so e.g. "football boots" → ["football boots", "football", "boots"]
+    const normalizedQuery = cleanQuery.trim().toLowerCase().replace(/\s+/g, ' ');
+    const words = normalizedQuery.split(/\s+/).filter(w => w.length >= 3 && !STOP_WORDS.has(w));
+    const baseSearchTerms = normalizedQuery ? [...new Set([normalizedQuery, ...words])] : words;
+    // Expand with category synonyms so e.g. "cafe" → "Cafés" and ilike on category matches
     const categoryIntent = getCategoryIntent(cleanQuery);
     const searchTerms = categoryIntent
-      ? [...new Set([...keywords, ...categoryIntent])]
-      : keywords;
+      ? [...new Set([...baseSearchTerms, ...categoryIntent])]
+      : baseSearchTerms;
     businesses = await fetchBusinessesWithFilter(serviceClient, activeCity, searchTerms);
   }
 
