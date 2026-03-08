@@ -9,6 +9,7 @@ type Business = {
   name: string;
   category: string;
   city: string;
+  area?: string | null;
   address: string;
   landmark?: string;
   phone: string;
@@ -26,6 +27,7 @@ type Business = {
   tags?: string;
   amenities?: string;
   is_verified?: boolean;
+  plan?: string;
   created_at?: string;
 };
 
@@ -102,11 +104,13 @@ export default function BusinessPage() {
   const [activePhoto, setActivePhoto] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
   const [reviewForm, setReviewForm] = useState({ name: '', rating: 5, comment: '' });
+  const [showReviewForm, setShowReviewForm] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [navScrolled, setNavScrolled] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -142,6 +146,14 @@ export default function BusinessPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const onScroll = () => setNavScrolled(typeof window !== 'undefined' && window.scrollY > 100);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scroll', onScroll);
+      return () => window.removeEventListener('scroll', onScroll);
+    }
+  }, []);
+
   const submitReview = async () => {
     if (!reviewForm.name || !reviewForm.comment) return;
     setSubmittingReview(true);
@@ -163,7 +175,33 @@ export default function BusinessPage() {
   const priceLabel = biz ? getPriceLabel(biz) : null;
   const amenitiesList = biz?.amenities?.split(',').map(a => a.trim()).filter(Boolean) || [];
   const tagsList = biz?.tags?.split(',').map(t => t.trim()).filter(Boolean) || [];
+  const vibeTags = tagsList.length > 0 ? tagsList : (biz?.tags ? [biz.tags] : []);
   const photos = biz?.photos?.length ? biz.photos : [];
+  const locationLine = [biz?.area, biz?.landmark, biz?.city].filter(Boolean).join(' · ') || (biz ? `${biz.address ? biz.address + ' · ' : ''}${biz.city}, Nagaland` : '');
+  const FEATURE_KEYS = [
+    { key: 'parking', label: '🅿️ Parking' },
+    { key: 'card|payment|card payment', label: '💳 Card Payment' },
+    { key: 'delivery', label: '🚚 Delivery' },
+    { key: 'wifi|wi-fi|wifi', label: '📶 WiFi' },
+    { key: 'ac|air cond|air conditioning', label: '❄️ AC' },
+  ];
+  const amenitiesLower = (biz?.amenities || '').toLowerCase();
+  const featuresList = FEATURE_KEYS.map(({ key, label }) => {
+    const yes = key.split('|').some(k => amenitiesLower.includes(k.trim().toLowerCase()));
+    return { label, yes };
+  });
+
+  function formatReviewDate(iso: string) {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days} days ago`;
+    if (days < 30) return `${Math.floor(days / 7)} week(s) ago`;
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
 
   if (loading) {
     return (
@@ -181,47 +219,47 @@ export default function BusinessPage() {
 
   if (!biz) return null;
 
+  const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent([biz.name, biz.address, biz.city, 'Nagaland'].filter(Boolean).join(' '))}`;
+  const waUrl = biz.whatsapp ? `https://wa.me/${biz.whatsapp.replace(/\D/g, '')}?text=Hi!%20I%20found%20you%20on%20Yana%20Nagaland` : '';
+  const shareWaUrl = typeof window !== 'undefined' ? `https://wa.me/?text=Check out ${biz.name} on Yana Nagaland: ${window.location.href}` : '';
+
   return (
     <>
       <style>{styles}</style>
       <main className="biz-page">
-
-        {/* Top nav */}
-        <nav className="biz-nav">
+        <nav className={`nav ${navScrolled ? 'scrolled' : ''}`}>
           <Link href="/" className="nav-logo">Yana<span>Nagaland</span></Link>
-          <div className="biz-nav-right">
-            <Link href={`/search?q=${biz.city}`} className="nav-back">← {biz.city}</Link>
-            {!mounted ? (
-              <span className="nav-avatar nav-avatar-placeholder" aria-hidden />
-            ) : loggedIn ? (
-              <a href="/dashboard" className="nav-avatar" aria-label="Open dashboard">
+          <div className="nav-center">{biz.name} · {biz.city}</div>
+          <div className="nav-right">
+            <Link href={`/search?q=${biz.city}`} className="nav-link">← {biz.city}</Link>
+            <Link href="/register" className="nav-cta">List Business</Link>
+            {mounted && loggedIn && (
+              <a href="/dashboard" className="nav-avatar" aria-label="Dashboard">
                 <span className="nav-avatar-icon">👤</span>
               </a>
-            ) : null}
+            )}
           </div>
         </nav>
 
-        {/* Photo gallery */}
-        <div className="gallery">
+        <div className="gallery" id="gallery">
           {photos.length > 0 ? (
             <>
-              <img src={photos[activePhoto]} alt={biz.name} className="gallery-main" />
+              <img src={photos[activePhoto]} alt={biz.name} className="gallery-img" />
+              <div className="gallery-grad" />
               {photos.length > 1 && (
-                <>
-                  <button className="gallery-arrow left" onClick={() => setActivePhoto((activePhoto - 1 + photos.length) % photos.length)}>‹</button>
-                  <button className="gallery-arrow right" onClick={() => setActivePhoto((activePhoto + 1) % photos.length)}>›</button>
-                  <div className="gallery-dots">
-                    {photos.map((_, i) => (
-                      <button key={i} className={`gallery-dot ${i === activePhoto ? 'active' : ''}`} onClick={() => setActivePhoto(i)} />
-                    ))}
-                  </div>
-                  <div className="gallery-thumbs">
-                    {photos.slice(0, 5).map((p, i) => (
-                      <img key={i} src={p} alt="" className={`gallery-thumb ${i === activePhoto ? 'active' : ''}`} onClick={() => setActivePhoto(i)} />
-                    ))}
-                  </div>
-                </>
+                <div className="thumb-strip">
+                  {photos.map((p, i) => (
+                    <img
+                      key={i}
+                      src={p}
+                      alt=""
+                      className={`thumb ${i === activePhoto ? 'active' : ''}`}
+                      onClick={() => setActivePhoto(i)}
+                    />
+                  ))}
+                </div>
               )}
+              <div className="photo-count">📷 {photos.length} photo{photos.length !== 1 ? 's' : ''}</div>
             </>
           ) : (
             <div className="gallery-placeholder">
@@ -229,458 +267,427 @@ export default function BusinessPage() {
               <p>No photos yet</p>
             </div>
           )}
-
-          {/* Open/Closed badge */}
-          {openStatus !== null && (
-            <div className={`open-badge ${openStatus ? 'open' : 'closed'}`}>
-              {openStatus ? '● Open Now' : '● Closed'}
-            </div>
-          )}
         </div>
 
-        {/* Main content */}
-        <div className="biz-content">
-          <div className="biz-main">
-
-            {/* Header */}
-            <div className="biz-header">
-              <div className="biz-category-tag">{biz.category}</div>
-              <h1 className="biz-name">
-                {biz.name}
-                {biz.is_verified && <span className="verified-badge" title="Verified">✓</span>}
-              </h1>
-
-              {/* Rating row */}
-              {avgRating && (
-                <div className="rating-row">
-                  <StarRating rating={Math.round(parseFloat(avgRating))} size={18} />
-                  <span className="rating-num">{avgRating}</span>
-                  <span className="rating-count">({reviews.length} review{reviews.length !== 1 ? 's' : ''})</span>
-                </div>
-              )}
-
-              {/* Price */}
-              {priceLabel && (
-                <div className="price-pill">{priceLabel}</div>
-              )}
+        <div className="content">
+          <div className="left">
+            <div className="hero-text fade-up">
+              <div className="category-tag">{biz.category}</div>
+              <div className="biz-name">{biz.name}</div>
+              <div className="meta-row">
+                {openStatus !== null && (
+                  <span className={`meta-chip ${openStatus ? 'open' : ''}`}>
+                    <span className="dot" /> {openStatus ? 'Open now' : 'Closed'}
+                  </span>
+                )}
+                {(biz.plan === 'pro' || biz.plan === 'plus') && (
+                  <span className="meta-chip pro">⚡ {biz.plan === 'plus' ? 'Plus' : 'Pro'}</span>
+                )}
+                {biz.is_verified && (
+                  <span className="meta-chip">✓ Verified</span>
+                )}
+              </div>
+              <div className="location-line">
+                <span>📍</span>
+                <span>{locationLine}</span>
+              </div>
             </div>
 
-            {/* CTA Buttons */}
-            <div className="cta-buttons">
-              <a href={`tel:${biz.phone}`} className="cta-btn call">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.33h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.18 6.18l.95-.95a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                Call Now
-              </a>
+            <div className="mobile-cta fade-up-2">
+              <a href={`tel:${biz.phone}`} className="m-call">📞 Call Now</a>
               {biz.whatsapp && (
-                <a href={`https://wa.me/${biz.whatsapp.replace(/\D/g, '')}?text=Hi!%20I%20found%20you%20on%20Yana%20Nagaland%20and%20wanted%20to%20enquire%20about%20your%20business.`} target="_blank" rel="noopener noreferrer" className="cta-btn whatsapp">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z" /></svg>
-                  WhatsApp
-                </a>
-              )}
-              {biz.website && (
-                <a href={biz.website} target="_blank" rel="noopener noreferrer" className="cta-btn website">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
-                  Website
-                </a>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="m-wa">💬 WhatsApp</a>
               )}
             </div>
 
-            {/* Info cards */}
-            <div className="info-cards">
-              <div className="info-card">
-                <div className="info-icon">📍</div>
-                <div>
-                  <div className="info-label">Address</div>
-                  <div className="info-value">{biz.address}{biz.landmark && <>, near {biz.landmark}</>}</div>
-                  <div className="info-value" style={{ color: '#c9963a', fontSize: '0.8rem' }}>{biz.city}, Nagaland</div>
-                  <a href={`https://www.google.com/maps/search/${encodeURIComponent(biz.name + ' ' + biz.city + ' Nagaland')}`} target="_blank" rel="noopener noreferrer" className="maps-link">Open in Google Maps →</a>
-                </div>
+            {vibeTags.length > 0 && (
+              <div className="vibe-row fade-up-2">
+                {vibeTags.map((t) => (
+                  <span key={t} className="vibe">{t}</span>
+                ))}
               </div>
+            )}
 
+            <div className="info-blocks fade-up-3">
               {biz.opening_hours && (
-                <div className="info-card">
-                  <div className="info-icon">🕐</div>
-                  <div>
-                    <div className="info-label">Opening Hours</div>
-                    <div className="info-value">{biz.opening_hours}</div>
-                    {openStatus !== null && (
-                      <div className={`open-inline ${openStatus ? 'open' : 'closed'}`}>
-                        {openStatus ? '● Open right now' : '● Currently closed'}
-                      </div>
-                    )}
-                  </div>
+                <div className="info-block">
+                  <div className="ib-label">Hours</div>
+                  <div className="ib-value">{biz.opening_hours}</div>
+                  {openStatus !== null && (
+                    <div className={`open-tag ${openStatus ? '' : 'closed'}`}>
+                      <span className="dot" style={{ background: openStatus ? '#27ae60' : '#999', width: 6, height: 6, borderRadius: '50%', display: 'inline-block' }} />
+                      {openStatus ? ' Open right now' : ' Currently closed'}
+                    </div>
+                  )}
                 </div>
               )}
-
               {biz.phone && (
-                <div className="info-card">
-                  <div className="info-icon">📞</div>
-                  <div>
-                    <div className="info-label">Contact</div>
-                    <div className="info-value">{biz.phone}</div>
-                    {biz.email && <div className="info-value" style={{ fontSize: '0.82rem', color: '#8a9a8a' }}>{biz.email}</div>}
+                <div className="info-block">
+                  <div className="ib-label">Phone</div>
+                  <div className="ib-value">{biz.phone}</div>
+                  <div className="ib-sub">Tap to call</div>
+                </div>
+              )}
+              <div className="info-block full">
+                <div className="ib-label">Address</div>
+                <div className="ib-value">{biz.address}{biz.landmark ? `, near ${biz.landmark}` : ''}</div>
+                <div className="ib-sub">{biz.city}, Nagaland</div>
+                <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="ib-link">Open in Google Maps →</a>
+              </div>
+            </div>
+
+            {biz.description && (
+              <div className="section fade-up-4">
+                <div className="section-head">About</div>
+                <p className="about-text">{biz.description}</p>
+              </div>
+            )}
+
+            <div className="section fade-up-4">
+              <div className="section-head">Features</div>
+              <div className="features">
+                {featuresList.map((f) => (
+                  <span key={f.label} className={`feature ${f.yes ? 'yes' : 'no'}`}>{f.label}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="section fade-up-4">
+              <div className="section-head">Reviews</div>
+              <div className="reviews-top">
+                <div className="rating-display">
+                  <div className="rating-num">{avgRating ?? '—'}</div>
+                  <div className="rating-info">
+                    <div className="rating-stars">{'⭐'.repeat(avgRating ? Math.round(parseFloat(avgRating)) : 0)}{'☆'.repeat(5 - (avgRating ? Math.round(parseFloat(avgRating)) : 0))}</div>
+                    <div className="rating-count">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</div>
                   </div>
                 </div>
+                {!reviewSuccess && (
+                  <button type="button" className="write-review-btn" onClick={() => { setShowReviewForm(!showReviewForm); if (!showReviewForm) setTimeout(() => document.getElementById('reviewForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }}>
+                    + Write a review
+                  </button>
+                )}
+              </div>
+
+              <div id="reviewForm" className={`review-form ${showReviewForm ? 'show' : ''}`}>
+                <div className="rf-label">Your Rating</div>
+                <div className="star-row">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <button key={s} type="button" className="star-pick" onClick={() => setReviewForm({ ...reviewForm, rating: s })}>
+                      {s <= (hoverRating || reviewForm.rating) ? '⭐' : '☆'}
+                    </button>
+                  ))}
+                </div>
+                <div className="rf-grid">
+                  <input type="text" className="rf-input" placeholder="Your name" value={reviewForm.name} onChange={(e) => setReviewForm({ ...reviewForm, name: e.target.value })} />
+                  <input type="email" className="rf-input" placeholder="Email (optional)" />
+                </div>
+                <textarea className="rf-input rf-textarea" placeholder="Share your experience..." value={reviewForm.comment} onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })} />
+                <button type="button" className="rf-submit" onClick={submitReview} disabled={submittingReview || !reviewForm.name || !reviewForm.comment}>
+                  {submittingReview ? 'Submitting…' : 'Submit Review'}
+                </button>
+              </div>
+
+              {reviewSuccess && <div className="review-success">🎉 Thanks for your review!</div>}
+
+              {reviews.length > 0 ? (
+                reviews.map((r) => (
+                  <div key={r.id} className="review-card">
+                    <div className="rc-top">
+                      <div className="rc-name">{r.reviewer_name}</div>
+                      <div className="rc-date">{formatReviewDate(r.created_at)}</div>
+                    </div>
+                    <div className="rc-stars">{'⭐'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</div>
+                    <div className="rc-text">{r.comment}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="no-reviews">No reviews yet — be the first!</div>
               )}
             </div>
 
-            {/* Description */}
-            {biz.description && (
-              <div className="section">
-                <h3 className="section-title">About</h3>
-                <p className="biz-desc">{biz.description}</p>
-              </div>
-            )}
-
-            {/* Amenities for PG */}
-            {amenitiesList.length > 0 && (
-              <div className="section">
-                <h3 className="section-title">Amenities</h3>
-                <div className="amenities-grid">
-                  {amenitiesList.map((a) => (
-                    <div key={a} className="amenity-chip">✓ {a}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Tags */}
-            {tagsList.length > 0 && (
-              <div className="section">
-                <h3 className="section-title">Features</h3>
-                <div className="tags-row">
-                  {tagsList.map((t) => (
-                    <span key={t} className="tag-chip">{t}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Menu */}
             {biz.menu_url && (
-              <div className="section">
-                <h3 className="section-title">
-                  {biz.category?.toLowerCase() === 'restaurant' || biz.category?.toLowerCase() === 'cafe' ? '📋 Menu' : '📄 Price List / Rate Card'}
-                </h3>
+              <div className="section fade-up-4">
+                <div className="section-head">{biz.category?.toLowerCase() === 'restaurant' || biz.category?.toLowerCase() === 'cafe' ? 'Menu' : 'Price List'}</div>
                 {biz.menu_url.endsWith('.pdf') ? (
-                  <a href={biz.menu_url} target="_blank" rel="noopener noreferrer" className="menu-btn">
-                    📄 View {biz.category?.toLowerCase() === 'restaurant' || biz.category?.toLowerCase() === 'cafe' ? 'Menu' : 'Rate Card'} (PDF)
-                  </a>
+                  <a href={biz.menu_url} target="_blank" rel="noopener noreferrer" className="ib-link">📄 View PDF</a>
                 ) : (
                   <div className="menu-img-wrap">
-                    <img
-                      src={biz.menu_url}
-                      alt="Menu"
-                      className={`menu-img ${showMenu ? 'expanded' : ''}`}
-                      onClick={() => setShowMenu(!showMenu)}
-                    />
-                    <button className="menu-expand-btn" onClick={() => setShowMenu(!showMenu)}>
-                      {showMenu ? '↑ Collapse' : '↓ View Full Menu'}
-                    </button>
+                    <img src={biz.menu_url} alt="Menu" className={`menu-img ${showMenu ? 'expanded' : ''}`} onClick={() => setShowMenu(!showMenu)} />
+                    <button type="button" className="menu-expand-btn" onClick={() => setShowMenu(!showMenu)}>{showMenu ? '↑ Collapse' : '↓ View Full'}</button>
                   </div>
                 )}
               </div>
             )}
-
-            {/* Reviews */}
-            <div className="section">
-              <h3 className="section-title">
-                Reviews
-                {avgRating && <span className="avg-rating-badge">⭐ {avgRating}</span>}
-              </h3>
-
-              {/* Write review */}
-              {!reviewSuccess ? (
-                <div className="review-form">
-                  <div className="review-form-title">Leave a Review</div>
-                  <div className="star-select">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        className="star-btn"
-                        onMouseEnter={() => setHoverRating(s)}
-                        onMouseLeave={() => setHoverRating(0)}
-                        onClick={() => setReviewForm({ ...reviewForm, rating: s })}
-                      >
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill={s <= (hoverRating || reviewForm.rating) ? '#c9963a' : 'none'} stroke={s <= (hoverRating || reviewForm.rating) ? '#c9963a' : '#4a5a4a'} strokeWidth="2">
-                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                        </svg>
-                      </button>
-                    ))}
-                    <span className="star-label">{['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][hoverRating || reviewForm.rating]}</span>
-                  </div>
-                  <input className="review-input" placeholder="Your name" value={reviewForm.name} onChange={(e) => setReviewForm({ ...reviewForm, name: e.target.value })} />
-                  <textarea className="review-textarea" placeholder="Share your experience..." rows={3} value={reviewForm.comment} onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })} />
-                  <button className="review-submit" onClick={submitReview} disabled={submittingReview || !reviewForm.name || !reviewForm.comment}>
-                    {submittingReview ? 'Submitting…' : 'Submit Review'}
-                  </button>
-                </div>
-              ) : (
-                <div className="review-success">🎉 Thanks for your review!</div>
-              )}
-
-              {/* Reviews list */}
-              {reviews.length > 0 ? (
-                <div className="reviews-list">
-                  {reviews.map((r) => (
-                    <div key={r.id} className="review-card">
-                      <div className="review-top">
-                        <div className="reviewer-avatar">{r.reviewer_name[0].toUpperCase()}</div>
-                        <div>
-                          <div className="reviewer-name">{r.reviewer_name}</div>
-                          <StarRating rating={r.rating} size={13} />
-                        </div>
-                        <div className="review-date">{new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                      </div>
-                      <p className="review-comment">{r.comment}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="no-reviews">No reviews yet — be the first!</p>
-              )}
-            </div>
-
           </div>
 
-          {/* Sidebar */}
-          <div className="biz-sidebar">
+          <div className="sidebar">
             <div className="sidebar-card">
-              <div className="sidebar-title">Quick Contact</div>
-              <a href={`tel:${biz.phone}`} className="sidebar-cta call">
-                📞 Call {biz.phone}
-              </a>
+              <div className="sc-label">Contact</div>
+              <a href={`tel:${biz.phone}`} className="btn-primary">📞 Call {biz.phone}</a>
               {biz.whatsapp && (
-                <a href={`https://wa.me/${biz.whatsapp.replace(/\D/g, '')}?text=Hi!%20I%20found%20you%20on%20Yana%20Nagaland%20and%20wanted%20to%20enquire%20about%20your%20business.`} target="_blank" rel="noopener noreferrer" className="sidebar-cta whatsapp">
-                  💬 Chat on WhatsApp
-                </a>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn-wa">💬 Chat on WhatsApp</a>
               )}
               {biz.email && (
-                <a href={`mailto:${biz.email}`} className="sidebar-cta email">
-                  ✉️ Send Email
-                </a>
+                <a href={`mailto:${biz.email}`} className="btn-ghost">✉️ Send Email</a>
+              )}
+              <div className="sc-divider" />
+              <div className="sc-row">
+                <div className="sc-icon">📞</div>
+                <div className="sc-val"><a href={`tel:${biz.phone}`}>{biz.phone}</a></div>
+              </div>
+              {biz.email && (
+                <div className="sc-row">
+                  <div className="sc-icon">✉️</div>
+                  <div className="sc-val" style={{ fontSize: '11px' }}><a href={`mailto:${biz.email}`}>{biz.email}</a></div>
+                </div>
               )}
             </div>
 
-            {priceLabel && (
-              <div className="sidebar-card">
-                <div className="sidebar-title">Pricing</div>
-                <div className="sidebar-price">{priceLabel}</div>
-              </div>
-            )}
-
             <div className="sidebar-card">
-              <div className="sidebar-title">Location</div>
-              <div className="sidebar-location">{biz.address}</div>
-              {biz.landmark && <div className="sidebar-landmark">Near {biz.landmark}</div>}
-              <div className="sidebar-city">{biz.city}, Nagaland</div>
-              <a href={`https://www.google.com/maps/search/${encodeURIComponent(biz.name + ' ' + biz.city + ' Nagaland')}`} target="_blank" rel="noopener noreferrer" className="sidebar-cta maps">
-                🗺️ Open in Google Maps
-              </a>
+              <div className="sc-label">Location</div>
+              <div className="map-box" onClick={() => window.open(mapsUrl, '_blank')} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && window.open(mapsUrl, '_blank')}>
+                <div className="map-grid" />
+                <span className="map-pin">📍</span>
+              </div>
+              <div className="loc-name">{biz.area || biz.landmark || biz.address}</div>
+              <div className="loc-sub">{[biz.landmark, biz.address].filter(Boolean).join(' · ')} {biz.city}</div>
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="btn-ghost">🗺️ Open in Google Maps</a>
             </div>
 
-            <div className="sidebar-card share-card">
-              <div className="sidebar-title">Share this listing</div>
-              <div className="share-buttons">
-                <a href={`https://wa.me/?text=Check out ${biz.name} on Yana Nagaland: ${typeof window !== 'undefined' ? window.location.href : ''}`} target="_blank" rel="noopener noreferrer" className="share-btn wa">WhatsApp</a>
-                <button className="share-btn copy" onClick={() => { navigator.clipboard.writeText(window.location.href); }}>Copy Link</button>
+            <div className="sidebar-card">
+              <div className="sc-label">Share</div>
+              <div className="share-row">
+                <a href={shareWaUrl} target="_blank" rel="noopener noreferrer" className="share-btn">💬 WhatsApp</a>
+                <button type="button" className="share-btn" onClick={() => { navigator.clipboard.writeText(typeof window !== 'undefined' ? window.location.href : ''); }}>🔗 Copy Link</button>
               </div>
+            </div>
+
+            <div className="claim-card">
+              <div className="claim-title">Own this business?</div>
+              <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
+              <Link href="/register" className="claim-btn">🏷️ Claim This Listing</Link>
             </div>
           </div>
         </div>
-
-        {/* Mobile sticky CTA */}
-        <div className="mobile-sticky">
-          <a href={`tel:${biz.phone}`} className="sticky-call">📞 Call</a>
-          {biz.whatsapp && (
-            <a href={`https://wa.me/${biz.whatsapp.replace(/\D/g, '')}?text=Hi!%20I%20found%20you%20on%20Yana%20Nagaland%20and%20wanted%20to%20enquire%20about%20your%20business.`} target="_blank" rel="noopener noreferrer" className="sticky-whatsapp">💬 WhatsApp</a>
-          )}
-        </div>
-
       </main>
     </>
   );
 }
 
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0d1a0d; color: #e8ddd0; font-family: 'Outfit', sans-serif; }
-
-  .biz-page { min-height: 100vh; background: #0d1a0d; padding-bottom: 80px; }
-
-  /* Nav */
-  .biz-nav { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: rgba(13,26,13,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(201,150,58,0.1); }
-  .nav-logo { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: #c9963a; text-decoration: none; font-weight: 700; }
-  .nav-logo span { color: #e8ddd0; }
-  .biz-nav-right { display:flex; align-items:center; gap:0.75rem; }
-  .nav-back { color: #8a9a8a; text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
-  .nav-back:hover { color: #c9963a; }
-  .nav-avatar{
-    width:32px;
-    height:32px;
-    border-radius:999px;
-    background:rgba(0,0,0,0.4);
-    border:1px solid rgba(201,150,58,0.5);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    text-decoration:none;
-    color:#c9963a;
-    font-size:0.9rem;
-    cursor:pointer;
-    transition:background 0.15s,border-color 0.15s,transform 0.1s;
+  :root {
+    --bg:#0a0a0a;
+    --surface:#0f0f0f;
+    --surface2:#141414;
+    --surface3:#1a1a1a;
+    --border:rgba(255,255,255,0.06);
+    --border2:rgba(255,255,255,0.1);
+    --red:#c0392b;
+    --red-soft:rgba(192,57,43,0.1);
+    --red-border:rgba(192,57,43,0.25);
+    --green:#25D366;
+    --text:#f5f5f5;
+    --text2:#999;
+    --text3:#555;
   }
-  .nav-avatar:hover{
-    background:rgba(201,150,58,0.2);
-    border-color:#c9963a;
-    transform:translateY(-1px);
-  }
-  .nav-avatar-icon{font-size:0.9rem;}
-  .nav-avatar-placeholder{pointer-events:none;visibility:hidden;}
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
 
-  /* Gallery */
-  .gallery { position: relative; width: 100%; height: clamp(260px, 45vw, 500px); background: #1a2e1a; overflow: hidden; }
-  .gallery-main { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .gallery-placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; color: #4a5a4a; font-size: 3rem; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .fade-up { animation: fadeUp 0.6s cubic-bezier(0.22,1,0.36,1) both; }
+  .fade-up-2 { animation: fadeUp 0.6s 0.1s cubic-bezier(0.22,1,0.36,1) both; }
+  .fade-up-3 { animation: fadeUp 0.6s 0.2s cubic-bezier(0.22,1,0.36,1) both; }
+  .fade-up-4 { animation: fadeUp 0.6s 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+  .fade-in { animation: fadeIn 0.8s ease both; }
+
+  .biz-page { min-height: 100vh; }
+
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 40px;
+    background: rgba(10,10,10,0.8);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    transition: background 0.3s;
+  }
+  .nav.scrolled { background: rgba(10,10,10,0.95); }
+  .nav-logo { font-size: 17px; font-weight: 800; letter-spacing: -0.5px; text-decoration: none; color: var(--text); }
+  .nav-logo span { color: var(--red); }
+  .nav-center {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    font-size: 13px; font-weight: 500; color: var(--text2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;
+  }
+  .nav-right { display: flex; align-items: center; gap: 8px; }
+  .nav-link { font-size: 12px; font-weight: 600; color: var(--text2); text-decoration: none; padding: 6px 14px; border-radius: 8px; transition: color 0.2s; }
+  .nav-link:hover { color: var(--text); }
+  .nav-cta { font-size: 12px; font-weight: 700; color: #fff; text-decoration: none; padding: 7px 16px; border-radius: 8px; background: var(--red); transition: opacity 0.2s; }
+  .nav-cta:hover { opacity: 0.85; }
+  .nav-avatar { width: 32px; height: 32px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; text-decoration: none; color: var(--text2); font-size: 14px; }
+  .nav-avatar:hover { color: var(--red); }
+
+  .gallery {
+    margin-top: 56px; position: relative;
+    height: 70vh; max-height: 560px; min-height: 340px;
+    background: var(--surface2); overflow: hidden; cursor: pointer;
+  }
+  .gallery-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.8s cubic-bezier(0.22,1,0.36,1); }
+  .gallery:hover .gallery-img { transform: scale(1.03); }
+  .gallery-grad {
+    position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(10,10,10,0) 0%, rgba(10,10,10,0) 50%, rgba(10,10,10,0.7) 80%, rgba(10,10,10,1) 100%);
+    pointer-events: none;
+  }
+  .thumb-strip { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+  .thumb { width: 48px; height: 36px; border-radius: 6px; object-fit: cover; cursor: pointer; border: 2px solid transparent; opacity: 0.5; transition: all 0.25s; }
+  .thumb:hover { opacity: 0.8; }
+  .thumb.active { border-color: #fff; opacity: 1; }
+  .photo-count {
+    position: absolute; top: 20px; right: 20px;
+    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(8px); padding: 5px 12px; border-radius: 20px;
+    font-size: 11px; color: rgba(255,255,255,0.6); letter-spacing: 0.5px;
+  }
+  .gallery-placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; color: var(--text3); font-size: 3rem; }
   .gallery-placeholder p { font-size: 0.9rem; }
-  .gallery-arrow { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); border: none; color: #e8ddd0; width: 44px; height: 44px; border-radius: 50%; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; z-index: 5; }
-  .gallery-arrow:hover { background: rgba(201,150,58,0.7); }
-  .gallery-arrow.left { left: 1rem; }
-  .gallery-arrow.right { right: 1rem; }
-  .gallery-dots { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 5; }
-  .gallery-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.4); border: none; cursor: pointer; transition: background 0.2s; }
-  .gallery-dot.active { background: #c9963a; }
-  .gallery-thumbs { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 3px; height: 52px; background: rgba(0,0,0,0.4); z-index: 5; padding: 4px; }
-  .gallery-thumb { height: 100%; aspect-ratio: 1; object-fit: cover; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; border-radius: 4px; }
-  .gallery-thumb.active { opacity: 1; outline: 2px solid #c9963a; }
-  .open-badge { position: absolute; top: 1rem; right: 1rem; padding: 0.4rem 0.85rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; z-index: 5; }
-  .open-badge.open { background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
-  .open-badge.closed { background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
 
-  /* Content layout */
-  .biz-content { max-width: 1200px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 1fr 320px; gap: 2rem; align-items: start; }
-  .biz-main { min-width: 0; }
+  .content {
+    max-width: 1100px; margin: 0 auto;
+    padding: 0 40px 100px;
+    display: grid; grid-template-columns: 1fr 300px; gap: 40px;
+    align-items: start;
+  }
 
-  /* Header */
-  .biz-header { margin-bottom: 1.5rem; }
-  .biz-category-tag { display: inline-block; font-size: 0.72rem; color: #c9963a; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; margin-bottom: 0.5rem; }
-  .biz-name { font-family: 'Playfair Display', serif; font-size: clamp(1.8rem, 4vw, 2.8rem); color: #e8ddd0; line-height: 1.15; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-  .verified-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #c9963a; color: #000d00; border-radius: 50%; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
-  .rating-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
-  .rating-num { font-size: 1rem; font-weight: 600; color: #c9963a; }
-  .rating-count { font-size: 0.82rem; color: #8a9a8a; }
-  .price-pill { display: inline-block; background: rgba(201,150,58,0.1); border: 1px solid rgba(201,150,58,0.25); color: #c9963a; padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500; margin-top: 0.25rem; }
+  .hero-text { padding: 40px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
+  .category-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--red); margin-bottom: 14px; }
+  .biz-name { font-size: 42px; font-weight: 800; letter-spacing: -1.5px; line-height: 1; margin-bottom: 16px; }
+  .meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .meta-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; background: var(--surface2); border: 1px solid var(--border2); color: var(--text2); }
+  .meta-chip.open { color: #27ae60; background: rgba(39,174,96,0.08); border-color: rgba(39,174,96,0.2); }
+  .meta-chip.pro { color: var(--red); background: var(--red-soft); border-color: var(--red-border); }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+  .location-line { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
 
-  /* CTA Buttons */
-  .cta-buttons { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.75rem; }
-  .cta-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; border-radius: 10px; font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 600; text-decoration: none; transition: transform 0.15s, box-shadow 0.2s; cursor: pointer; border: none; }
-  .cta-btn:hover { transform: translateY(-2px); }
-  .cta-btn.call { background: linear-gradient(135deg, #c9963a, #a07020); color: #000d00; box-shadow: 0 4px 16px rgba(201,150,58,0.3); }
-  .cta-btn.call:hover { box-shadow: 0 8px 24px rgba(201,150,58,0.4); }
-  .cta-btn.whatsapp { background: #25d366; color: white; }
-  .cta-btn.whatsapp:hover { box-shadow: 0 8px 24px rgba(37,211,102,0.3); }
-  .cta-btn.website { background: rgba(255,255,255,0.06); border: 1px solid rgba(201,150,58,0.2); color: #e8ddd0; }
+  .mobile-cta { display: none; gap: 10px; margin-bottom: 32px; }
+  .m-call, .m-wa { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 12px; font-size: 13px; font-weight: 700; text-decoration: none; border: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: opacity 0.2s; }
+  .m-call { background: var(--red); color: #fff; }
+  .m-wa { background: var(--green); color: #fff; }
+  .m-call:hover, .m-wa:hover { opacity: 0.85; }
 
-  /* Info cards */
-  .info-cards { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2rem; }
-  .info-card { display: flex; gap: 1rem; align-items: flex-start; background: rgba(26,46,26,0.6); border: 1px solid rgba(201,150,58,0.08); border-radius: 12px; padding: 1rem 1.25rem; }
-  .info-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 2px; }
-  .info-label { font-size: 0.72rem; color: #c9963a; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; margin-bottom: 0.3rem; }
-  .info-value { font-size: 0.9rem; color: #e8ddd0; line-height: 1.5; }
-  .maps-link { display: inline-block; margin-top: 0.4rem; font-size: 0.8rem; color: #c9963a; text-decoration: none; }
-  .maps-link:hover { text-decoration: underline; }
-  .open-inline { font-size: 0.78rem; margin-top: 0.35rem; font-weight: 500; }
-  .open-inline.open { color: #4ade80; }
-  .open-inline.closed { color: #f87171; }
+  .vibe-row { display: flex; flex-wrap: wrap; gap: 7px; padding: 28px 0; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
+  .vibe { padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: 500; background: transparent; border: 1px solid var(--border2); color: var(--text2); cursor: default; transition: all 0.2s; }
+  .vibe:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
 
-  /* Sections */
-  .section { margin-bottom: 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(201,150,58,0.08); }
-  .section-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: #e8ddd0; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem; }
-  .avg-rating-badge { font-family: 'Outfit', sans-serif; font-size: 0.82rem; background: rgba(201,150,58,0.12); color: #c9963a; padding: 0.2rem 0.6rem; border-radius: 20px; }
-  .biz-desc { color: rgba(232,221,208,0.7); font-size: 0.93rem; line-height: 1.75; }
+  .info-blocks { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 36px; }
+  .info-block { background: var(--surface); padding: 22px 24px; transition: background 0.2s; }
+  .info-block:hover { background: var(--surface2); }
+  .info-block.full { grid-column: 1 / -1; }
+  .ib-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 8px; }
+  .ib-value { font-size: 15px; font-weight: 600; color: var(--text); }
+  .ib-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
+  .ib-link { font-size: 12px; color: var(--red); text-decoration: none; font-weight: 600; margin-top: 6px; display: inline-block; transition: opacity 0.2s; }
+  .ib-link:hover { opacity: 0.7; }
+  .open-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #27ae60; margin-top: 6px; }
+  .open-tag.closed { color: var(--text2); }
 
-  /* Amenities */
-  .amenities-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .amenity-chip { background: rgba(201,150,58,0.08); border: 1px solid rgba(201,150,58,0.2); color: #c9963a; padding: 0.35rem 0.85rem; border-radius: 8px; font-size: 0.8rem; }
+  .section { margin-bottom: 40px; }
+  .section-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); margin-bottom: 16px; }
+  .about-text { font-size: 15px; line-height: 1.85; color: var(--text2); font-weight: 300; }
 
-  /* Tags */
-  .tags-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .tag-chip { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #8a9a8a; padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.78rem; }
+  .features { display: flex; flex-wrap: wrap; gap: 8px; }
+  .feature { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: 10px; font-size: 12px; font-weight: 500; background: var(--surface); border: 1px solid var(--border); color: var(--text2); }
+  .feature.yes { color: var(--text); }
+  .feature.no { opacity: 0.3; text-decoration: line-through; }
 
-  /* Menu */
-  .menu-btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.85rem 1.5rem; background: rgba(201,150,58,0.08); border: 1px solid rgba(201,150,58,0.25); color: #c9963a; text-decoration: none; border-radius: 10px; font-size: 0.9rem; transition: background 0.2s; }
-  .menu-btn:hover { background: rgba(201,150,58,0.15); }
-  .menu-img-wrap { position: relative; }
+  .reviews-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .rating-display { display: flex; align-items: baseline; gap: 10px; }
+  .rating-num { font-size: 48px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+  .rating-stars { font-size: 14px; letter-spacing: 2px; margin-bottom: 3px; }
+  .rating-count { font-size: 11px; color: var(--text3); }
+  .write-review-btn { font-size: 12px; font-weight: 600; padding: 8px 18px; border-radius: 8px; background: transparent; color: var(--text2); border: 1px solid var(--border2); cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; }
+  .write-review-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
+  .review-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; display: none; }
+  .review-form.show { display: block; animation: fadeUp 0.3s ease both; }
+  .rf-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 12px; }
+  .star-row { display: flex; gap: 8px; margin-bottom: 18px; }
+  .star-pick { font-size: 28px; cursor: pointer; transition: transform 0.15s; background: none; border: none; line-height: 1; }
+  .star-pick:hover { transform: scale(1.15); }
+  .rf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .rf-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; outline: none; transition: border-color 0.2s; }
+  .rf-input:focus { border-color: rgba(255,255,255,0.2); }
+  .rf-textarea { resize: none; height: 90px; }
+  .rf-submit { width: 100%; padding: 13px; background: var(--red); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: 'Sora', sans-serif; margin-top: 4px; transition: opacity 0.2s; }
+  .rf-submit:hover:not(:disabled) { opacity: 0.85; }
+  .rf-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .review-success { background: rgba(39,174,96,0.1); border: 1px solid rgba(39,174,96,0.2); color: #27ae60; padding: 12px; border-radius: 10px; margin-bottom: 16px; }
+
+  .review-card { padding: 20px 0; border-bottom: 1px solid var(--border); }
+  .review-card:last-child { border-bottom: none; }
+  .rc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .rc-name { font-size: 13px; font-weight: 600; }
+  .rc-date { font-size: 11px; color: var(--text3); }
+  .rc-stars { font-size: 12px; letter-spacing: 2px; margin-bottom: 8px; }
+  .rc-text { font-size: 13px; color: var(--text2); line-height: 1.7; font-weight: 300; }
+  .no-reviews { padding: 40px 0; text-align: center; color: var(--text3); font-size: 13px; }
+
+  .menu-img-wrap { margin-top: 8px; }
   .menu-img { width: 100%; border-radius: 12px; cursor: pointer; max-height: 300px; object-fit: cover; transition: max-height 0.4s ease; }
   .menu-img.expanded { max-height: none; }
-  .menu-expand-btn { width: 100%; margin-top: 0.5rem; padding: 0.6rem; background: rgba(201,150,58,0.08); border: 1px solid rgba(201,150,58,0.2); color: #c9963a; border-radius: 8px; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 0.82rem; }
+  .menu-expand-btn { width: 100%; margin-top: 8px; padding: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text2); font-family: 'Sora', sans-serif; font-size: 12px; cursor: pointer; }
 
-  /* Reviews */
-  .review-form { background: rgba(26,46,26,0.6); border: 1px solid rgba(201,150,58,0.12); border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem; }
-  .review-form-title { font-size: 0.85rem; color: #c9963a; font-weight: 600; margin-bottom: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; }
-  .star-select { display: flex; align-items: center; gap: 4px; margin-bottom: 0.75rem; }
-  .star-btn { background: none; border: none; cursor: pointer; padding: 2px; transition: transform 0.1s; }
-  .star-btn:hover { transform: scale(1.15); }
-  .star-label { font-size: 0.82rem; color: #c9963a; margin-left: 0.5rem; min-width: 70px; }
-  .review-input, .review-textarea { width: 100%; padding: 0.7rem 0.9rem; background: rgba(0,0,0,0.3); border: 1.5px solid rgba(201,150,58,0.15); border-radius: 8px; color: #e8ddd0; font-family: 'Outfit', sans-serif; font-size: 0.88rem; outline: none; margin-bottom: 0.6rem; transition: border-color 0.2s; }
-  .review-input::placeholder, .review-textarea::placeholder { color: #3a4a3a; }
-  .review-input:focus, .review-textarea:focus { border-color: #c9963a; }
-  .review-textarea { resize: vertical; min-height: 80px; }
-  .review-submit { width: 100%; padding: 0.75rem; background: linear-gradient(135deg, #c9963a, #a07020); border: none; border-radius: 8px; color: #000d00; font-family: 'Outfit', sans-serif; font-size: 0.92rem; font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.15s; }
-  .review-submit:hover:not(:disabled) { transform: translateY(-1px); }
-  .review-submit:disabled { opacity: 0.45; cursor: not-allowed; }
-  .review-success { background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.2); color: #4ade80; padding: 1rem; border-radius: 10px; text-align: center; margin-bottom: 1.5rem; }
-  .reviews-list { display: flex; flex-direction: column; gap: 0.75rem; }
-  .review-card { background: rgba(26,46,26,0.5); border: 1px solid rgba(201,150,58,0.08); border-radius: 12px; padding: 1rem 1.25rem; }
-  .review-top { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.6rem; }
-  .reviewer-avatar { width: 36px; height: 36px; border-radius: 50%; background: rgba(201,150,58,0.2); color: #c9963a; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
-  .reviewer-name { font-size: 0.88rem; font-weight: 600; color: #e8ddd0; margin-bottom: 3px; }
-  .review-date { margin-left: auto; font-size: 0.75rem; color: #6a7a6a; white-space: nowrap; }
-  .review-comment { font-size: 0.87rem; color: rgba(232,221,208,0.7); line-height: 1.6; }
-  .no-reviews { color: #6a7a6a; font-size: 0.88rem; font-style: italic; }
+  .sidebar { position: sticky; top: 76px; }
+  .sidebar-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 14px; overflow: hidden; }
+  .sc-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); margin-bottom: 16px; }
+  .btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border-radius: 12px; background: var(--red); color: #fff; font-size: 13px; font-weight: 700; text-decoration: none; border: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: opacity 0.2s; margin-bottom: 8px; letter-spacing: 0.2px; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-wa { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border-radius: 12px; background: #1a3d24; color: #25D366; border: 1px solid rgba(37,211,102,0.2); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; margin-bottom: 8px; }
+  .btn-wa:hover { background: #1f4a2c; }
+  .btn-ghost { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border-radius: 12px; background: transparent; color: var(--text2); border: 1px solid var(--border); font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; }
+  .btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+  .sc-divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .sc-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 12px; color: var(--text2); }
+  .sc-icon { width: 28px; height: 28px; border-radius: 8px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .sc-val a { color: var(--text2); text-decoration: none; transition: color 0.2s; }
+  .sc-val a:hover { color: var(--red); }
 
-  /* Sidebar */
-  .biz-sidebar { position: sticky; top: 80px; display: flex; flex-direction: column; gap: 1rem; }
-  .sidebar-card { background: linear-gradient(145deg, #1a2e1a, #152515); border: 1px solid rgba(201,150,58,0.12); border-radius: 14px; padding: 1.25rem; }
-  .sidebar-title { font-size: 0.72rem; color: #c9963a; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; margin-bottom: 0.85rem; }
-  .sidebar-cta { display: block; padding: 0.7rem 1rem; border-radius: 8px; text-decoration: none; font-size: 0.87rem; font-weight: 500; text-align: center; margin-bottom: 0.5rem; transition: transform 0.15s, opacity 0.2s; }
-  .sidebar-cta:hover { transform: translateY(-1px); }
-  .sidebar-cta.call { background: linear-gradient(135deg, #c9963a, #a07020); color: #000d00; font-weight: 700; }
-  .sidebar-cta.whatsapp { background: #25d366; color: white; }
-  .sidebar-cta.email { background: rgba(255,255,255,0.05); border: 1px solid rgba(201,150,58,0.2); color: #e8ddd0; }
-  .sidebar-cta.maps { background: rgba(255,255,255,0.05); border: 1px solid rgba(201,150,58,0.2); color: #e8ddd0; margin-top: 0.5rem; }
-  .sidebar-price { font-size: 1rem; color: #c9963a; font-weight: 600; }
-  .sidebar-location { font-size: 0.88rem; color: #e8ddd0; margin-bottom: 0.25rem; }
-  .sidebar-landmark { font-size: 0.8rem; color: #8a9a8a; margin-bottom: 0.25rem; }
-  .sidebar-city { font-size: 0.8rem; color: #c9963a; margin-bottom: 0.5rem; }
-  .share-buttons { display: flex; gap: 0.5rem; }
-  .share-btn { flex: 1; padding: 0.6rem; border-radius: 8px; text-decoration: none; font-size: 0.8rem; font-weight: 600; text-align: center; cursor: pointer; border: none; font-family: 'Outfit', sans-serif; transition: opacity 0.2s; }
-  .share-btn.wa { background: #25d366; color: white; }
-  .share-btn.copy { background: rgba(255,255,255,0.06); border: 1px solid rgba(201,150,58,0.2); color: #c9963a; }
+  .map-box { background: var(--surface2); border-radius: 10px; height: 110px; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 14px; border: 1px solid var(--border); cursor: pointer; transition: border-color 0.2s; overflow: hidden; position: relative; }
+  .map-box:hover { border-color: var(--border2); }
+  .map-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 20px 20px; }
+  .map-pin { font-size: 28px; position: relative; z-index: 1; }
+  .loc-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .loc-sub { font-size: 11px; color: var(--text2); margin-bottom: 12px; }
 
-  /* Mobile sticky */
-  .mobile-sticky { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; padding: 0.75rem 1rem; background: rgba(13,26,13,0.97); border-top: 1px solid rgba(201,150,58,0.15); gap: 0.75rem; }
-  .sticky-call { flex: 1; padding: 0.85rem; background: linear-gradient(135deg, #c9963a, #a07020); color: #000d00; text-decoration: none; border-radius: 10px; text-align: center; font-weight: 700; font-size: 0.95rem; }
-  .sticky-whatsapp { flex: 1; padding: 0.85rem; background: #25d366; color: white; text-decoration: none; border-radius: 10px; text-align: center; font-weight: 700; font-size: 0.95rem; }
+  .share-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .share-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border-radius: 10px; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; text-decoration: none; }
+  .share-btn:hover { border-color: var(--border2); color: var(--text); }
 
-  /* Loading */
-  .loading-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 1rem; color: #8a9a8a; }
+  .claim-card { background: var(--surface); border: 1px solid var(--border); border-left: 2px solid var(--red); border-radius: 16px; padding: 20px; margin-bottom: 14px; }
+  .claim-title { font-size: 13px; font-weight: 700; margin-bottom: 5px; }
+  .claim-sub { font-size: 11px; color: var(--text2); line-height: 1.6; margin-bottom: 14px; }
+  .claim-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 10px; border-radius: 10px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-border); font-size: 12px; font-weight: 700; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; text-decoration: none; }
+  .claim-btn:hover { background: var(--red); color: #fff; border-color: var(--red); }
+
+  .loading-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 1rem; color: var(--text2); }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-spinner { width: 40px; height: 40px; border: 3px solid rgba(201,150,58,0.2); border-top-color: #c9963a; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  .loading-spinner { width: 40px; height: 40px; border: 3px solid var(--border2); border-top-color: var(--red); border-radius: 50%; animation: spin 0.8s linear infinite; }
 
   @media (max-width: 900px) {
-    .biz-content { grid-template-columns: 1fr; padding: 1.25rem; }
-    .biz-sidebar { position: static; }
-    .mobile-sticky { display: flex; }
-    .biz-page { padding-bottom: 90px; }
-    .cta-buttons { display: none; }
-    .biz-nav { padding: 0.9rem 1.25rem; }
-  }
-  @media (max-width: 480px) {
-    .biz-name { font-size: 1.6rem; }
-    .info-card { padding: 0.85rem 1rem; }
+    .content { grid-template-columns: 1fr; padding: 0 20px 80px; }
+    .sidebar { display: none; }
+    .mobile-cta { display: flex; }
+    .biz-name { font-size: 30px; }
+    .gallery { height: 50vw; min-height: 220px; }
+    .info-blocks { grid-template-columns: 1fr; }
+    .rf-grid { grid-template-columns: 1fr; }
+    .nav { padding: 0 20px; }
+    .nav-center { display: none; }
   }
 `;
 
