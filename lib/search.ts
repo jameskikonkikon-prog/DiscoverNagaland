@@ -397,11 +397,14 @@ export async function searchBusinesses(
     );
     console.log('[search] Fallback (no keywords): query=', cleanQuery, 'results=', businesses.length);
   } else {
-    // Expand keywords with category synonyms so e.g. "cafe" → "Cafés" and ilike on category matches
+    // Keep original terms; add category synonyms (never replace — so "football" stays and we add "Turfs & Sports")
     const categoryIntent = getCategoryIntent(cleanQuery);
-    const searchTerms = categoryIntent
-      ? [...new Set([...keywords, ...categoryIntent])]
-      : keywords;
+    const searchTerms = [...keywords];
+    if (categoryIntent) {
+      categoryIntent.forEach(cat => {
+        if (!searchTerms.some(t => t.toLowerCase() === cat.toLowerCase())) searchTerms.push(cat);
+      });
+    }
     // Add individual words from original query (3+ chars, not already in array)
     const individualWords = cleanQuery.split(/\s+/).filter(w => w.length >= 3);
     individualWords.forEach(w => {
@@ -443,7 +446,8 @@ export async function searchBusinesses(
     const kw2 = shortened2.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
     const kw3 = shortened3.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
     if (shortened2 !== cleanQuery && kw2.length > 0) {
-      const terms2 = categoryIntent ? [...new Set([...kw2, ...categoryIntent])] : kw2;
+      const terms2 = [...kw2];
+      if (categoryIntent) categoryIntent.forEach(cat => { if (!terms2.some(t => t.toLowerCase() === cat.toLowerCase())) terms2.push(cat); });
       const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms2);
       let filtered = fallback;
       if (conditions.length > 0 || priceCondition) {
@@ -457,7 +461,8 @@ export async function searchBusinesses(
       }
     }
     if (candidates.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortenSearchQuery(cleanQuery, 2) && kw3.length > 0) {
-      const terms3 = categoryIntent ? [...new Set([...kw3, ...categoryIntent])] : kw3;
+      const terms3 = [...kw3];
+      if (categoryIntent) categoryIntent.forEach(cat => { if (!terms3.some(t => t.toLowerCase() === cat.toLowerCase())) terms3.push(cat); });
       const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms3);
       let filtered = fallback;
       if (conditions.length > 0 || priceCondition) {
