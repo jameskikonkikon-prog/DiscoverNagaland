@@ -397,13 +397,18 @@ export async function searchBusinesses(
     );
     console.log('[search] Fallback (no keywords): query=', cleanQuery, 'results=', businesses.length);
   } else {
-    // Build search terms: full phrase + individual words (3+ chars)
-    const searchTerms = [cleanQuery.trim()];
-    const words = cleanQuery.trim().split(/\s+/).filter(w => w.length >= 3);
-    words.forEach(w => {
-      if (!searchTerms.includes(w)) searchTerms.push(w);
+    // Expand keywords with category synonyms so e.g. "cafe" → "Cafés" and ilike on category matches
+    const categoryIntent = getCategoryIntent(cleanQuery);
+    const searchTerms = categoryIntent
+      ? [...new Set([...keywords, ...categoryIntent])]
+      : keywords;
+    // Add individual words from original query (3+ chars, not already in array)
+    const individualWords = cleanQuery.split(/\s+/).filter(w => w.length >= 3);
+    individualWords.forEach(w => {
+      if (!searchTerms.some(t => t.toLowerCase() === w.toLowerCase())) {
+        searchTerms.push(w);
+      }
     });
-    // searchTerms for "football boots" = ["football boots", "football", "boots"]
     businesses = await fetchBusinessesWithFilter(serviceClient, activeCity, searchTerms);
   }
 
@@ -423,6 +428,14 @@ export async function searchBusinesses(
 
   let candidates: Business[] = conditionFiltered;
 
+  const categoryIntent = getCategoryIntent(cleanQuery);
+  if (categoryIntent && candidates.length > 0) {
+    const categoryFiltered = filterByCategoryIntent(candidates, categoryIntent);
+    if (categoryFiltered.length > 0) {
+      candidates = categoryFiltered;
+    }
+  }
+
   let correctedQuery: string | undefined;
   if (candidates.length === 0 && keywords.length > 0 && cleanQuery.length >= MIN_QUERY_LEN) {
     const shortened2 = shortenSearchQuery(cleanQuery, 2);
@@ -430,34 +443,30 @@ export async function searchBusinesses(
     const kw2 = shortened2.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
     const kw3 = shortened3.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
     if (shortened2 !== cleanQuery && kw2.length > 0) {
-      const terms2 = [shortened2.trim()];
-      shortened2.trim().split(/\s+/).filter(w => w.length >= 3).forEach(w => {
-        if (!terms2.includes(w)) terms2.push(w);
-      });
+      const terms2 = categoryIntent ? [...new Set([...kw2, ...categoryIntent])] : kw2;
       const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms2);
       let filtered = fallback;
       if (conditions.length > 0 || priceCondition) {
         const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
         if (strict.length > 0) filtered = strict;
       }
-      if (filtered.length > 0) {
-        candidates = filtered;
+      const withIntent = categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      if (withIntent.length > 0) {
+        candidates = withIntent;
         correctedQuery = shortened2;
       }
     }
     if (candidates.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortenSearchQuery(cleanQuery, 2) && kw3.length > 0) {
-      const terms3 = [shortened3.trim()];
-      shortened3.trim().split(/\s+/).filter(w => w.length >= 3).forEach(w => {
-        if (!terms3.includes(w)) terms3.push(w);
-      });
+      const terms3 = categoryIntent ? [...new Set([...kw3, ...categoryIntent])] : kw3;
       const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms3);
       let filtered = fallback;
       if (conditions.length > 0 || priceCondition) {
         const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
         if (strict.length > 0) filtered = strict;
       }
-      if (filtered.length > 0) {
-        candidates = filtered;
+      const withIntent = categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      if (withIntent.length > 0) {
+        candidates = withIntent;
         correctedQuery = shortened3;
       }
     }
