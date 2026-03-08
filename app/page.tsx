@@ -38,15 +38,6 @@ const NAV_QUICK = [
   { label: 'Sports', query: 'Football turf and sports Dimapur' },
 ];
 
-const TRENDING = [
-  { label: 'Girls PG · 4th Mile', query: 'Girls PG near 4th Mile Dimapur under Rs.4000', count: '↑ Hot', hot: true },
-  { label: 'Gym with trainer', query: 'Gym with personal trainer Dimapur', count: '132 searches', hot: false },
-  { label: 'Turf · Weekend', query: 'Football turf weekend Dimapur', count: '98 searches', hot: false },
-  { label: 'Study library', query: 'Study space library Dimapur', count: '87 searches', hot: false },
-  { label: 'Café · WiFi · NST', query: 'Café WiFi NST Colony Dimapur', count: '61 searches', hot: false },
-  { label: 'Hotels · Kisama', query: 'Hotels near Kisama Hornbill Festival', count: '54 searches', hot: false },
-];
-
 const CATEGORY_EMOJI: Record<string, string> = {
   restaurant: '🍽️', cafe: '☕', hotel: '🏨', pg: '🏠', hostel: '🏠',
   rental: '🏡', gym: '💪', turf: '⚽', shop: '🛍️', salon: '💇',
@@ -67,6 +58,7 @@ type Business = {
   name: string;
   category: string;
   city: string;
+  area?: string | null;
   description?: string;
   photos?: string[];
   created_at: string;
@@ -75,14 +67,20 @@ type Business = {
   phone?: string;
   whatsapp?: string;
   price_range?: string;
+  rating?: number | null;
 };
+
+type CategoryCount = { category: string; count: number };
 
 export default function HomePage() {
   const [query, setQuery] = useState('');
   const [placeholder, setPlaceholder] = useState(ROTATING_PLACEHOLDERS[0]);
   const [featuredBusinesses, setFeaturedBusinesses] = useState<Business[]>([]);
   const [recentBusinesses, setRecentBusinesses] = useState<Business[]>([]);
+  const [categories, setCategories] = useState<CategoryCount[]>([]);
   const [totalBusinesses, setTotalBusinesses] = useState(0);
+  const [totalCities, setTotalCities] = useState(0);
+  const [totalCategories, setTotalCategories] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const placeholderIndex = useRef(0);
@@ -108,42 +106,83 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    async function fetchBusinesses() {
-      const { data: plusBiz } = await supabase
+    async function fetchData() {
+      let featuredList: Business[] = [];
+      const { data: featuredRows, error: featuredErr } = await supabase
         .from('businesses')
-        .select('*')
+        .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
         .eq('is_active', true)
-        .eq('plan', 'plus')
+        .eq('featured', true)
         .order('created_at', { ascending: false })
-        .limit(4);
+        .limit(8);
+      if (!featuredErr && featuredRows?.length) {
+        featuredList = featuredRows as Business[];
+      } else {
+        const { data: planRows } = await supabase
+          .from('businesses')
+          .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
+          .eq('is_active', true)
+          .in('plan', ['plus', 'pro'])
+          .order('created_at', { ascending: false })
+          .limit(8);
+        featuredList = (planRows || []) as Business[];
+      }
+      const featuredIds = featuredList.map((b) => b.id);
 
-      const { data: proBiz } = await supabase
-        .from('businesses')
-        .select('*')
-        .eq('is_active', true)
-        .eq('plan', 'pro')
-        .order('created_at', { ascending: false })
-        .limit(4);
+      let ratingsByBiz: Record<string, number> = {};
+      if (featuredIds.length > 0) {
+        const { data: reviews } = await supabase
+          .from('reviews')
+          .select('business_id, rating')
+          .in('business_id', featuredIds);
+        if (reviews?.length) {
+          const sumCount: Record<string, { sum: number; n: number }> = {};
+          reviews.forEach((r: { business_id: string; rating: number }) => {
+            if (!sumCount[r.business_id]) sumCount[r.business_id] = { sum: 0, n: 0 };
+            sumCount[r.business_id].sum += r.rating;
+            sumCount[r.business_id].n += 1;
+          });
+          ratingsByBiz = Object.fromEntries(
+            Object.entries(sumCount).map(([id, { sum, n }]) => [id, Math.round((sum / n) * 10) / 10])
+          );
+        }
+      }
 
-      const featured = [...(plusBiz || []), ...(proBiz || [])].slice(0, 4);
+      const featuredWithRating = featuredList.map((b) => ({
+        ...b,
+        rating: ratingsByBiz[b.id] ?? null,
+      }));
+      setFeaturedBusinesses(featuredWithRating);
 
       const { data: recent } = await supabase
         .from('businesses')
-        .select('*')
+        .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(6);
+      setRecentBusinesses((recent || []) as Business[]);
 
-      const { count } = await supabase
+      const { data: allActive } = await supabase
         .from('businesses')
-        .select('*', { count: 'exact', head: true })
+        .select('category, city')
         .eq('is_active', true);
 
-      setFeaturedBusinesses(featured);
-      setRecentBusinesses(recent || []);
-      setTotalBusinesses(count || 0);
+      const list = allActive || [];
+      setTotalBusinesses(list.length);
+      setTotalCities(new Set(list.map((r: { city: string }) => r.city)).size);
+      setTotalCategories(new Set(list.map((r: { category: string }) => r.category)).size);
+
+      const categoryCounts: Record<string, number> = {};
+      list.forEach((r: { category: string }) => {
+        categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1;
+      });
+      setCategories(
+        Object.entries(categoryCounts)
+          .map(([category, count]) => ({ category, count }))
+          .sort((a, b) => b.count - a.count)
+      );
     }
-    fetchBusinesses();
+    fetchData();
   }, []);
 
   useEffect(() => {
@@ -300,66 +339,53 @@ export default function HomePage() {
             <button className="sec-more" onClick={() => quickSearch('featured businesses Nagaland')}>See all →</button>
           </div>
           <div className="featured-grid">
-            {featuredBusinesses.length > 0 ? (
-              featuredBusinesses.map((biz, i) => (
-                <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}`}>
-                  <div className="feat-photo">
-                    {biz.photos && biz.photos[0] ? (
-                      <>
-                        <img src={biz.photos[0]} alt={biz.name} />
-                        <div className="feat-photo-overlay" />
-                      </>
-                    ) : (
-                      getCategoryEmoji(biz.category)
-                    )}
-                  </div>
-                  <div className="feat-body">
-                    <div className="feat-name">{biz.name}</div>
-                    <div className="feat-detail">{biz.city} · {biz.category}</div>
-                    <span className={`feat-tag ${getTagClass(i)}`}>
-                      {biz.price_range || (biz.plan === 'plus' ? '⭐ Featured' : biz.is_verified ? '✓ Verified' : biz.category)}
-                    </span>
-                  </div>
-                </a>
-              ))
-            ) : (
-              /* Static placeholders when no businesses yet */
-              <>
-                <div className="feat red" onClick={() => quickSearch('Girls PG near 4th Mile under Rs.4500')}>
-                  <div className="feat-photo">🏠</div>
-                  <div className="feat-body">
-                    <div className="feat-name">Vanessa PG for Girls</div>
-                    <div className="feat-detail">4th Mile · Near JN Aier College</div>
-                    <span className="feat-tag tag-red">Rs.3,800–4,800/mo</span>
-                  </div>
+            {featuredBusinesses.map((biz, i) => (
+              <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}`}>
+                <div className="feat-photo">
+                  {biz.photos && biz.photos[0] ? (
+                    <>
+                      <img src={biz.photos[0]} alt={biz.name} />
+                      <div className="feat-photo-overlay" />
+                    </>
+                  ) : (
+                    getCategoryEmoji(biz.category)
+                  )}
                 </div>
-                <div className="feat gold" onClick={() => quickSearch('Nexus Gym Signal Angami Dimapur trainer')}>
-                  <div className="feat-photo">💪</div>
-                  <div className="feat-body">
-                    <div className="feat-name">Nexus Gym</div>
-                    <div className="feat-detail">Signal Angami · Best trainers</div>
-                    <span className="feat-tag tag-gold">Rs.800–1,200/mo</span>
+                <div className="feat-body">
+                  <div className="feat-name">{biz.name}</div>
+                  <div className="feat-detail">
+                    {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {biz.category}
                   </div>
+                  <span className={`feat-tag ${getTagClass(i)}`}>
+                    {biz.rating != null ? `⭐ ${biz.rating}` : biz.price_range || (biz.is_verified ? '✓ Verified' : biz.category)}
+                  </span>
                 </div>
-                <div className="feat green" onClick={() => quickSearch('Amazing Turf Burma Camp Dimapur football')}>
-                  <div className="feat-photo">⚽</div>
-                  <div className="feat-body">
-                    <div className="feat-name">Amazing Turf</div>
-                    <div className="feat-detail">Burma Camp · Largest in Dimapur</div>
-                    <span className="feat-tag tag-green">Rs.800–1,200/hr</span>
-                  </div>
-                </div>
-                <div className="feat dim" onClick={() => quickSearch('April Studio Café WiFi study Dimapur')}>
-                  <div className="feat-photo">☕</div>
-                  <div className="feat-body">
-                    <div className="feat-name">April Studio Café</div>
-                    <div className="feat-detail">NH-29 Padum Pukhuri · WiFi</div>
-                    <span className="feat-tag tag-dim">Study-friendly</span>
-                  </div>
-                </div>
-              </>
-            )}
+              </a>
+            ))}
           </div>
+
+          {/* CATEGORIES */}
+          {categories.length > 0 && (
+            <>
+              <div className="sec-head">
+                <span className="sec-title">Categories</span>
+                <button className="sec-more" onClick={() => quickSearch('')}>Browse all →</button>
+              </div>
+              <div className="categories-wrap">
+                {categories.map(({ category, count }) => (
+                  <button
+                    key={category}
+                    className="category-chip"
+                    onClick={() => quickSearch(category)}
+                  >
+                    <span className="category-emoji">{getCategoryEmoji(category)}</span>
+                    <span className="category-name">{category}</span>
+                    <span className="category-count">{count}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* RECENTLY LISTED */}
           <div className="sec-head">
@@ -367,71 +393,28 @@ export default function HomePage() {
             <button className="sec-more" onClick={() => quickSearch('new businesses Nagaland')}>View all →</button>
           </div>
           <div className="recent-list">
-            {recentBusinesses.length > 0 ? (
-              recentBusinesses.map((biz) => {
-                const badge = getRecentBadge(biz);
-                return (
-                  <a key={biz.id} href={`/business/${biz.id}`} className="recent">
-                    <div className="recent-photo">
-                      {biz.photos && biz.photos[0] ? (
-                        <img src={biz.photos[0]} alt={biz.name} />
-                      ) : (
-                        getCategoryEmoji(biz.category)
-                      )}
+            {recentBusinesses.map((biz) => {
+              const badge = getRecentBadge(biz);
+              return (
+                <a key={biz.id} href={`/business/${biz.id}`} className="recent">
+                  <div className="recent-photo">
+                    {biz.photos && biz.photos[0] ? (
+                      <img src={biz.photos[0]} alt={biz.name} />
+                    ) : (
+                      getCategoryEmoji(biz.category)
+                    )}
+                  </div>
+                  <div className="recent-info">
+                    <div className="recent-name">{biz.name}</div>
+                    <div className="recent-meta">
+                      {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {biz.category}
+                      {biz.price_range ? ` · ${biz.price_range}` : ''}
                     </div>
-                    <div className="recent-info">
-                      <div className="recent-name">{biz.name}</div>
-                      <div className="recent-meta">{biz.city} · {biz.category}{biz.price_range ? ` · ${biz.price_range}` : ''}</div>
-                    </div>
-                    <span className={`rbadge ${badge.cls}`}>{badge.label}</span>
-                  </a>
-                );
-              })
-            ) : (
-              /* Static placeholders when no businesses yet */
-              <>
-                <div className="recent" onClick={() => quickSearch('Library 360 study space 4th Mile Dimapur')}>
-                  <div className="recent-photo">📚</div>
-                  <div className="recent-info">
-                    <div className="recent-name">Library 360 Study Space</div>
-                    <div className="recent-meta">Diphupar 4th Mile · Rs.600–900/month</div>
                   </div>
-                  <span className="rbadge r-new">NEW</span>
-                </div>
-                <div className="recent" onClick={() => quickSearch('Kuda Futsal Arena indoor Dimapur')}>
-                  <div className="recent-photo">⚽</div>
-                  <div className="recent-info">
-                    <div className="recent-name">Kuda Futsal Arena</div>
-                    <div className="recent-meta">Kuda Village · Indoor futsal · Rs.600–900/hr</div>
-                  </div>
-                  <span className="rbadge r-new">NEW</span>
-                </div>
-                <div className="recent" onClick={() => quickSearch('Aurora Girls Hostel Nutun Bosti Dimapur')}>
-                  <div className="recent-photo">🏠</div>
-                  <div className="recent-info">
-                    <div className="recent-name">Aurora Girls Hostel</div>
-                    <div className="recent-meta">Nutun Bosti, Churches Colony · Rs.4,000–5,500/mo</div>
-                  </div>
-                  <span className="rbadge r-hot">POPULAR</span>
-                </div>
-                <div className="recent" onClick={() => quickSearch('Bodycraft Gym Notun Bosti Dimapur')}>
-                  <div className="recent-photo">💪</div>
-                  <div className="recent-info">
-                    <div className="recent-name">Bodycraft Gym</div>
-                    <div className="recent-meta">Notun Bosti, Tajen Ao Rd · Rs.800–1,200/month</div>
-                  </div>
-                  <span className="rbadge r-verified">✓ Verified</span>
-                </div>
-                <div className="recent" onClick={() => quickSearch('Lungta Café NST Colony Dimapur WiFi late night')}>
-                  <div className="recent-photo">☕</div>
-                  <div className="recent-info">
-                    <div className="recent-name">Lungta Café</div>
-                    <div className="recent-meta">Circular Rd, NST Colony · Open late · WiFi</div>
-                  </div>
-                  <span className="rbadge r-new">NEW</span>
-                </div>
-              </>
-            )}
+                  <span className={`rbadge ${badge.cls}`}>{badge.label}</span>
+                </a>
+              );
+            })}
           </div>
         </div>
 
@@ -439,31 +422,22 @@ export default function HomePage() {
         <div className="sidebar">
           {/* LIVE STATS */}
           <div className="sec-head"><span className="sec-title">Platform stats</span></div>
-          <div className="live-row"><div className="live-dot" />Updated live</div>
-          <div className="stats-grid">
+          <div className="live-row"><div className="live-dot" />From Supabase</div>
+          <div className="stats-grid stats-three">
             <div className="stat s1">
               <div className="stat-icon">🏪</div>
-              <div className="stat-val gold">{totalBusinesses || 56}</div>
+              <div className="stat-val gold">{totalBusinesses}</div>
               <div className="stat-lbl">Businesses listed</div>
-              <div className="stat-change up">+3 this week</div>
             </div>
             <div className="stat s2">
-              <div className="stat-icon">👥</div>
-              <div className="stat-val red">247</div>
-              <div className="stat-lbl">Daily active users</div>
-              <div className="stat-change up">↑ +18 today</div>
+              <div className="stat-icon">📍</div>
+              <div className="stat-val red">{totalCities}</div>
+              <div className="stat-lbl">Cities</div>
             </div>
             <div className="stat s3">
-              <div className="stat-icon">🔍</div>
-              <div className="stat-val grn">1,240</div>
-              <div className="stat-lbl">Searches today</div>
-              <div className="stat-change up">↑ Growing</div>
-            </div>
-            <div className="stat s4">
-              <div className="stat-icon">💬</div>
-              <div className="stat-val">389</div>
-              <div className="stat-lbl">WhatsApp connects</div>
-              <div className="stat-change up">↑ This week</div>
+              <div className="stat-icon">📂</div>
+              <div className="stat-val grn">{totalCategories}</div>
+              <div className="stat-lbl">Categories</div>
             </div>
           </div>
 
@@ -477,17 +451,21 @@ export default function HomePage() {
             <a href="/login" className="cta-signin">Already own a business? Sign in</a>
           </div>
 
-          {/* TRENDING */}
-          <div className="sec-head"><span className="sec-title">Trending searches</span></div>
-          <div className="trending">
-            {TRENDING.map((t, i) => (
-              <div key={i} className="trend" onClick={() => quickSearch(t.query)}>
-                <span className={`trend-n ${t.hot ? 'hot' : ''}`}>{i + 1}</span>
-                <span className="trend-t">{t.label}</span>
-                <span className="trend-c">{t.count}</span>
+          {/* TOP CATEGORIES (real data) */}
+          {categories.length > 0 && (
+            <>
+              <div className="sec-head"><span className="sec-title">Top categories</span></div>
+              <div className="trending">
+                {categories.slice(0, 6).map(({ category, count }, i) => (
+                  <div key={category} className="trend" onClick={() => quickSearch(category)}>
+                    <span className="trend-n">{i + 1}</span>
+                    <span className="trend-t">{getCategoryEmoji(category)} {category}</span>
+                    <span className="trend-c">{count}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -733,12 +711,27 @@ const pageStyles = `
   .r-hot{background:var(--gold-bg);color:var(--gold);}
   .r-verified{background:var(--green-bg);color:var(--green);}
 
+  /* ── CATEGORIES ── */
+  .categories-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;}
+  .category-chip{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:8px 14px;
+    background:var(--bg2);border:1px solid var(--border);
+    border-radius:10px;cursor:pointer;transition:all 0.15s;
+    font-family:'Sora',sans-serif;font-size:12px;color:var(--off);
+  }
+  .category-chip:hover{background:var(--bg3);border-color:var(--border2);color:var(--white);}
+  .category-emoji{font-size:14px;}
+  .category-name{font-weight:500;}
+  .category-count{font-size:11px;color:var(--muted);margin-left:2px;}
+
   /* ── SIDEBAR ── */
   .sidebar{}
   .stats-grid{
     display:grid;grid-template-columns:1fr 1fr;gap:8px;
     margin-bottom:20px;
   }
+  .stats-grid.stats-three{grid-template-columns:1fr 1fr 1fr;}
   .stat{
     background:var(--bg2);border:1px solid var(--border);
     border-radius:10px;padding:16px 12px;text-align:center;
