@@ -28,6 +28,16 @@ function SearchPageInner() {
   const [aiReasons, setAiReasons] = useState<Record<string, string>>({});
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
+  const [baseResults, setBaseResults] = useState<Business[]>([]);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [occasions, setOccasions] = useState<string[]>([]);
+  const [occasionsLoading, setOccasionsLoading] = useState(false);
+  const [occasion, setOccasion] = useState("");
+  const [area, setArea] = useState("");
+  const [budget, setBudget] = useState("");
+  const [aiPickLoading, setAiPickLoading] = useState(false);
+  const [aiPickedActive, setAiPickedActive] = useState(false);
+  const [aiPickedReasons, setAiPickedReasons] = useState<Record<string, string>>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -78,14 +88,78 @@ function SearchPageInner() {
       const res = await fetch(`/api/search?${params}`);
       const json = await res.json();
       setDetectedCity(json.detectedCity || null);
-      setResults(json.businesses ?? []);
+      const biz = json.businesses ?? [];
+      setResults(biz);
+      setBaseResults(biz);
       setAiSummary(json.aiSummary || null);
       setAiReasons(json.aiReasons || {});
       setCorrectedQuery(json.correctedQuery ?? null);
+      setAiPickedActive(false);
     } finally {
       setLoading(false);
     }
   }
+
+  async function openAiPanel() {
+    setAiPanelOpen(true);
+    setOccasion("");
+    setArea("");
+    setBudget("");
+    setOccasions([]);
+    setOccasionsLoading(true);
+    try {
+      const res = await fetch(`/api/search/occasions?q=${encodeURIComponent(query)}`);
+      const json = await res.json();
+      const list = Array.isArray(json.occasions) ? json.occasions : [];
+      setOccasions(list.length > 0 ? list : ["General", "Hangout", "Other"]);
+    } finally {
+      setOccasionsLoading(false);
+    }
+  }
+
+  async function submitAiPick() {
+    if (!occasion.trim() || !budget) return;
+    setAiPickLoading(true);
+    try {
+      const res = await fetch("/api/search/ai-pick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query,
+          occasion: occasion.trim(),
+          area: area.trim(),
+          budget,
+          businesses: baseResults.map((b) => ({
+            id: b.id,
+            name: b.name,
+            category: b.category,
+            city: b.city,
+            description: b.description,
+          })),
+        }),
+      });
+      const json = await res.json();
+      const ranked = json.ranked || [];
+      const reasonMap: Record<string, string> = {};
+      ranked.forEach((r: { id: string; reason: string }) => {
+        if (r.id && r.reason) reasonMap[r.id] = r.reason;
+      });
+      const orderIds = ranked.map((r: { id: string }) => r.id);
+      const reordered = orderIds
+        .map((id) => baseResults.find((b) => b.id === id))
+        .filter(Boolean) as Business[];
+      const rest = baseResults.filter((b) => !orderIds.includes(b.id));
+      setResults([...reordered, ...rest]);
+      setAiPickedReasons(reasonMap);
+      setAiPickedActive(true);
+      setAiPanelOpen(false);
+    } finally {
+      setAiPickLoading(false);
+    }
+  }
+
+  const displayReasons = aiPickedActive ? aiPickedReasons : aiReasons;
+  const budgetOptions = ["Affordable", "Mid-range", "Premium", "Any"];
 
   function handleInput(val: string) {
     setQuery(val);
@@ -211,8 +285,10 @@ function SearchPageInner() {
                     Showing results for <strong>&ldquo;{correctedQuery}&rdquo;</strong>
                   </div>
                 )}
-                {(aiSummary || Object.keys(aiReasons).length > 0) && (
-                  <span className="ai-matched-badge">✨ AI matched</span>
+                {(aiPickedActive || aiSummary || Object.keys(aiReasons).length > 0) && (
+                  <span className="ai-matched-badge">
+                    {aiPickedActive ? "✨ AI picked for you" : "✨ AI matched"}
+                  </span>
                 )}
                 {aiSummary && (
                   <div className="ai-summary-box">
@@ -225,6 +301,73 @@ function SearchPageInner() {
                   {query && <> for &ldquo;{query}&rdquo;</>}
                   {activeCity && <> in {activeCity}</>}
                 </div>
+                {!aiPanelOpen && (
+                  <button type="button" className="ask-ai-btn" onClick={openAiPanel}>
+                    ✨ Ask AI to help you choose
+                  </button>
+                )}
+                {aiPanelOpen && (
+                  <div className="ai-panel">
+                    <h3 className="ai-panel-title">Help AI pick for you</h3>
+                    <div className="ai-panel-q">
+                      <label>What&apos;s the occasion?</label>
+                      {occasionsLoading ? (
+                        <p className="ai-panel-loading">Loading options…</p>
+                      ) : (
+                        <div className="ai-panel-options">
+                          {occasions.map((opt) => (
+                            <button
+                              key={opt}
+                              type="button"
+                              className={occasion === opt ? "ai-opt-btn active" : "ai-opt-btn"}
+                              onClick={() => setOccasion(opt)}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="ai-panel-q">
+                      <label>Which area?</label>
+                      <input
+                        type="text"
+                        className="ai-panel-input"
+                        placeholder="e.g. Kohima, Dimapur, or leave blank"
+                        value={area}
+                        onChange={(e) => setArea(e.target.value)}
+                      />
+                    </div>
+                    <div className="ai-panel-q">
+                      <label>Budget?</label>
+                      <div className="ai-panel-options">
+                        {budgetOptions.map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            className={budget === opt ? "ai-opt-btn active" : "ai-opt-btn"}
+                            onClick={() => setBudget(opt)}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="ai-panel-actions">
+                      <button type="button" className="ai-panel-cancel" onClick={() => setAiPanelOpen(false)}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="ai-panel-submit"
+                        disabled={!occasion || !budget || aiPickLoading}
+                        onClick={submitAiPick}
+                      >
+                        {aiPickLoading ? "Picking…" : "Get my picks"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
             {loading && (
@@ -260,10 +403,10 @@ function SearchPageInner() {
                         <div className="biz-name">{biz.name}</div>
                         <div className="biz-city">📍 {biz.city}</div>
                         {biz.is_verified && <span className="biz-verified">✓ Verified</span>}
-                        {aiReasons[biz.id] && (
+                        {displayReasons[biz.id] && (
                           <div className="biz-ai-matched">
-                            <span className="ai-matched-label">✨ AI matched</span>
-                            <span className="ai-reason-text">{aiReasons[biz.id]}</span>
+                            <span className="ai-matched-label">{aiPickedActive ? "✨ AI picked for you" : "✨ AI matched"}</span>
+                            <span className="ai-reason-text">{displayReasons[biz.id]}</span>
                           </div>
                         )}
                         {biz.description && <div className="biz-desc">{biz.description}</div>}
@@ -614,6 +757,115 @@ const styles = `
     color: #666;
     margin-bottom: 0.75rem;
   }
+
+  .ask-ai-btn {
+    display: inline-block;
+    margin-bottom: 1.25rem;
+    padding: 0.5rem 1rem;
+    background: rgba(192, 57, 43, 0.12);
+    border: 1px solid rgba(192, 57, 43, 0.35);
+    color: #e74c3c;
+    font-size: 0.88rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .ask-ai-btn:hover {
+    background: rgba(192, 57, 43, 0.2);
+    border-color: rgba(192, 57, 43, 0.5);
+  }
+
+  .ai-panel {
+    background: #141414;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .ai-panel-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 1rem;
+  }
+  .ai-panel-q {
+    margin-bottom: 1rem;
+  }
+  .ai-panel-q label {
+    display: block;
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 0.4rem;
+  }
+  .ai-panel-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .ai-opt-btn {
+    padding: 0.4rem 0.75rem;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #ccc;
+    font-size: 0.82rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .ai-opt-btn:hover {
+    background: #222;
+    border-color: #444;
+    color: #fff;
+  }
+  .ai-opt-btn.active {
+    background: rgba(192, 57, 43, 0.2);
+    border-color: #c0392b;
+    color: #e74c3c;
+  }
+  .ai-panel-input {
+    width: 100%;
+    max-width: 280px;
+    padding: 0.5rem 0.75rem;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 0.88rem;
+  }
+  .ai-panel-input::placeholder { color: #555; }
+  .ai-panel-loading {
+    font-size: 0.85rem;
+    color: #666;
+    margin: 0.25rem 0 0;
+  }
+  .ai-panel-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+  .ai-panel-cancel {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid #444;
+    color: #888;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .ai-panel-cancel:hover { color: #ccc; border-color: #555; }
+  .ai-panel-submit {
+    padding: 0.5rem 1.25rem;
+    background: #c0392b;
+    border: none;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .ai-panel-submit:hover:not(:disabled) { background: #e74c3c; }
+  .ai-panel-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .results-grid {
     display: grid;
