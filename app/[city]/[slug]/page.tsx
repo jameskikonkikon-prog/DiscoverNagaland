@@ -7,7 +7,12 @@ export default function BusinessPage() {
   const params = useParams();
   const [business, setBusiness] = useState<Record<string, string & string[]> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     fetch(`/api/businesses/slug/${params.slug}`)
@@ -46,7 +51,9 @@ export default function BusinessPage() {
           <a href="javascript:history.back()" className="text-orange-600">← Back</a>
           <div className="ml-auto flex items-center gap-3">
             <a href="/" className="text-lg font-bold text-orange-600">🏔️ Yana Nagaland</a>
-            {loggedIn && (
+            {!mounted ? (
+              <span className="w-9 h-9 rounded-full inline-block invisible pointer-events-none" aria-hidden style={{ minWidth: 36, minHeight: 36 }} />
+            ) : loggedIn ? (
               <a
                 href="/dashboard"
                 aria-label="Open dashboard"
@@ -54,7 +61,7 @@ export default function BusinessPage() {
               >
                 👤
               </a>
-            )}
+            ) : null}
           </div>
         </div>
       </header>

@@ -82,9 +82,14 @@ export default function HomePage() {
   const [featuredBusinesses, setFeaturedBusinesses] = useState<Business[]>([]);
   const [recentBusinesses, setRecentBusinesses] = useState<Business[]>([]);
   const [totalBusinesses, setTotalBusinesses] = useState(0);
+  const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const placeholderIndex = useRef(0);
   const router = useRouter();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -223,7 +228,9 @@ export default function HomePage() {
           ))}
         </div>
         <a href="/pricing" className="nl" style={{ color: '#D4A017', fontWeight: 700 }}>Pricing</a>
-        {loggedIn ? (
+        {!mounted ? (
+          <span className="nav-avatar nav-avatar-placeholder" aria-hidden />
+        ) : loggedIn ? (
           <a href="/dashboard" className="nav-avatar" aria-label="Open dashboard">
             <span className="nav-avatar-icon">👤</span>
           </a>
@@ -530,6 +537,7 @@ const pageStyles = `
     transform:translateY(-1px);
   }
   .nav-avatar-icon{font-size:0.9rem;}
+  .nav-avatar-placeholder{pointer-events:none;visibility:hidden;}
 
   /* ── HERO ── */
   .hero{

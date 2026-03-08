@@ -28,9 +28,14 @@ function SearchPageInner() {
   const [aiReasons, setAiReasons] = useState<Record<string, string>>({});
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
 
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const q = searchParams.get("q") || "";
@@ -120,7 +125,9 @@ function SearchPageInner() {
             </div>
           </Link>
           <div style={{ flex: 1 }} />
-          {loggedIn ? (
+          {!mounted ? (
+            <span className="list-avatar list-avatar-placeholder" aria-hidden />
+          ) : loggedIn ? (
             <Link href="/dashboard" className="list-avatar" aria-label="Open dashboard">
               <span className="list-avatar-icon">👤</span>
             </Link>
@@ -340,6 +347,7 @@ const styles = `
     transform:translateY(-1px);
   }
   .list-avatar-icon{font-size:0.9rem;}
+  .list-avatar-placeholder{pointer-events:none;visibility:hidden;}
 
   .search-hero {
     background: #0a0a0a;

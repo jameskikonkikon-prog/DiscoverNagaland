@@ -105,7 +105,12 @@ export default function BusinessPage() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
+  const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -186,11 +191,13 @@ export default function BusinessPage() {
           <Link href="/" className="nav-logo">Yana<span>Nagaland</span></Link>
           <div className="biz-nav-right">
             <Link href={`/search?q=${biz.city}`} className="nav-back">← {biz.city}</Link>
-            {loggedIn && (
+            {!mounted ? (
+              <span className="nav-avatar nav-avatar-placeholder" aria-hidden />
+            ) : loggedIn ? (
               <a href="/dashboard" className="nav-avatar" aria-label="Open dashboard">
                 <span className="nav-avatar-icon">👤</span>
               </a>
-            )}
+            ) : null}
           </div>
         </nav>
 
@@ -531,6 +538,7 @@ const styles = `
     transform:translateY(-1px);
   }
   .nav-avatar-icon{font-size:0.9rem;}
+  .nav-avatar-placeholder{pointer-events:none;visibility:hidden;}
 
   /* Gallery */
   .gallery { position: relative; width: 100%; height: clamp(260px, 45vw, 500px); background: #1a2e1a; overflow: hidden; }
