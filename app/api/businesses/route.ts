@@ -5,7 +5,7 @@ import { FOUNDING_MEMBER_LIMIT } from '@/types';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, category, city, address, landmark, phone, whatsapp, email, website, description, opening_hours, tags, amenities, owner_id, slug, custom_fields, vibe_tags, price_min, price_max, price_range, gender, vacancy, wifi, ac, meals, room_type, cuisine } = body;
+    const { name, category, city, address, landmark, phone, whatsapp, email, website, description, opening_hours, tags, amenities, owner_id, slug, custom_fields, vibe_tags, price_min, price_max, price_range, gender, wifi, ac, meals_included, room_type, cuisine } = body;
 
     if (!name || !category || !city || !address || !phone) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -41,10 +41,9 @@ export async function POST(req: NextRequest) {
       price_max: price_max || null,
       price_range: price_range || null,
       gender: gender || null,
-      vacancy: vacancy || null,
       wifi: wifi || null,
       ac: ac || null,
-      meals: meals || null,
+      meals_included: meals_included || null,
       room_type: room_type || null,
       cuisine: cuisine || null,
       owner_id: owner_id || null,

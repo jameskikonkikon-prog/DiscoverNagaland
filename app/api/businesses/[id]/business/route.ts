@@ -19,9 +19,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: 'Not configured' }, { status: 500 });
   }
   const body = await request.json();
+
+  // Only allow columns that exist in the businesses table
+  const ALLOWED_COLUMNS = new Set([
+    'name','slug','category','city','address','landmark','phone','whatsapp','email',
+    'description','opening_hours','photos','plan','plan_expires_at','is_verified',
+    'is_active','owner_id','price_range','price_min','price_max','price_unit',
+    'menu_url','tags','website','amenities','custom_fields','trial_ends_at',
+    'ac','wifi','parking','meals_included','gender','room_type','claimed','status',
+    'area','vibe_tags','verified','featured','cuisine','furnished','trainer',
+    'delivery','fuel_included','deposit','bhk','sport_types','floodlights',
+    'covered','subjects','batch_size','timing','online','entry_fee','private_seating',
+  ]);
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (ALLOWED_COLUMNS.has(key)) sanitized[key] = value;
+  }
+
   const { createClient } = await import('@supabase/supabase-js');
   const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-  const { data, error } = await client.from('businesses').update(body).eq('id', params.id).select().single();
+  const { data, error } = await client.from('businesses').update(sanitized).eq('id', params.id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ business: data });
 }
