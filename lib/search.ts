@@ -18,12 +18,15 @@ const STOP_WORDS = new Set([
   'was','were','i','me','my','we','our','some','any','where','which','want'
 ]);
 
+/** Plus first, then Pro, then Basic. */
 const PLAN_RANK: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
 
 function sortByPlan(businesses: Business[]): Business[] {
   return [...businesses].sort((a, b) => {
-    const rankA = PLAN_RANK[a.plan] ?? 3;
-    const rankB = PLAN_RANK[b.plan] ?? 3;
+    const planA = (a.plan || 'basic').toString().toLowerCase();
+    const planB = (b.plan || 'basic').toString().toLowerCase();
+    const rankA = PLAN_RANK[planA] ?? 3;
+    const rankB = PLAN_RANK[planB] ?? 3;
     return rankA - rankB;
   });
 }
@@ -105,6 +108,39 @@ interface AiRankedResult {
   reason: string;
 }
 
+/** Re-order within each plan tier by Claude's relevance order; preserve Plus > Pro > Basic. */
+function applyAiRankWithinPlanTiers(
+  planSorted: Business[],
+  claudeRanked: AiRankedResult[]
+): Business[] {
+  const claudeOrder = claudeRanked.map((r) => r.id);
+  const byPlan: { plus: Business[]; pro: Business[]; basic: Business[] } = {
+    plus: [],
+    pro: [],
+    basic: [],
+  };
+  for (const b of planSorted) {
+    const p = (b.plan || 'basic').toString().toLowerCase();
+    if (p === 'plus') byPlan.plus.push(b);
+    else if (p === 'pro') byPlan.pro.push(b);
+    else byPlan.basic.push(b);
+  }
+  const reorderWithinTier = (tier: Business[]): Business[] =>
+    [...tier].sort((a, b) => {
+      const ia = claudeOrder.indexOf(a.id);
+      const ib = claudeOrder.indexOf(b.id);
+      if (ia === -1 && ib === -1) return 0;
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+  return [
+    ...reorderWithinTier(byPlan.plus),
+    ...reorderWithinTier(byPlan.pro),
+    ...reorderWithinTier(byPlan.basic),
+  ];
+}
+
 async function aiRankWithClaude(
   query: string,
   businesses: Business[]
@@ -115,24 +151,12 @@ async function aiRankWithClaude(
     return null;
   }
 
-  const top15 = businesses.slice(0, 15);
-  const businessList = top15.map((b) => ({
+  const businessList = businesses.map((b) => ({
     id: b.id,
     name: b.name,
     category: b.category,
-    city: b.city,
-    address: b.address,
-    description: b.description,
-    tags: b.tags,
-    amenities: b.amenities,
-    price_range: b.price_range,
-    gender: b.gender,
-    vacancy: b.vacancy,
-    wifi: b.wifi,
-    ac: b.ac,
-    meals: b.meals,
-    vibe_tags: b.vibe_tags,
-    custom_fields: b.custom_fields,
+    plan: (b.plan || 'basic').toString().toLowerCase(),
+    description: (b.description || '').slice(0, 300),
   }));
 
   try {
@@ -140,20 +164,20 @@ async function aiRankWithClaude(
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
-      system: 'You are Yana AI, a helpful assistant for finding businesses in Nagaland. Rank these businesses by relevance to the user query and explain briefly why each is a good match. Be concise.',
+      system: 'You are Yana AI for Nagaland. The businesses are already ordered by plan: Plus first, then Pro, then Basic. Re-order them ONLY within each plan tier by relevance to the search query. For each business give a short 4-6 word reason (e.g. "Good for dates", "Affordable near PR Hill"). Return valid JSON only.',
       messages: [
         {
           role: 'user',
-          content: `User searched: "${query}"
+          content: `Search query: "${query}"
 
-Here are the businesses found in our database:
+Businesses (id, name, category, plan, description):
 ${JSON.stringify(businessList, null, 2)}
 
-Return a JSON object with:
-1. "summary": A brief 1-2 sentence overview of what you found for the user
-2. "ranked": An array of objects with "id" (business ID) and "reason" (one short sentence why it matches), ordered by relevance. Only include genuinely relevant businesses.
+Return a JSON object:
+1. "summary": Brief 1-2 sentence overview of what you found.
+2. "ranked": Array of ALL business IDs in the order you recommend. Keep plan order: all Plus first (reordered by relevance within Plus), then all Pro (reordered within Pro), then all Basic (reordered within Basic). Each object: { "id": "<uuid>", "reason": "4-6 word reason e.g. Good for dates" }.
 
-Return ONLY valid JSON, no markdown fences.`,
+Return ONLY valid JSON, no markdown.`,
         },
       ],
     });
@@ -162,9 +186,10 @@ Return ONLY valid JSON, no markdown fences.`,
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      const ranked = Array.isArray(parsed.ranked) ? parsed.ranked : [];
       return {
-        ranked: parsed.ranked || [],
-        summary: parsed.summary || '',
+        ranked: ranked.filter((r: { id?: string; reason?: string }) => r?.id && r?.reason),
+        summary: typeof parsed.summary === 'string' ? parsed.summary : '',
       };
     }
   } catch (error) {
@@ -286,21 +311,20 @@ export async function searchBusinesses(
   }
 
   const sorted = sortByPlan(candidates);
+  if (sorted.length === 0) {
+    return { businesses: [], detectedCity, correctedQuery };
+  }
+
   const aiResult = await aiRankWithClaude(query, sorted);
 
   if (aiResult && aiResult.ranked.length > 0) {
     const reasonMap: Record<string, string> = {};
-    const aiOrderedIds = aiResult.ranked.map(r => {
-      reasonMap[r.id] = r.reason;
-      return r.id;
-    });
-    const aiRanked = aiOrderedIds
-      .map(id => sorted.find(b => b.id === id))
-      .filter(Boolean) as Business[];
-    const rankedIds = new Set(aiOrderedIds);
-    const remaining = sorted.filter(b => !rankedIds.has(b.id));
+    for (const r of aiResult.ranked) {
+      if (r.id && r.reason) reasonMap[r.id] = r.reason;
+    }
+    const ordered = applyAiRankWithinPlanTiers(sorted, aiResult.ranked);
     return {
-      businesses: [...aiRanked, ...remaining],
+      businesses: ordered,
       detectedCity,
       correctedQuery,
       aiSummary: aiResult.summary,

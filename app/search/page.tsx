@@ -211,6 +211,9 @@ function SearchPageInner() {
                     Showing results for <strong>&ldquo;{correctedQuery}&rdquo;</strong>
                   </div>
                 )}
+                {(aiSummary || Object.keys(aiReasons).length > 0) && (
+                  <span className="ai-matched-badge">✨ AI matched</span>
+                )}
                 {aiSummary && (
                   <div className="ai-summary-box">
                     <div className="ai-summary-label">Yana AI</div>
@@ -225,18 +228,23 @@ function SearchPageInner() {
               </>
             )}
             {loading && (
-              <div className="results-grid">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div className="skeleton-card" key={i}>
-                    <div className="skeleton skeleton-img" />
-                    <div className="skeleton-body">
-                      <div className="skeleton skeleton-line w40" />
-                      <div className="skeleton skeleton-line w80" />
-                      <div className="skeleton skeleton-line w60" />
+              <>
+                <div className="loading-ai-hint">
+                  {query.trim() ? "Finding results and ranking with AI…" : "Loading…"}
+                </div>
+                <div className="results-grid">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div className="skeleton-card" key={i}>
+                      <div className="skeleton skeleton-img" />
+                      <div className="skeleton-body">
+                        <div className="skeleton skeleton-line w40" />
+                        <div className="skeleton skeleton-line w80" />
+                        <div className="skeleton skeleton-line w60" />
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
             {!loading && results.length > 0 && (
               <div className="results-grid">
@@ -569,6 +577,23 @@ const styles = `
     padding: 0.5rem 0;
   }
   .corrected-msg strong { color: #aaa; }
+
+  .ai-matched-badge {
+    display: inline-block;
+    font-size: 0.8rem;
+    color: #c0392b;
+    margin-bottom: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    background: rgba(192, 57, 43, 0.1);
+    border-radius: 6px;
+    font-weight: 600;
+  }
+
+  .loading-ai-hint {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.75rem;
+  }
 
   .results-grid {
     display: grid;
