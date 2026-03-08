@@ -18,6 +18,33 @@ const STOP_WORDS = new Set([
   'was','were','i','me','my','we','our','some','any','where','which','want'
 ]);
 
+/** Synonym map: trigger term (lower) -> list of terms to match (trigger + synonyms). */
+const SEARCH_SYNONYMS: Record<string, string[]> = {
+  turf: ['turf', 'football ground', 'court', 'futsal', 'sports ground'],
+  pg: ['pg', 'paying guest', 'hostel', 'accommodation', 'guest house'],
+  parlour: ['parlour', 'parlor', 'salon', 'beauty'],
+  parlor: ['parlor', 'parlour', 'salon', 'beauty'],
+  salon: ['salon', 'parlour', 'parlor', 'beauty'],
+  food: ['food', 'restaurant', 'cafe', 'eatery', 'dining'],
+  gym: ['gym', 'fitness', 'workout', 'gymnasium'],
+};
+const SEARCH_COLUMNS = ['category', 'name', 'tags', 'vibe_tags', 'description', 'area', 'city'] as const;
+
+function escapeIlikePattern(term: string): string {
+  return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+/** Expand query words with synonyms; return unique terms (min length 2, not stop words). */
+function expandQueryWithSynonyms(query: string): string[] {
+  const words = query.toLowerCase().split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w));
+  const termSet = new Set<string>();
+  for (const word of words) {
+    const expanded = SEARCH_SYNONYMS[word] ?? [word];
+    expanded.forEach(t => termSet.add(t));
+  }
+  return Array.from(termSet).filter(t => t.length >= 2);
+}
+
 const PLAN_RANK: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
 
 function sortByPlan(businesses: Business[]): Business[] {
@@ -185,56 +212,47 @@ export async function searchBusinesses(
   const priceCondition = detectPriceCondition(query);
   const conditions = detectConditions(query);
 
-  let cleanQuery = query;
+  let cleanQuery = query.trim();
   if (detectedCity) cleanQuery = query.replace(new RegExp(detectedCity, 'gi'), '').trim();
+
+  const searchTerms = expandQueryWithSynonyms(cleanQuery);
+  const queryHasAC = /\bAC\b/i.test(query);
 
   let dbQuery = serviceClient.from('businesses').select('*').eq('is_active', true);
   if (activeCity) dbQuery = dbQuery.eq('city', activeCity);
+  if (queryHasAC) dbQuery = dbQuery.eq('ac', true);
 
-  const { data: businesses } = await dbQuery;
+  if (searchTerms.length > 0) {
+    const orParts: string[] = [];
+    for (const term of searchTerms.slice(0, 25)) {
+      const escaped = escapeIlikePattern(term).replace(/'/g, "''");
+      const pat = `'%${escaped}%'`;
+      for (const col of SEARCH_COLUMNS) {
+        orParts.push(`${col}.ilike.${pat}`);
+      }
+    }
+    if (orParts.length > 0) {
+      dbQuery = dbQuery.or(orParts.join(','));
+    }
+  }
+
+  const { data: businesses, error } = await dbQuery;
+
+  if (error) {
+    console.error('Search query error:', error);
+    return { businesses: [], detectedCity };
+  }
   if (!businesses || businesses.length === 0) {
     return { businesses: [], detectedCity };
   }
 
-  // Apply condition filtering (soft — if it returns nothing, fall back to full set)
   let conditionFiltered = businesses;
   if (conditions.length > 0 || priceCondition) {
     const strict = businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition));
     if (strict.length > 0) conditionFiltered = strict;
   }
 
-  if (!cleanQuery.trim()) return { businesses: sortByPlan(conditionFiltered), detectedCity };
-
-  // Keyword search across name, category, description, tags, address, custom_fields
-  const keywords = cleanQuery.toLowerCase()
-    .split(/\s+/)
-    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
-
-  let candidates = conditionFiltered;
-  if (keywords.length > 0) {
-    // First try: search within condition-filtered pool
-    const keywordResults = conditionFiltered.filter((b: Business) => {
-      const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
-        .filter(Boolean).join(' ').toLowerCase();
-      return keywords.some(kw => haystack.includes(kw));
-    });
-    if (keywordResults.length > 0) {
-      candidates = keywordResults;
-    } else {
-      // Fallback: search across ALL businesses (ignore condition filter)
-      const broadResults = businesses.filter((b: Business) => {
-        const haystack = [b.name, b.category, b.address, b.landmark, b.description, b.tags, JSON.stringify(b.custom_fields || {})]
-          .filter(Boolean).join(' ').toLowerCase();
-        return keywords.some(kw => haystack.includes(kw));
-      });
-      if (broadResults.length > 0) {
-        candidates = broadResults;
-      }
-    }
-  }
-
-  // AI ranking with Claude
-  const sorted = sortByPlan(candidates);
+  const sorted = sortByPlan(conditionFiltered);
   const aiResult = await aiRankWithClaude(query, sorted);
 
   if (aiResult && aiResult.ranked.length > 0) {
@@ -243,16 +261,11 @@ export async function searchBusinesses(
       reasonMap[r.id] = r.reason;
       return r.id;
     });
-
-    // Reorder by AI ranking, keeping AI-ranked ones first
     const aiRanked = aiOrderedIds
       .map(id => sorted.find(b => b.id === id))
       .filter(Boolean) as Business[];
-
-    // Append any businesses AI didn't rank
     const rankedIds = new Set(aiOrderedIds);
     const remaining = sorted.filter(b => !rankedIds.has(b.id));
-
     return {
       businesses: [...aiRanked, ...remaining],
       detectedCity,
