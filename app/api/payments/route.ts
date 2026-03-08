@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     const order = await razorpay.orders.create({
       amount,
       currency: 'INR',
-      receipt: `order_${businessId}_${plan}_${Date.now()}`,
+      receipt: `receipt_${Date.now()}`,
     });
 
     await serviceClient.from('payments').insert({

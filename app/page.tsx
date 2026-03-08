@@ -286,7 +286,6 @@ export default function HomePage() {
             <button key={n.label} className="nl" onClick={() => quickSearch(n.query)}>{n.label}</button>
           ))}
         </div>
-        <a href="/pricing" className="nl" style={{ color: '#D4A017', fontWeight: 700 }}>Pricing</a>
         {!mounted ? (
           <span className="nav-avatar nav-avatar-placeholder" aria-hidden />
         ) : loggedIn ? (
