@@ -82,6 +82,7 @@ export default function HomePage() {
   const [featuredBusinesses, setFeaturedBusinesses] = useState<Business[]>([]);
   const [recentBusinesses, setRecentBusinesses] = useState<Business[]>([]);
   const [totalBusinesses, setTotalBusinesses] = useState(0);
+  const [loggedIn, setLoggedIn] = useState(false);
   const placeholderIndex = useRef(0);
   const router = useRouter();
 
@@ -130,6 +131,23 @@ export default function HomePage() {
       setTotalBusinesses(count || 0);
     }
     fetchBusinesses();
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return;
+        setLoggedIn(!!data.session);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setLoggedIn(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleSearch = () => {
@@ -205,8 +223,14 @@ export default function HomePage() {
           ))}
         </div>
         <a href="/pricing" className="nl" style={{ color: '#D4A017', fontWeight: 700 }}>Pricing</a>
-        <a href="/login" className="nl" style={{ color: '#999' }}>Sign in</a>
-        <a href="/register" className="nav-cta-btn">List your business</a>
+        {loggedIn ? (
+          <a href="/dashboard" className="nav-cta-btn">Dashboard</a>
+        ) : (
+          <>
+            <a href="/login" className="nl" style={{ color: '#999' }}>Sign in</a>
+            <a href="/register" className="nav-cta-btn">List your business</a>
+          </>
+        )}
       </nav>
 
       {/* HERO */}
