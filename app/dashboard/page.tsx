@@ -1,1097 +1,805 @@
-'use client';
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import { Suspense } from 'react';
-import { PLANS } from '@/types';
-import type { PlanType } from '@/types';
+'use client'
 
-type Business = {
-  id: string; name: string; category: string; city: string;
-  address: string; landmark?: string; phone: string; whatsapp?: string;
-  email?: string; description?: string; opening_hours?: string;
-  photos?: string[]; videos?: string[]; website?: string; tags?: string;
-  plan: PlanType; plan_expires_at?: string;
-  views?: number; call_clicks?: number; whatsapp_clicks?: number;
-  is_verified?: boolean; is_founding_member?: boolean; menu_url?: string;
-  price_min?: number; price_max?: number; price_range?: string;
-  amenities?: string; gender?: string; vacancy?: boolean;
-  wifi?: boolean; ac?: boolean; meals?: boolean;
-  room_type?: string; cuisine?: string; vibe_tags?: string;
-};
+import { useEffect, useState } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
 
-type AnalyticsDay = {
-  date: string;
-  profile_views: number;
-  whatsapp_clicks: number;
-  call_clicks: number;
-};
+// ── TYPES ──────────────────────────────────────────────────────────────────
+type Plan = 'basic' | 'pro' | 'plus'
 
-// AI tool definitions per plan
-const AI_TOOLS = [
-  { id: 'write-desc', name: 'Write Description', icon: '✍️', basic: 'once', pro: 'unlimited', plus: 'unlimited', minPlan: 'basic' as PlanType },
-  { id: 'improve-desc', name: 'Improve Description', icon: '✨', basic: 'locked', pro: 'unlimited', plus: 'unlimited', minPlan: 'pro' as PlanType },
-  { id: 'menu-reader', name: 'Menu Reader', icon: '📋', basic: 'locked', pro: 'unlimited', plus: 'unlimited', minPlan: 'pro' as PlanType },
-  { id: 'growth-advisor', name: 'Growth Advisor', icon: '📈', basic: 'once', pro: 'weekly', plus: 'unlimited', minPlan: 'basic' as PlanType },
-  { id: 'whatsapp-writer', name: 'WhatsApp Message Writer', icon: '💬', basic: 'locked', pro: 'unlimited', plus: 'unlimited', minPlan: 'pro' as PlanType },
-  { id: 'competitor-intel', name: 'Competitor Intel', icon: '🔍', basic: 'locked', pro: 'locked', plus: 'unlimited', minPlan: 'plus' as PlanType },
-  { id: 'full-report', name: 'Full Business Report', icon: '📊', basic: 'locked', pro: 'locked', plus: 'unlimited', minPlan: 'plus' as PlanType },
-];
-
-function getToolAccess(tool: typeof AI_TOOLS[0], plan: PlanType): { unlocked: boolean; label: string; badge?: string } {
-  const access = tool[plan];
-  if (access === 'locked') {
-    const needed = tool.minPlan === 'plus' ? 'Plus' : 'Pro';
-    return { unlocked: false, label: `${needed} only`, badge: needed };
-  }
-  return { unlocked: true, label: access };
+interface Business {
+  id: string
+  name: string
+  category: string
+  location: string
+  phone: string | null
+  whatsapp: string | null
+  price_range: string | null
+  opening_hours: string | null
+  description: string | null
+  photos: string[] | null
+  slug: string
 }
 
-function getListingHealth(biz: Business): number {
-  const fields = [
-    biz.name, biz.category, biz.city, biz.address, biz.phone,
-    biz.description, biz.opening_hours, biz.whatsapp, biz.email,
-    biz.photos && biz.photos.length > 0 ? 'yes' : null,
-    biz.tags, biz.price_min != null ? 'yes' : null,
-  ];
-  const filled = fields.filter(Boolean).length;
-  return Math.round((filled / fields.length) * 100);
+interface Stats {
+  views_today: number
+  views_yesterday: number
+  whatsapp_clicks_today: number
+  whatsapp_clicks_yesterday: number
+  call_clicks_today: number
+  call_clicks_yesterday: number
+  total_views: number
+  weekly: number[]
 }
 
-function HealthRing({ percent }: { percent: number }) {
-  const r = 44;
-  const circ = 2 * Math.PI * r;
-  const offset = circ - (percent / 100) * circ;
-  const color = percent >= 80 ? '#4ade80' : percent >= 50 ? '#facc15' : '#f87171';
-  return (
-    <svg width="110" height="110" viewBox="0 0 110 110">
-      <circle cx="55" cy="55" r={r} fill="none" stroke="#222" strokeWidth="8" />
-      <circle cx="55" cy="55" r={r} fill="none" stroke={color} strokeWidth="8"
-        strokeDasharray={circ} strokeDashoffset={offset}
-        strokeLinecap="round" transform="rotate(-90 55 55)"
-        style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
-      <text x="55" y="52" textAnchor="middle" fill={color} fontSize="22" fontWeight="700" fontFamily="Sora">{percent}%</text>
-      <text x="55" y="68" textAnchor="middle" fill="#666" fontSize="9" fontFamily="Sora">complete</text>
-    </svg>
-  );
+interface User {
+  id: string
+  full_name: string | null
+  email: string
+  plan: Plan
+  founding_member: boolean
 }
 
-function MiniBarChart({ data, dataKey, color }: { data: AnalyticsDay[]; dataKey: keyof AnalyticsDay; color: string }) {
-  const values = data.map(d => Number(d[dataKey]) || 0);
-  const max = Math.max(...values, 1);
-  return (
-    <div className="mini-chart">
-      {data.map((d, i) => (
-        <div key={i} className="chart-bar-wrap" title={`${d.date}: ${values[i]}`}>
-          <div className="chart-bar" style={{ height: `${(values[i] / max) * 100}%`, background: color }} />
-          <span className="chart-label">{new Date(d.date).toLocaleDateString('en', { weekday: 'short' }).slice(0, 2)}</span>
-        </div>
-      ))}
-    </div>
-  );
+// ── HEALTH SCORE CALC ─────────────────────────────────────────────────────
+function calcHealth(biz: Business | null): { score: number; tips: { text: string; done: boolean }[] } {
+  if (!biz) return { score: 0, tips: [] }
+  const checks = [
+    { text: 'Add at least 2 photos', done: (biz.photos?.length ?? 0) >= 2 },
+    { text: 'Set your price or price range', done: !!biz.price_range },
+    { text: 'Add opening hours', done: !!biz.opening_hours },
+    { text: 'Add a description', done: !!biz.description },
+    { text: 'WhatsApp number added', done: !!biz.whatsapp },
+  ]
+  const done = checks.filter(c => c.done).length
+  return { score: Math.round((done / checks.length) * 100), tips: checks }
 }
 
-function DashboardInner() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [biz, setBiz] = useState<Business | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<Partial<Business>>({});
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
-  const [photos, setPhotos] = useState<File[]>([]);
-  const [menuFile, setMenuFile] = useState<File | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsDay[]>([]);
-  const [activeAiTool, setActiveAiTool] = useState<string | null>(null);
-  const [aiResult, setAiResult] = useState<string>('');
-  const [aiLoading, setAiLoading] = useState(false);
-  const upgraded = searchParams.get('upgraded') === 'true' || searchParams.get('success') === 'upgraded';
+// ── DASHBOARD PAGE ────────────────────────────────────────────────────────
+export default function DashboardPage() {
+  const supabase = createClientComponentClient()
+  const router = useRouter()
 
+  const [user, setUser] = useState<User | null>(null)
+  const [business, setBusiness] = useState<Business | null>(null)
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [foundingLeft, setFoundingLeft] = useState<number>(100)
+  const [activeTab, setActiveTab] = useState<'overview' | 'listing' | 'ai' | 'analytics' | 'billing'>('overview')
+  const [loading, setLoading] = useState(true)
+
+  // ── LOAD DATA ────────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
-      const { data } = await supabase.from('businesses').select('*').eq('owner_id', user.id).single();
-      if (!data) { router.push('/register'); return; }
-      setBiz(data); setForm(data); setLoading(false);
+      // Auth check
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/login'); return }
 
-      // Fetch weekly analytics
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const { data: analyticsData } = await supabase
-        .from('business_analytics')
-        .select('date, profile_views, whatsapp_clicks, call_clicks')
-        .eq('business_id', data.id)
-        .gte('date', weekAgo)
-        .order('date', { ascending: true });
-      if (analyticsData) setAnalytics(analyticsData as AnalyticsDay[]);
-    }
-    load();
-  }, [router]);
+      // Profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, plan, founding_member')
+        .eq('id', session.user.id)
+        .single()
 
-  const update = (field: string, value: string | number | boolean) => setForm(f => ({ ...f, [field]: value }));
+      if (!profile) { router.push('/login'); return }
+      setUser({ ...profile, email: session.user.email ?? '' })
 
-  const uploadPhotos = async (businessId: string) => {
-    const urls: string[] = [];
-    for (const photo of photos) {
-      const ext = photo.name.split('.').pop();
-      const path = `${businessId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { data } = await supabase.storage.from('business-photos').upload(path, photo, { upsert: true });
-      if (data) {
-        const { data: urlData } = supabase.storage.from('business-photos').getPublicUrl(path);
-        urls.push(urlData.publicUrl);
+      // Business owned by this user
+      const { data: biz } = await supabase
+        .from('businesses')
+        .select('id, name, category, location, phone, whatsapp, price_range, opening_hours, description, photos, slug')
+        .eq('owner_id', session.user.id)
+        .single()
+
+      setBusiness(biz ?? null)
+
+      // Stats (from business_stats table — fallback to zeros)
+      if (biz) {
+        const today = new Date().toISOString().split('T')[0]
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+
+        const { data: statsRows } = await supabase
+          .from('business_stats')
+          .select('date, views, whatsapp_clicks, call_clicks')
+          .eq('business_id', biz.id)
+          .gte('date', new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0])
+          .order('date', { ascending: true })
+
+        const rows = statsRows ?? []
+        const get = (date: string, field: keyof typeof rows[0]) =>
+          (rows.find(r => r.date === date)?.[field] as number) ?? 0
+
+        const totalRes = await supabase
+          .from('business_stats')
+          .select('views')
+          .eq('business_id', biz.id)
+        const totalViews = (totalRes.data ?? []).reduce((s, r) => s + (r.views ?? 0), 0)
+
+        // Build weekly array (last 7 days Mon→Sun)
+        const weekly = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(Date.now() - (6 - i) * 86400000).toISOString().split('T')[0]
+          return get(d, 'views')
+        })
+
+        setStats({
+          views_today: get(today, 'views'),
+          views_yesterday: get(yesterday, 'views'),
+          whatsapp_clicks_today: get(today, 'whatsapp_clicks'),
+          whatsapp_clicks_yesterday: get(yesterday, 'whatsapp_clicks'),
+          call_clicks_today: get(today, 'call_clicks'),
+          call_clicks_yesterday: get(yesterday, 'call_clicks'),
+          total_views: totalViews,
+          weekly,
+        })
       }
+
+      // Founding member spots left
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('founding_member', true)
+      setFoundingLeft(Math.max(0, 100 - (count ?? 0)))
+
+      setLoading(false)
     }
-    return [...(biz?.photos || []), ...urls];
-  };
+    load()
+  }, [])
 
-  const handleSave = async () => {
-    if (!biz) return;
-    setSaving(true);
-    try {
-      const updates: Record<string, unknown> = { ...form };
-      delete updates.id; delete updates.owner_id; delete updates.created_at; delete updates.updated_at;
-      if (photos.length > 0) {
-        const maxPhotos = PLANS[biz.plan]?.maxPhotos ?? 2;
-        const allPhotos = await uploadPhotos(biz.id);
-        updates.photos = maxPhotos === Infinity ? allPhotos : allPhotos.slice(0, maxPhotos);
-      }
-      if (menuFile) {
-        const ext = menuFile.name.split('.').pop();
-        const path = `menus/${biz.id}/menu.${ext}`;
-        const { data } = await supabase.storage.from('business-photos').upload(path, menuFile, { upsert: true });
-        if (data) {
-          const { data: urlData } = supabase.storage.from('business-photos').getPublicUrl(path);
-          updates.menu_url = urlData.publicUrl;
-        }
-      }
-      const { data, error } = await supabase.from('businesses').update(updates).eq('id', biz.id).select().single();
-      if (error) throw error;
-      setBiz(data); setForm(data); setEditing(false); setPhotos([]); setMenuFile(null);
-      setSaveMsg('Saved successfully!');
-      setTimeout(() => setSaveMsg(''), 3000);
-    } catch { setSaveMsg('Failed to save. Please try again.'); }
-    setSaving(false);
-  };
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
-  const removePhoto = (index: number) => {
-    if (!biz || !biz.photos) return;
-    const updated = biz.photos.filter((_, i) => i !== index);
-    setForm(f => ({ ...f, photos: updated }));
-    setBiz(b => b ? { ...b, photos: updated } : b);
-  };
+  // ── HELPERS ──────────────────────────────────────────────────────────────
+  const health = calcHealth(business)
+  const isPro = user?.plan === 'pro' || user?.plan === 'plus'
+  const isPlus = user?.plan === 'plus'
 
-  const runAiTool = useCallback(async (toolId: string) => {
-    if (!biz) return;
-    setActiveAiTool(toolId);
-    setAiLoading(true);
-    setAiResult('');
-    try {
-      const res = await fetch('/api/ai-tools', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolId, businessId: biz.id, businessData: { name: biz.name, category: biz.category, city: biz.city, description: biz.description } }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'AI tool failed');
-      setAiResult(data.result || 'Done!');
-    } catch (err) {
-      setAiResult(err instanceof Error ? err.message : 'Something went wrong');
+  const statChange = (today: number, yesterday: number) => {
+    if (yesterday === 0 && today === 0) return { label: 'No activity yet', color: 'var(--muted)' }
+    if (yesterday === 0) return { label: `↑ ${today} today`, color: 'var(--green)' }
+    const pct = Math.round(((today - yesterday) / yesterday) * 100)
+    if (pct === 0) return { label: 'Same as yesterday', color: 'var(--muted)' }
+    return {
+      label: pct > 0 ? `↑ ${pct}% from yesterday` : `↓ ${Math.abs(pct)}% from yesterday`,
+      color: pct > 0 ? 'var(--green)' : 'var(--red)',
     }
-    setAiLoading(false);
-  }, [biz]);
+  }
 
-  if (loading) return (
-    <>
-      <style>{styles}</style>
-      <main className="dash-page">
-        <div className="loading-wrap"><div className="loading-spinner" /><p>Loading your dashboard...</p></div>
-      </main>
-    </>
-  );
+  const weeklyMax = Math.max(...(stats?.weekly ?? [1]))
+  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-  if (!biz) return null;
+  const greeting = () => {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good morning'
+    if (h < 17) return 'Good afternoon'
+    return 'Good evening'
+  }
 
-  const plan = biz.plan || 'basic';
-  const planConfig = PLANS[plan];
-  const isBasic = plan === 'basic';
-  const isPro = plan === 'pro';
-  const isPlus = plan === 'plus';
-  const hasAnalytics = isPro || isPlus;
-  const maxPhotos = planConfig?.maxPhotos ?? 2;
-  const currentPhotoCount = biz.photos?.length || 0;
-  const canAddPhotos = maxPhotos === Infinity || currentPhotoCount < maxPhotos;
-  const healthPercent = getListingHealth(biz);
+  const firstName = user?.full_name?.split(' ')[0] ?? 'there'
 
-  // Category-specific fields
-  const cat = biz.category?.toLowerCase() || '';
-  const showPG = ['pg', 'rental', 'hotel'].includes(cat);
-  const showFood = ['restaurant', 'cafe', 'food'].includes(cat);
+  // ── RENDER ───────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0a0a0a', color: '#666', fontFamily: 'Sora, sans-serif', fontSize: 14 }}>
+        Loading your dashboard…
+      </div>
+    )
+  }
 
   return (
     <>
-      <style>{styles}</style>
-      <main className="dash-page">
-        <header className="dash-header">
-          <a href="/" className="dash-logo">
-            <span className="logo-y">Yana</span><span className="logo-n">Nagaland</span>
-          </a>
-          <div className="dash-header-right">
-            <a href={`/business/${biz.id}`} target="_blank" rel="noopener noreferrer" className="preview-btn">View Listing</a>
-            <button className="logout-btn" onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}>Sign Out</button>
-          </div>
-        </header>
+      <style>{CSS}</style>
+      <div className="layout">
 
-        <div className="dash-content">
-          {/* Upgraded success banner */}
-          {upgraded && (
-            <div className="success-banner">Plan upgraded successfully! Your listing now has enhanced visibility.</div>
-          )}
-
-          {/* === PLAN-SPECIFIC BANNERS === */}
-          {isPlus && (
-            <div className="plus-member-banner">
-              <div className="plus-banner-icon">👑</div>
-              <div>
-                <strong>Plus Member</strong>
-                <p>Premium visibility, all AI tools, and verified badge active.</p>
-              </div>
-            </div>
-          )}
-
-          {isPro && biz.is_founding_member && (
-            <div className="founding-member-banner">
-              <div className="founding-banner-icon">🎉</div>
-              <div>
-                <strong>You&apos;re a Founding Member</strong>
-                <p>Pro plan free forever. You helped build Yana Nagaland from the ground up.</p>
-              </div>
-            </div>
-          )}
-
-          {isPro && !biz.is_founding_member && (
-            <div className="pro-member-banner">
-              <strong>Pro Member</strong>
-              <p>Enhanced visibility and AI tools active.</p>
-            </div>
-          )}
-
-          {isBasic && (
-            <div className="upgrade-hook">
-              <div className="hook-left">
-                <div className="hook-icon">🚀</div>
-                <div>
-                  <strong>You&apos;re invisible to half your customers</strong>
-                  <p>Upgrade to Pro for analytics, AI tools, and higher search ranking. <span className="hook-spots">47 founding spots left</span></p>
-                </div>
-              </div>
-              <a href="/pricing" className="hook-cta">Upgrade Now</a>
-            </div>
-          )}
-
-          {/* Welcome */}
-          <div className="dash-welcome">
-            <div>
-              <h1>{biz.name}</h1>
-              <p className="dash-meta">
-                {biz.category} · {biz.city}
-                <span className={`plan-badge plan-${plan}`}>
-                  {isPlus ? '👑 Plus' : isPro ? 'Pro' : 'Basic (Free)'}
-                </span>
-                {biz.is_verified && <span className="verified-tag">✓ Verified</span>}
-                {biz.is_founding_member && <span className="founding-tag">Founding Member</span>}
-              </p>
-            </div>
-            {saveMsg && <div className={`save-msg ${saveMsg.includes('Failed') ? 'error' : ''}`}>{saveMsg}</div>}
+        {/* ── SIDEBAR ── */}
+        <aside className="sidebar">
+          <div className="sidebar-logo">
+            <div className="logo-mark">📍</div>
+            <div className="logo-text">Yana <span>Nagaland</span></div>
           </div>
 
-          {/* === STATS GRID — always visible for all plans === */}
-          <div className="stats-grid">
+          <nav className="sidebar-nav">
+            <div className="nav-section-label">Dashboard</div>
             {[
-              { icon: '👁', label: 'Profile Views', value: biz.views || 0 },
-              { icon: '📞', label: 'Call Clicks', value: biz.call_clicks || 0 },
-              { icon: '💬', label: 'WhatsApp Clicks', value: biz.whatsapp_clicks || 0 },
-            ].map(s => (
-              <div key={s.label} className="stat-card">
-                <div className="stat-icon">{s.icon}</div>
-                <div className="stat-value">{s.value}</div>
-                <div className="stat-label">{s.label}</div>
-              </div>
+              { key: 'overview', icon: '📊', label: 'Overview' },
+              { key: 'listing',  icon: '🏪', label: 'My Listing' },
+              { key: 'ai',       icon: '🤖', label: 'AI Tools' },
+              { key: 'analytics',icon: '📈', label: 'Analytics' },
+            ].map(item => (
+              <button
+                key={item.key}
+                className={`nav-item${activeTab === item.key ? ' active' : ''}`}
+                onClick={() => setActiveTab(item.key as typeof activeTab)}
+              >
+                <span className="icon">{item.icon}</span> {item.label}
+              </button>
             ))}
+            <div className="nav-section-label">Settings</div>
+            {[
+              { key: 'billing', icon: '💳', label: 'Plan & Billing' },
+              { icon: '⚙️', label: 'Settings', href: '/dashboard/settings' },
+            ].map((item, i) => (
+              item.href
+                ? <a key={i} href={item.href} className="nav-item"><span className="icon">{item.icon}</span> {item.label}</a>
+                : <button key={i} className={`nav-item${activeTab === item.key ? ' active' : ''}`} onClick={() => setActiveTab(item.key as typeof activeTab)}>
+                    <span className="icon">{item.icon}</span> {item.label}
+                  </button>
+            ))}
+          </nav>
+
+          <div className="sidebar-bottom">
+            <div className="plan-pill">
+              <span className={`badge badge-${user?.plan ?? 'basic'}`}>{user?.plan ?? 'Basic'}</span>
+              <div className="plan-info">
+                <div className="plan-name">
+                  {user?.plan === 'basic' ? 'Free Plan' : user?.plan === 'pro' ? 'Pro Plan' : 'Plus Plan'}
+                </div>
+                <div className="plan-sub">
+                  {user?.plan === 'basic' ? 'Upgrade for more' :
+                   user?.plan === 'pro' && user.founding_member ? 'Founding Member 🎖️' :
+                   'All features unlocked'}
+                </div>
+              </div>
+            </div>
+            <button className="nav-item" onClick={signOut} style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', textAlign: 'left' }}>
+              <span className="icon">🚪</span> Sign Out
+            </button>
           </div>
+        </aside>
 
-          {/* === WEEKLY ANALYTICS === */}
-          <div className={`analytics-section ${!hasAnalytics ? 'locked-section' : ''}`}>
-            <div className="section-title-row">
-              <h2 className="section-title">Weekly Analytics</h2>
-              {!hasAnalytics && <span className="lock-badge">🔒 Pro</span>}
+        {/* ── MAIN ── */}
+        <main className="main">
+
+          {/* TOPBAR */}
+          <div className="topbar">
+            <div className="topbar-left">
+              <h1>{greeting()}, {firstName} 👋</h1>
+              <p>Here's how your business is doing today</p>
             </div>
-            {hasAnalytics ? (
-              <div className="analytics-charts">
-                <div className="chart-card">
-                  <div className="chart-header">
-                    <span className="chart-title">Profile Views</span>
-                    <span className="chart-total">{analytics.reduce((s, d) => s + (d.profile_views || 0), 0)}</span>
-                  </div>
-                  <MiniBarChart data={analytics} dataKey="profile_views" color="#c0392b" />
-                </div>
-                <div className="chart-card">
-                  <div className="chart-header">
-                    <span className="chart-title">WhatsApp Clicks</span>
-                    <span className="chart-total">{analytics.reduce((s, d) => s + (d.whatsapp_clicks || 0), 0)}</span>
-                  </div>
-                  <MiniBarChart data={analytics} dataKey="whatsapp_clicks" color="#25D366" />
-                </div>
-                <div className="chart-card">
-                  <div className="chart-header">
-                    <span className="chart-title">Call Clicks</span>
-                    <span className="chart-total">{analytics.reduce((s, d) => s + (d.call_clicks || 0), 0)}</span>
-                  </div>
-                  <MiniBarChart data={analytics} dataKey="call_clicks" color="#3b82f6" />
-                </div>
-              </div>
-            ) : (
-              <div className="locked-overlay-wrap">
-                <div className="analytics-charts blurred">
-                  <div className="chart-card"><div className="chart-header"><span className="chart-title">Profile Views</span><span className="chart-total">--</span></div><div className="fake-chart" /></div>
-                  <div className="chart-card"><div className="chart-header"><span className="chart-title">WhatsApp Clicks</span><span className="chart-total">--</span></div><div className="fake-chart" /></div>
-                  <div className="chart-card"><div className="chart-header"><span className="chart-title">Call Clicks</span><span className="chart-total">--</span></div><div className="fake-chart" /></div>
-                </div>
-                <div className="locked-overlay">
-                  <div className="locked-icon">🔒</div>
-                  <p>Upgrade to Pro to unlock weekly analytics</p>
-                  <a href="/pricing" className="locked-cta">View Plans</a>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* === FEATURE CARDS ROW === */}
-          <div className="feature-cards-row">
-            {/* Search Priority */}
-            <div className={`feature-card ${isPlus ? 'feature-gold' : isPro ? 'feature-pro' : ''}`}>
-              <div className="feature-card-icon">🔍</div>
-              <div className="feature-card-title">Search Priority</div>
-              {isPlus ? (
-                <>
-                  <div className="feature-indicator gold">Always First</div>
-                  <p className="feature-desc">Your listing appears at the top of all relevant searches.</p>
-                </>
-              ) : isPro ? (
-                <>
-                  <div className="feature-indicator green">Higher Ranking</div>
-                  <p className="feature-desc">Your listing ranks above Basic plan businesses.</p>
-                </>
-              ) : (
-                <>
-                  <div className="feature-indicator gray">Normal Position</div>
-                  <p className="feature-desc locked-text">Upgrade for higher search ranking.</p>
-                  <div className="feature-locked-preview">
-                    <div className="rank-preview">
-                      <div className="rank-line gold-line"><span className="rank-dot gold-dot" />Plus — Always first</div>
-                      <div className="rank-line green-line"><span className="rank-dot green-dot" />Pro — Higher ranking</div>
-                      <div className="rank-line gray-line active"><span className="rank-dot gray-dot" />Basic — You are here</div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Verified Badge */}
-            <div className={`feature-card ${isPlus ? 'feature-gold' : ''}`}>
-              <div className="feature-card-icon">{isPlus && biz.is_verified ? '✅' : '🛡️'}</div>
-              <div className="feature-card-title">Verified Badge</div>
-              {isPlus && biz.is_verified ? (
-                <>
-                  <div className="feature-indicator gold">Verified Owner</div>
-                  <p className="feature-desc">Gold checkmark shows customers you&apos;re the verified owner.</p>
-                </>
-              ) : (
-                <>
-                  <div className="feature-indicator gray">Not Verified</div>
-                  <p className="feature-desc locked-text">Plus plan only. Build trust with a verified owner badge.</p>
-                  <span className="lock-badge small">🔒 Plus</span>
-                </>
-              )}
-            </div>
-
-            {/* Listing Health */}
-            <div className="feature-card">
-              <div className="feature-card-title" style={{ marginBottom: '0.75rem' }}>Listing Health</div>
-              <HealthRing percent={healthPercent} />
-              <p className="feature-desc" style={{ marginTop: '0.75rem' }}>
-                {healthPercent >= 80 ? 'Great! Your listing is well-optimized.' :
-                 healthPercent >= 50 ? 'Good start. Add more details to rank higher.' :
-                 'Fill in more details to improve visibility.'}
-              </p>
-            </div>
-
-            {/* Featured This Week - Plus only */}
-            {isPlus && (
-              <div className="feature-card feature-gold">
-                <div className="feature-card-icon">⭐</div>
-                <div className="feature-card-title">Featured This Week</div>
-                <div className="feature-indicator gold">Active</div>
-                <p className="feature-desc">Your business is featured on the homepage this week.</p>
-              </div>
-            )}
-          </div>
-
-          {/* === AI TOOLS === */}
-          <div className="ai-tools-section">
-            <h2 className="section-title">AI Tools</h2>
-            <div className="ai-tools-grid">
-              {AI_TOOLS.map(tool => {
-                const access = getToolAccess(tool, plan);
-                return (
-                  <div key={tool.id} className={`ai-tool-card ${!access.unlocked ? 'ai-locked' : ''}`}>
-                    <div className="ai-tool-top">
-                      <span className="ai-tool-icon">{tool.icon}</span>
-                      <span className="ai-tool-name">{tool.name}</span>
-                    </div>
-                    {access.unlocked ? (
-                      <div className="ai-tool-bottom">
-                        <span className="ai-access-label">{access.label}</span>
-                        <button className="ai-use-btn" onClick={() => runAiTool(tool.id)}>Use</button>
-                      </div>
-                    ) : (
-                      <div className="ai-tool-bottom">
-                        <span className="ai-locked-badge">{access.badge}</span>
-                        <span className="ai-lock-icon">🔒</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {/* AI result panel */}
-            {activeAiTool && (
-              <div className="ai-result-panel">
-                <div className="ai-result-header">
-                  <span>{AI_TOOLS.find(t => t.id === activeAiTool)?.name}</span>
-                  <button onClick={() => { setActiveAiTool(null); setAiResult(''); }}>✕</button>
-                </div>
-                {aiLoading ? (
-                  <div className="ai-loading"><div className="loading-spinner small" /> Generating...</div>
-                ) : (
-                  <div className="ai-result-text">{aiResult}</div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* === LISTING DETAILS (Edit Section) === */}
-          <div className="section-header">
-            <h2>Listing Details</h2>
-            {!editing
-              ? <button className="edit-btn" onClick={() => setEditing(true)}>Edit</button>
-              : <div className="edit-actions">
-                  <button className="cancel-btn" onClick={() => { setEditing(false); setForm(biz); }}>Cancel</button>
-                  <button className="save-btn" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</button>
-                </div>
-            }
-          </div>
-
-          <div className="details-grid">
-            {/* Basic Info */}
-            <div className="detail-card full-width">
-              <div className="detail-title">Basic Information</div>
-              <div className="detail-row">
-                <div className="detail-group">
-                  <div className="detail-label">Business Name</div>
-                  {editing ? <input className="detail-input" value={form.name || ''} onChange={e => update('name', e.target.value)} /> : <div className="detail-value">{biz.name}</div>}
-                </div>
-                <div className="detail-group">
-                  <div className="detail-label">Category</div>
-                  <div className="detail-value">{biz.category}</div>
-                </div>
-              </div>
-              <div className="detail-group">
-                <div className="detail-label">Description</div>
-                {editing ? <textarea className="detail-textarea" value={form.description || ''} onChange={e => update('description', e.target.value)} rows={3} placeholder="Describe your business..." /> : <div className="detail-value">{biz.description || <span className="detail-empty">Not set</span>}</div>}
-              </div>
-              <div className="detail-row">
-                <div className="detail-group">
-                  <div className="detail-label">Opening Hours</div>
-                  {editing ? <input className="detail-input" value={form.opening_hours || ''} onChange={e => update('opening_hours', e.target.value)} placeholder="e.g. 9 AM - 9 PM" /> : <div className="detail-value">{biz.opening_hours || <span className="detail-empty">Not set</span>}</div>}
-                </div>
-                <div className="detail-group">
-                  <div className="detail-label">Tags</div>
-                  {editing ? <input className="detail-input" value={form.tags || ''} onChange={e => update('tags', e.target.value)} placeholder="comma separated tags" /> : <div className="detail-value">{biz.tags || <span className="detail-empty">Not set</span>}</div>}
-                </div>
-              </div>
-              <div className="detail-group">
-                <div className="detail-label">Vibe Tags</div>
-                {editing ? <input className="detail-input" value={form.vibe_tags || ''} onChange={e => update('vibe_tags', e.target.value)} placeholder="e.g. cozy, family-friendly, romantic" /> : <div className="detail-value">{biz.vibe_tags || <span className="detail-empty">Not set</span>}</div>}
-              </div>
-            </div>
-
-            {/* Location */}
-            <div className="detail-card">
-              <div className="detail-title">Location</div>
-              <div className="detail-group"><div className="detail-label">District</div><div className="detail-value">{biz.city}</div></div>
-              <div className="detail-group">
-                <div className="detail-label">Address</div>
-                {editing ? <input className="detail-input" value={form.address || ''} onChange={e => update('address', e.target.value)} /> : <div className="detail-value">{biz.address}</div>}
-              </div>
-              <div className="detail-group">
-                <div className="detail-label">Landmark</div>
-                {editing ? <input className="detail-input" value={form.landmark || ''} onChange={e => update('landmark', e.target.value)} placeholder="Nearby landmark" /> : <div className="detail-value">{biz.landmark || <span className="detail-empty">Not set</span>}</div>}
-              </div>
-            </div>
-
-            {/* Contact */}
-            <div className="detail-card">
-              <div className="detail-title">Contact</div>
-              <div className="detail-group">
-                <div className="detail-label">Phone</div>
-                {editing ? <input className="detail-input" value={form.phone || ''} onChange={e => update('phone', e.target.value)} /> : <div className="detail-value">{biz.phone}</div>}
-              </div>
-              <div className="detail-group">
-                <div className="detail-label">WhatsApp</div>
-                {editing ? <input className="detail-input" value={form.whatsapp || ''} onChange={e => update('whatsapp', e.target.value)} placeholder="WhatsApp number" /> : <div className="detail-value">{biz.whatsapp || <span className="detail-empty">Not set</span>}</div>}
-              </div>
-              <div className="detail-group">
-                <div className="detail-label">Email</div>
-                {editing ? <input className="detail-input" value={form.email || ''} onChange={e => update('email', e.target.value)} placeholder="Email address" /> : <div className="detail-value">{biz.email || <span className="detail-empty">Not set</span>}</div>}
-              </div>
-              <div className="detail-group">
-                <div className="detail-label">Website</div>
-                {editing ? <input className="detail-input" value={form.website || ''} onChange={e => update('website', e.target.value)} placeholder="https://" /> : <div className="detail-value">{biz.website || <span className="detail-empty">Not set</span>}</div>}
-              </div>
-            </div>
-
-            {/* Pricing */}
-            <div className="detail-card full-width">
-              <div className="detail-title">Pricing</div>
-              <div className="detail-row three-col">
-                <div className="detail-group">
-                  <div className="detail-label">Min Price (₹)</div>
-                  {editing ? <input className="detail-input" type="number" value={form.price_min ?? ''} onChange={e => update('price_min', e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 500" /> : <div className="detail-value">{biz.price_min != null ? `₹${biz.price_min}` : <span className="detail-empty">Not set</span>}</div>}
-                </div>
-                <div className="detail-group">
-                  <div className="detail-label">Max Price (₹)</div>
-                  {editing ? <input className="detail-input" type="number" value={form.price_max ?? ''} onChange={e => update('price_max', e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 2000" /> : <div className="detail-value">{biz.price_max != null ? `₹${biz.price_max}` : <span className="detail-empty">Not set</span>}</div>}
-                </div>
-                <div className="detail-group">
-                  <div className="detail-label">Price Range Label</div>
-                  {editing ? <input className="detail-input" value={form.price_range || ''} onChange={e => update('price_range', e.target.value)} placeholder="e.g. Budget, Mid-range, Premium" /> : <div className="detail-value">{biz.price_range || <span className="detail-empty">Not set</span>}</div>}
-                </div>
-              </div>
-            </div>
-
-            {/* PG / Rental / Hotel fields */}
-            {showPG && (
-              <div className="detail-card full-width">
-                <div className="detail-title">Accommodation Details</div>
-                <div className="detail-row">
-                  <div className="detail-group">
-                    <div className="detail-label">Gender Preference</div>
-                    {editing ? (
-                      <select className="detail-input" value={form.gender || ''} onChange={e => update('gender', e.target.value)}>
-                        <option value="">Any / Not specified</option>
-                        <option value="male">Male only</option>
-                        <option value="female">Female only</option>
-                        <option value="coed">Co-ed</option>
-                      </select>
-                    ) : <div className="detail-value">{biz.gender ? biz.gender.charAt(0).toUpperCase() + biz.gender.slice(1) : <span className="detail-empty">Not set</span>}</div>}
-                  </div>
-                  <div className="detail-group">
-                    <div className="detail-label">Room Type</div>
-                    {editing ? (
-                      <select className="detail-input" value={form.room_type || ''} onChange={e => update('room_type', e.target.value)}>
-                        <option value="">Not specified</option>
-                        <option value="single">Single</option>
-                        <option value="double">Double</option>
-                        <option value="shared">Shared</option>
-                        <option value="dormitory">Dormitory</option>
-                      </select>
-                    ) : <div className="detail-value">{biz.room_type ? biz.room_type.charAt(0).toUpperCase() + biz.room_type.slice(1) : <span className="detail-empty">Not set</span>}</div>}
-                  </div>
-                </div>
-                <div className="toggle-row">
-                  <label className="toggle-item"><span>Vacancy Available</span>{editing ? <input type="checkbox" checked={!!form.vacancy} onChange={e => update('vacancy', e.target.checked)} /> : <span className={`toggle-status ${biz.vacancy ? 'on' : 'off'}`}>{biz.vacancy ? 'Yes' : 'No'}</span>}</label>
-                  <label className="toggle-item"><span>WiFi</span>{editing ? <input type="checkbox" checked={!!form.wifi} onChange={e => update('wifi', e.target.checked)} /> : <span className={`toggle-status ${biz.wifi ? 'on' : 'off'}`}>{biz.wifi ? 'Yes' : 'No'}</span>}</label>
-                  <label className="toggle-item"><span>AC</span>{editing ? <input type="checkbox" checked={!!form.ac} onChange={e => update('ac', e.target.checked)} /> : <span className={`toggle-status ${biz.ac ? 'on' : 'off'}`}>{biz.ac ? 'Yes' : 'No'}</span>}</label>
-                  <label className="toggle-item"><span>Meals Included</span>{editing ? <input type="checkbox" checked={!!form.meals} onChange={e => update('meals', e.target.checked)} /> : <span className={`toggle-status ${biz.meals ? 'on' : 'off'}`}>{biz.meals ? 'Yes' : 'No'}</span>}</label>
-                </div>
-                <div className="detail-group">
-                  <div className="detail-label">Amenities</div>
-                  {editing ? <input className="detail-input" value={form.amenities || ''} onChange={e => update('amenities', e.target.value)} placeholder="e.g. parking, laundry, gym, water purifier" /> : <div className="detail-value">{biz.amenities || <span className="detail-empty">Not set</span>}</div>}
-                </div>
-              </div>
-            )}
-
-            {/* Food / Restaurant fields */}
-            {showFood && (
-              <div className="detail-card full-width">
-                <div className="detail-title">Restaurant Details</div>
-                <div className="detail-group">
-                  <div className="detail-label">Cuisine</div>
-                  {editing ? <input className="detail-input" value={form.cuisine || ''} onChange={e => update('cuisine', e.target.value)} placeholder="e.g. Naga, Chinese, Indian, Continental" /> : <div className="detail-value">{biz.cuisine || <span className="detail-empty">Not set</span>}</div>}
-                </div>
-                <div className="toggle-row">
-                  <label className="toggle-item"><span>WiFi</span>{editing ? <input type="checkbox" checked={!!form.wifi} onChange={e => update('wifi', e.target.checked)} /> : <span className={`toggle-status ${biz.wifi ? 'on' : 'off'}`}>{biz.wifi ? 'Yes' : 'No'}</span>}</label>
-                  <label className="toggle-item"><span>AC</span>{editing ? <input type="checkbox" checked={!!form.ac} onChange={e => update('ac', e.target.checked)} /> : <span className={`toggle-status ${biz.ac ? 'on' : 'off'}`}>{biz.ac ? 'Yes' : 'No'}</span>}</label>
-                </div>
-                <div className="detail-group" style={{ marginTop: '0.5rem' }}>
-                  <div className="detail-label">Menu Upload</div>
-                  {biz.menu_url && <a href={biz.menu_url} target="_blank" rel="noopener noreferrer" className="menu-link">View current menu</a>}
-                  {editing && (
-                    <label className="upload-box" style={{ marginTop: '0.5rem' }}>
-                      <span>{menuFile ? `Selected: ${menuFile.name}` : '+ Upload menu (PDF or image)'}</span>
-                      <input type="file" accept="image/*,.pdf" onChange={e => setMenuFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
-                    </label>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Non-PG/Food amenities */}
-            {!showPG && !showFood && (
-              <div className="detail-card full-width">
-                <div className="detail-title">Amenities & Features</div>
-                <div className="toggle-row">
-                  <label className="toggle-item"><span>WiFi</span>{editing ? <input type="checkbox" checked={!!form.wifi} onChange={e => update('wifi', e.target.checked)} /> : <span className={`toggle-status ${biz.wifi ? 'on' : 'off'}`}>{biz.wifi ? 'Yes' : 'No'}</span>}</label>
-                  <label className="toggle-item"><span>AC</span>{editing ? <input type="checkbox" checked={!!form.ac} onChange={e => update('ac', e.target.checked)} /> : <span className={`toggle-status ${biz.ac ? 'on' : 'off'}`}>{biz.ac ? 'Yes' : 'No'}</span>}</label>
-                </div>
-                <div className="detail-group">
-                  <div className="detail-label">Amenities</div>
-                  {editing ? <input className="detail-input" value={form.amenities || ''} onChange={e => update('amenities', e.target.value)} placeholder="e.g. parking, air conditioning, wheelchair access" /> : <div className="detail-value">{biz.amenities || <span className="detail-empty">Not set</span>}</div>}
-                </div>
-              </div>
-            )}
-
-            {/* Photos */}
-            <div className="detail-card full-width">
-              <div className="detail-title">
-                Photos
-                <span className="photo-count">{currentPhotoCount} / {maxPhotos === Infinity ? '∞' : maxPhotos}</span>
-              </div>
-              {biz.photos && biz.photos.length > 0
-                ? <div className="photos-grid">
-                    {biz.photos.map((p, i) => (
-                      <div key={i} className="photo-wrap">
-                        <img src={p} alt="" className="photo-thumb" />
-                        {editing && <button className="photo-remove" onClick={() => removePhoto(i)}>×</button>}
-                      </div>
-                    ))}
-                  </div>
-                : <p className="detail-empty">No photos yet</p>
-              }
-              {editing && canAddPhotos && (
-                <label className="upload-box" style={{ marginTop: '0.75rem' }}>
-                  <span>{photos.length > 0 ? `${photos.length} new photo${photos.length > 1 ? 's' : ''} selected` : '+ Add photos'}</span>
-                  <input type="file" multiple accept="image/*" onChange={e => setPhotos(Array.from(e.target.files || []))} style={{ display: 'none' }} />
-                </label>
-              )}
-              {editing && !canAddPhotos && (
-                <div className="photo-limit-msg">
-                  Photo limit reached ({maxPhotos}). <a href="/pricing" style={{ color: '#c0392b', textDecoration: 'underline' }}>Upgrade for more</a>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Account section */}
-          <div className="danger-zone">
-            <div className="danger-title">Account</div>
-            <div className="danger-row">
-              <button className="logout-danger-btn" onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}>Sign out</button>
-              {!isPlus && (
-                <a href="/pricing" className="upgrade-footer-link">
-                  {isBasic ? 'Upgrade to Pro' : 'Upgrade to Plus'}
+            <div className="topbar-right">
+              {business && (
+                <a href={`/business/${business.slug}`} target="_blank" rel="noreferrer" className="view-listing-btn">
+                  🔗 View Live Listing
                 </a>
               )}
             </div>
           </div>
-        </div>
-      </main>
+
+          {/* ── OVERVIEW TAB ── */}
+          {activeTab === 'overview' && (
+            <>
+              {/* UPGRADE HOOK — Basic only */}
+              {!isPro && (
+                <div className="upgrade-hook" onClick={() => setActiveTab('billing')}>
+                  <div className="hook-content">
+                    <div className="hook-emoji">🚀</div>
+                    <div>
+                      <div className="hook-title">You're invisible to half your customers</div>
+                      <div className="hook-sub">
+                        Pro businesses rank <span>4x higher</span> in search.{' '}
+                        <span>{foundingLeft} founding member spots left</span> — Pro is free right now.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hook-stats">
+                    <div className="hook-stat"><div className="val">4x</div><div className="lbl">More clicks</div></div>
+                    <div className="hook-stat"><div className="val">Free</div><div className="lbl">Right now</div></div>
+                  </div>
+                  <button className="hook-btn">See Plans →</button>
+                </div>
+              )}
+
+              {/* FOUNDING MEMBER BANNER — Pro only */}
+              {user?.plan === 'pro' && user.founding_member && (
+                <div className="founding-banner">
+                  <span>🎖️</span>
+                  <div>
+                    <div className="founding-title">Founding Member</div>
+                    <div className="founding-sub">You're one of the first 100 businesses on Yana. Pro is free for you — forever.</div>
+                  </div>
+                </div>
+              )}
+
+              {/* PLUS BANNER */}
+              {isPlus && (
+                <div className="plus-banner">
+                  <span>⭐</span>
+                  <div>
+                    <div className="founding-title">Plus Member — Gold Verified</div>
+                    <div className="founding-sub">Your listing appears first in search results. Gold badge visible to all customers.</div>
+                  </div>
+                </div>
+              )}
+
+              {/* STATS ROW */}
+              <div className="stats-row">
+                {[
+                  {
+                    icon: '👁️', label: 'Views today',
+                    value: stats?.views_today ?? 0,
+                    change: statChange(stats?.views_today ?? 0, stats?.views_yesterday ?? 0),
+                  },
+                  {
+                    icon: '💬', label: 'WhatsApp clicks',
+                    value: stats?.whatsapp_clicks_today ?? 0,
+                    change: statChange(stats?.whatsapp_clicks_today ?? 0, stats?.whatsapp_clicks_yesterday ?? 0),
+                  },
+                  {
+                    icon: '📞', label: 'Call clicks',
+                    value: stats?.call_clicks_today ?? 0,
+                    change: statChange(stats?.call_clicks_today ?? 0, stats?.call_clicks_yesterday ?? 0),
+                  },
+                  {
+                    icon: '📅', label: 'Total views',
+                    value: stats?.total_views ?? 0,
+                    change: { label: 'Since you joined', color: 'var(--muted)' },
+                  },
+                ].map((s, i) => (
+                  <div key={i} className="stat-card">
+                    <div className="stat-icon">{s.icon}</div>
+                    <div className="stat-label">{s.label}</div>
+                    <div className="stat-value">{s.value.toLocaleString()}</div>
+                    <div className="stat-change" style={{ color: s.change.color }}>{s.change.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* TWO COL */}
+              <div className="two-col">
+
+                {/* LISTING HEALTH */}
+                <div className="section-card">
+                  <div className="card-header">
+                    <div>
+                      <div className="card-title">Listing Health</div>
+                      <div className="card-sub">Complete your profile to get more customers</div>
+                    </div>
+                    <button className="card-action" onClick={() => setActiveTab('listing')}>Fix Now →</button>
+                  </div>
+                  <div className="health-section">
+                    <div className="health-ring">
+                      <svg width="80" height="80" viewBox="0 0 80 80">
+                        <circle className="progress-bg" cx="40" cy="40" r="30" />
+                        <circle
+                          className="progress"
+                          cx="40" cy="40" r="30"
+                          style={{ strokeDashoffset: 188 - (188 * health.score) / 100 }}
+                        />
+                      </svg>
+                      <div className="health-center">
+                        <div className="pct">{health.score}%</div>
+                        <div className="lbl">Complete</div>
+                      </div>
+                    </div>
+                    <div className="health-tips">
+                      <h4>Fix these to get more customers:</h4>
+                      {health.tips.map((tip, i) => (
+                        <div key={i} className="tip-item" style={tip.done ? { color: '#27ae60' } : {}}>
+                          <div className="dot" style={tip.done ? { background: '#27ae60' } : {}} />
+                          {tip.text}{tip.done ? ' ✓' : ''}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI TOOLS */}
+                <div className="section-card">
+                  <div className="card-header">
+                    <div>
+                      <div className="card-title">AI Tools</div>
+                      <div className="card-sub">Let AI grow your business</div>
+                    </div>
+                  </div>
+                  <div className="ai-grid">
+                    {[
+                      { icon: '✨', name: 'Write Description', desc: isPro ? 'Unlimited' : 'One free use', locked: false },
+                      { icon: '📈', name: 'Growth Advisor', desc: isPro ? 'Unlimited' : 'One free use', locked: false },
+                      { icon: '📷', name: 'Menu Reader', desc: 'Read price boards', locked: !isPro, badge: 'Pro' },
+                      { icon: '⚔️', name: 'Competitor Intel', desc: 'Beat the competition', locked: !isPlus, badge: 'Plus' },
+                    ].map((tool, i) => (
+                      <div key={i} className={`ai-tool${tool.locked ? ' locked' : ''}`} onClick={() => !tool.locked && setActiveTab('ai')}>
+                        <div className="ai-tool-icon">{tool.icon}</div>
+                        <div className="ai-tool-text">
+                          <div className="name">{tool.name}</div>
+                          <div className="desc">{tool.desc}</div>
+                        </div>
+                        {tool.locked && <div className="lock-badge pro">{tool.badge}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* LISTING PREVIEW */}
+                <div className="section-card">
+                  <div className="card-header">
+                    <div>
+                      <div className="card-title">Your Listing</div>
+                      <div className="card-sub">What customers see</div>
+                    </div>
+                    <button className="card-action" onClick={() => setActiveTab('listing')}>Edit →</button>
+                  </div>
+                  {business ? (
+                    <div className="listing-preview">
+                      <div className="biz-name">{business.name}</div>
+                      <div className="biz-cat">{business.category} · {business.location}</div>
+                      <div className="listing-fields">
+                        {[
+                          { label: 'Phone',       value: business.phone },
+                          { label: 'Price',        value: business.price_range },
+                          { label: 'Hours',        value: business.opening_hours },
+                          { label: 'Photos',       value: business.photos?.length ? `${business.photos.length} added` : null },
+                          { label: 'Description',  value: business.description ? business.description.slice(0, 40) + '…' : null },
+                        ].map((f, i) => (
+                          <div key={i} className="listing-field">
+                            <span className="field-label">{f.label}</span>
+                            <span className={`field-value${!f.value ? ' missing' : ''}`}>
+                              {f.value ?? 'Not added'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <button className="edit-btn" onClick={() => setActiveTab('listing')}>✏️ Edit Full Listing</button>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--muted)', fontSize: 13 }}>
+                      <div style={{ fontSize: 32, marginBottom: 10 }}>🏪</div>
+                      <div>No listing yet</div>
+                      <a href="/dashboard/add-listing" style={{ color: 'var(--red)', fontWeight: 600, fontSize: 13, textDecoration: 'none', display: 'block', marginTop: 10 }}>
+                        + Add your business →
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* ANALYTICS */}
+                <div className="section-card">
+                  <div className="card-header">
+                    <div>
+                      <div className="card-title">Weekly Analytics</div>
+                      <div className="card-sub">Views this week</div>
+                    </div>
+                  </div>
+                  <div className={isPro ? '' : 'locked-overlay'}>
+                    <div className="chart-placeholder">
+                      {(stats?.weekly ?? Array(7).fill(0)).map((val, i) => (
+                        <div
+                          key={i}
+                          className={`bar${i === 6 ? ' today' : ''}`}
+                          style={{ height: `${weeklyMax === 0 ? 10 : Math.max(8, (val / weeklyMax) * 100)}%` }}
+                          title={`${weekDays[i]}: ${val} views`}
+                        />
+                      ))}
+                    </div>
+                    <div className="chart-labels">
+                      {weekDays.map(d => <div key={d} className="chart-label">{d}</div>)}
+                    </div>
+                  </div>
+                  {!isPro && (
+                    <button className="hook-btn" style={{ marginTop: 14, width: '100%' }} onClick={() => setActiveTab('billing')}>
+                      Unlock Analytics →
+                    </button>
+                  )}
+                </div>
+
+              </div>
+            </>
+          )}
+
+          {/* ── LISTING TAB ── */}
+          {activeTab === 'listing' && (
+            <div className="section-card">
+              <div className="card-header">
+                <div>
+                  <div className="card-title">My Listing</div>
+                  <div className="card-sub">Manage your business profile</div>
+                </div>
+                {business && (
+                  <a href={`/dashboard/edit-listing/${business.id}`} className="hook-btn" style={{ textDecoration: 'none', padding: '8px 16px', fontSize: 13 }}>
+                    ✏️ Edit Listing
+                  </a>
+                )}
+              </div>
+              {business ? (
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{business.name}</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>{business.category} · {business.location}</div>
+                  <div className="listing-fields" style={{ maxWidth: 480 }}>
+                    {[
+                      { label: 'Phone',       value: business.phone },
+                      { label: 'WhatsApp',    value: business.whatsapp },
+                      { label: 'Price Range', value: business.price_range },
+                      { label: 'Hours',       value: business.opening_hours },
+                      { label: 'Photos',      value: business.photos?.length ? `${business.photos.length} photo(s)` : null },
+                      { label: 'Description', value: business.description },
+                    ].map((f, i) => (
+                      <div key={i} className="listing-field" style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                        <span className="field-label">{f.label}</span>
+                        <span className={`field-value${!f.value ? ' missing' : ''}`}>{f.value ?? 'Not added'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted)' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🏪</div>
+                  <p style={{ fontSize: 14, marginBottom: 16 }}>You haven't added a business yet</p>
+                  <a href="/dashboard/add-listing" className="hook-btn" style={{ textDecoration: 'none', display: 'inline-block', padding: '10px 24px' }}>
+                    + Add Your Business
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── AI TOOLS TAB ── */}
+          {activeTab === 'ai' && (
+            <div>
+              <div className="section-card" style={{ marginBottom: 16 }}>
+                <div className="card-header">
+                  <div>
+                    <div className="card-title">AI Tools</div>
+                    <div className="card-sub">Powered by Claude — let AI grow your business</div>
+                  </div>
+                </div>
+                <div className="ai-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  {[
+                    { icon: '✨', name: 'Write Description', desc: 'Auto-generate a compelling business description', locked: false, href: '/dashboard/ai/description' },
+                    { icon: '📈', name: 'Growth Advisor',   desc: 'Get personalized tips to attract more customers', locked: false, href: '/dashboard/ai/growth' },
+                    { icon: '📷', name: 'Menu Reader',       desc: 'Upload a photo of your menu to extract prices', locked: !isPro, badge: 'Pro', href: '/dashboard/ai/menu' },
+                    { icon: '⚔️', name: 'Competitor Intel',  desc: 'See how you compare to similar businesses',      locked: !isPlus, badge: 'Plus', href: '/dashboard/ai/competitor' },
+                  ].map((tool, i) => (
+                    tool.locked ? (
+                      <div key={i} className="ai-tool locked">
+                        <div className="ai-tool-icon">{tool.icon}</div>
+                        <div className="ai-tool-text">
+                          <div className="name">{tool.name}</div>
+                          <div className="desc">{tool.desc}</div>
+                        </div>
+                        <div className="lock-badge pro">{tool.badge}</div>
+                      </div>
+                    ) : (
+                      <a key={i} href={tool.href} className="ai-tool" style={{ textDecoration: 'none' }}>
+                        <div className="ai-tool-icon">{tool.icon}</div>
+                        <div className="ai-tool-text">
+                          <div className="name">{tool.name}</div>
+                          <div className="desc">{tool.desc}</div>
+                        </div>
+                      </a>
+                    )
+                  ))}
+                </div>
+              </div>
+              {!isPro && (
+                <div className="upgrade-hook" onClick={() => setActiveTab('billing')}>
+                  <div className="hook-content">
+                    <div className="hook-emoji">🤖</div>
+                    <div>
+                      <div className="hook-title">Unlock all AI tools</div>
+                      <div className="hook-sub">Pro gives you unlimited AI usage. <span>{foundingLeft} founding spots left.</span></div>
+                    </div>
+                  </div>
+                  <button className="hook-btn">Upgrade Free →</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── ANALYTICS TAB ── */}
+          {activeTab === 'analytics' && (
+            <div className="section-card">
+              <div className="card-header">
+                <div>
+                  <div className="card-title">Analytics</div>
+                  <div className="card-sub">Views, clicks & engagement</div>
+                </div>
+              </div>
+              {isPro ? (
+                <>
+                  <div className="stats-row" style={{ marginBottom: 24 }}>
+                    {[
+                      { icon: '👁️', label: 'Views today',     value: stats?.views_today ?? 0 },
+                      { icon: '💬', label: 'WhatsApp clicks', value: stats?.whatsapp_clicks_today ?? 0 },
+                      { icon: '📞', label: 'Call clicks',     value: stats?.call_clicks_today ?? 0 },
+                      { icon: '📅', label: 'Total views',     value: stats?.total_views ?? 0 },
+                    ].map((s, i) => (
+                      <div key={i} className="stat-card">
+                        <div className="stat-icon">{s.icon}</div>
+                        <div className="stat-label">{s.label}</div>
+                        <div className="stat-value">{s.value.toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600 }}>Views — Last 7 Days</div>
+                  <div className="chart-placeholder" style={{ height: 160 }}>
+                    {(stats?.weekly ?? Array(7).fill(0)).map((val, i) => (
+                      <div
+                        key={i}
+                        className={`bar${i === 6 ? ' today' : ''}`}
+                        style={{ height: `${weeklyMax === 0 ? 10 : Math.max(8, (val / weeklyMax) * 100)}%`, position: 'relative' }}
+                        title={`${weekDays[i]}: ${val} views`}
+                      >
+                        <span style={{ position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)', fontSize: 9, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="chart-labels">
+                    {weekDays.map(d => <div key={d} className="chart-label">{d}</div>)}
+                  </div>
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '48px 0' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Analytics is a Pro feature</div>
+                  <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>{foundingLeft} founding spots left — Pro is free right now</div>
+                  <button className="hook-btn" onClick={() => setActiveTab('billing')}>Upgrade Free →</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── BILLING TAB ── */}
+          {activeTab === 'billing' && (
+            <div>
+              <div className="card-title" style={{ fontSize: 18, marginBottom: 4 }}>Plan & Billing</div>
+              <div className="card-sub" style={{ marginBottom: 24 }}>You're on the <strong style={{ color: user?.plan === 'plus' ? 'var(--gold)' : user?.plan === 'pro' ? 'var(--red)' : '#888' }}>{user?.plan?.toUpperCase()}</strong> plan</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                {[
+                  {
+                    plan: 'basic', name: 'Basic', price: 'Free', sub: 'Forever',
+                    features: ['List your business', 'Basic profile page', '1 AI use (description)', '1 AI use (growth)'],
+                    locked: ['Analytics', 'Menu Reader', 'Competitor Intel', 'Verified badge'],
+                    current: user?.plan === 'basic',
+                  },
+                  {
+                    plan: 'pro', name: 'Pro', price: foundingLeft > 0 ? 'Free*' : '₹299', sub: foundingLeft > 0 ? `${foundingLeft} founding spots left` : '/month',
+                    features: ['Everything in Basic', 'Full analytics', 'Unlimited AI tools', 'Founding Member badge', 'Menu Reader'],
+                    locked: ['Gold verified badge', 'Always first placement'],
+                    current: user?.plan === 'pro',
+                  },
+                  {
+                    plan: 'plus', name: 'Plus', price: '₹499', sub: '/month',
+                    features: ['Everything in Pro', 'Gold verified badge', 'Always first in search', 'Competitor Intel', 'Priority support'],
+                    locked: [],
+                    current: user?.plan === 'plus',
+                  },
+                ].map((p) => (
+                  <div key={p.plan} className="section-card" style={{ border: p.current ? '1px solid var(--red)' : undefined }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>{p.name}</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 4, color: p.plan === 'plus' ? 'var(--gold)' : p.plan === 'pro' ? 'var(--red)' : 'var(--muted)' }}>
+                      {p.price} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--muted)' }}>{p.sub}</span>
+                    </div>
+                    <div style={{ borderBottom: '1px solid var(--border)', marginBottom: 12, paddingBottom: 12 }} />
+                    {p.features.map((f, i) => <div key={i} style={{ fontSize: 12, color: '#ccc', marginBottom: 6 }}>✓ {f}</div>)}
+                    {p.locked.map((f, i) => <div key={i} style={{ fontSize: 12, color: '#444', marginBottom: 6, textDecoration: 'line-through' }}>{f}</div>)}
+                    <div style={{ marginTop: 16 }}>
+                      {p.current ? (
+                        <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--green)', fontWeight: 700 }}>✓ Current Plan</div>
+                      ) : (
+                        <a href={`/pricing?plan=${p.plan}`} className="hook-btn" style={{ display: 'block', textAlign: 'center', textDecoration: 'none', padding: '10px', fontSize: 13 }}>
+                          {p.plan === 'basic' ? 'Downgrade' : 'Upgrade →'}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </main>
+      </div>
     </>
-  );
+  )
 }
 
-export default function DashboardPage() {
-  return (
-    <Suspense fallback={<div style={{ background: '#0a0a0a', minHeight: '100vh' }} />}>
-      <DashboardInner />
-    </Suspense>
-  );
+// ── STYLES ─────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0a; --surface: #111111; --surface2: #171717; --surface3: #1e1e1e;
+  --border: #222222; --red: #c0392b; --red-soft: rgba(192,57,43,0.12);
+  --gold: #D4A017; --gold-soft: rgba(212,160,23,0.12);
+  --green: #27ae60; --green-soft: rgba(39,174,96,0.12);
+  --text: #ffffff; --muted: #666; --muted2: #333;
 }
-
-const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Sora:wght@300;400;500;600;700&display=swap');
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0a0a0a; color: #e0e0e0; font-family: 'Sora', sans-serif; }
-
-  .dash-page { min-height: 100vh; background: #0a0a0a; }
-
-  .dash-header {
-    position: sticky; top: 0; z-index: 50;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 1rem 2rem;
-    background: rgba(10,10,10,0.97);
-    border-bottom: 1px solid #1e1e1e;
-    backdrop-filter: blur(12px);
-  }
-  .dash-logo { text-decoration: none; display: flex; gap: 4px; align-items: baseline; }
-  .logo-y { font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 700; color: #fff; }
-  .logo-n { font-family: 'Sora', sans-serif; font-size: 0.65rem; color: #888; text-transform: uppercase; letter-spacing: 0.3em; }
-  .dash-header-right { display: flex; gap: 0.75rem; align-items: center; }
-  .preview-btn {
-    padding: 0.5rem 1rem;
-    background: rgba(192,57,43,0.08); border: 1px solid rgba(192,57,43,0.2);
-    color: #c0392b; text-decoration: none; border-radius: 8px; font-size: 0.82rem;
-  }
-  .logout-btn {
-    padding: 0.5rem 1rem; background: transparent;
-    border: 1px solid #2a2a2a; color: #888;
-    border-radius: 8px; font-family: 'Sora', sans-serif; font-size: 0.82rem; cursor: pointer;
-  }
-
-  .dash-content { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-
-  .success-banner {
-    background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.15);
-    color: #4ade80; padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.9rem;
-  }
-
-  /* === PLAN BANNERS === */
-  .plus-member-banner {
-    background: linear-gradient(135deg, rgba(212,160,23,0.12), rgba(212,160,23,0.04));
-    border: 1px solid rgba(212,160,23,0.3);
-    border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
-    display: flex; align-items: center; gap: 1rem;
-  }
-  .plus-banner-icon { font-size: 2rem; }
-  .plus-member-banner strong { color: #D4A017; display: block; margin-bottom: 0.2rem; font-size: 1.05rem; }
-  .plus-member-banner p { font-size: 0.83rem; color: #999; }
-
-  .founding-member-banner {
-    background: linear-gradient(135deg, rgba(74,222,128,0.06), rgba(212,160,23,0.06));
-    border: 1px solid rgba(74,222,128,0.2);
-    border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
-    display: flex; align-items: center; gap: 1rem;
-  }
-  .founding-banner-icon { font-size: 2rem; }
-  .founding-member-banner strong { color: #4ade80; display: block; margin-bottom: 0.2rem; }
-  .founding-member-banner p { font-size: 0.83rem; color: #888; }
-
-  .pro-member-banner {
-    background: rgba(192,57,43,0.06);
-    border: 1px solid rgba(192,57,43,0.2);
-    border-radius: 14px; padding: 1rem 1.5rem; margin-bottom: 1.5rem;
-  }
-  .pro-member-banner strong { color: #c0392b; display: block; margin-bottom: 0.2rem; }
-  .pro-member-banner p { font-size: 0.83rem; color: #888; }
-
-  .upgrade-hook {
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    background: linear-gradient(135deg, rgba(192,57,43,0.08), rgba(192,57,43,0.02));
-    border: 1px solid rgba(192,57,43,0.2);
-    border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;
-  }
-  .hook-left { display: flex; align-items: center; gap: 1rem; flex: 1; }
-  .hook-icon { font-size: 1.8rem; }
-  .hook-left strong { color: #fff; display: block; margin-bottom: 0.2rem; }
-  .hook-left p { font-size: 0.83rem; color: #888; }
-  .hook-spots { color: #4ade80; font-weight: 600; }
-  .hook-cta {
-    padding: 0.65rem 1.25rem;
-    background: #c0392b; color: #fff;
-    text-decoration: none; border-radius: 8px; border: none;
-    font-size: 0.85rem; font-weight: 700; white-space: nowrap;
-    cursor: pointer; font-family: 'Sora', sans-serif;
-    transition: background 0.15s, transform 0.15s;
-    box-shadow: 0 4px 14px rgba(192,57,43,0.25);
-  }
-  .hook-cta:hover { background: #a93226; transform: translateY(-1px); }
-
-  /* Welcome */
-  .dash-welcome {
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;
-  }
-  .dash-welcome h1 { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: #fff; margin-bottom: 0.3rem; }
-  .dash-meta { color: #888; font-size: 0.88rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-  .plan-badge {
-    padding: 0.15rem 0.5rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600;
-  }
-  .plan-basic { background: #1a1a1a; color: #888; border: 1px solid #2a2a2a; }
-  .plan-pro { background: rgba(192,57,43,0.1); color: #e74c3c; border: 1px solid rgba(192,57,43,0.25); }
-  .plan-plus { background: rgba(212,160,23,0.1); color: #D4A017; border: 1px solid rgba(212,160,23,0.25); }
-  .verified-tag {
-    background: rgba(74,222,128,0.08); color: #4ade80;
-    border: 1px solid rgba(74,222,128,0.15); padding: 0.15rem 0.5rem;
-    border-radius: 20px; font-size: 0.72rem;
-  }
-  .founding-tag {
-    background: rgba(212,160,23,0.08); color: #D4A017;
-    border: 1px solid rgba(212,160,23,0.15); padding: 0.15rem 0.5rem;
-    border-radius: 20px; font-size: 0.72rem;
-  }
-  .save-msg {
-    padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.85rem;
-    background: rgba(74,222,128,0.08); color: #4ade80; border: 1px solid rgba(74,222,128,0.15);
-  }
-  .save-msg.error { background: rgba(239,68,68,0.08); color: #f87171; border-color: rgba(239,68,68,0.15); }
-
-  /* === STATS === */
-  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-  .stat-card {
-    background: #141414; border: 1px solid #1e1e1e;
-    border-radius: 14px; padding: 1.5rem; text-align: center;
-  }
-  .stat-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
-  .stat-value { font-family: 'Playfair Display', serif; font-size: 2rem; color: #fff; font-weight: 700; margin-bottom: 0.35rem; }
-  .stat-label { font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 0.08em; }
-
-  /* === WEEKLY ANALYTICS === */
-  .section-title-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
-  .section-title { font-family: 'Playfair Display', serif; font-size: 1.25rem; color: #fff; }
-  .lock-badge {
-    background: rgba(255,255,255,0.06); border: 1px solid #333;
-    color: #888; font-size: 0.72rem; padding: 0.15rem 0.5rem;
-    border-radius: 6px; font-weight: 500;
-  }
-  .lock-badge.small { margin-top: 0.5rem; display: inline-block; }
-
-  .analytics-section { margin-bottom: 2rem; }
-  .analytics-charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-  .analytics-charts.blurred { filter: blur(6px); pointer-events: none; user-select: none; }
-
-  .chart-card {
-    background: #141414; border: 1px solid #1e1e1e;
-    border-radius: 14px; padding: 1.25rem;
-  }
-  .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-  .chart-title { font-size: 0.78rem; color: #888; text-transform: uppercase; letter-spacing: 0.06em; }
-  .chart-total { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: #fff; font-weight: 700; }
-
-  .mini-chart { display: flex; align-items: flex-end; gap: 4px; height: 80px; }
-  .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
-  .chart-bar { width: 100%; min-height: 4px; border-radius: 3px 3px 0 0; transition: height 0.4s ease; }
-  .chart-label { font-size: 0.6rem; color: #555; margin-top: 4px; }
-
-  .fake-chart { height: 80px; background: linear-gradient(180deg, rgba(192,57,43,0.1), transparent); border-radius: 8px; }
-
-  .locked-overlay-wrap { position: relative; }
-  .locked-overlay {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: rgba(10,10,10,0.6);
-    border-radius: 14px; gap: 0.5rem;
-  }
-  .locked-icon { font-size: 2rem; }
-  .locked-overlay p { color: #999; font-size: 0.88rem; }
-  .locked-cta {
-    padding: 0.5rem 1rem; background: #c0392b; color: #fff;
-    text-decoration: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600;
-    margin-top: 0.25rem;
-  }
-
-  /* === FEATURE CARDS === */
-  .feature-cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-  .feature-card {
-    background: #141414; border: 1px solid #1e1e1e;
-    border-radius: 14px; padding: 1.25rem; text-align: center;
-  }
-  .feature-card.feature-gold { border-color: rgba(212,160,23,0.3); background: linear-gradient(180deg, rgba(212,160,23,0.06), #141414); }
-  .feature-card.feature-pro { border-color: rgba(192,57,43,0.2); }
-  .feature-card-icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
-  .feature-card-title { font-size: 0.82rem; color: #ccc; font-weight: 600; margin-bottom: 0.5rem; }
-  .feature-indicator {
-    display: inline-block; padding: 0.2rem 0.6rem;
-    border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem;
-  }
-  .feature-indicator.gold { background: rgba(212,160,23,0.15); color: #D4A017; border: 1px solid rgba(212,160,23,0.25); }
-  .feature-indicator.green { background: rgba(74,222,128,0.1); color: #4ade80; border: 1px solid rgba(74,222,128,0.15); }
-  .feature-indicator.gray { background: #1a1a1a; color: #666; border: 1px solid #2a2a2a; }
-  .feature-desc { font-size: 0.78rem; color: #888; line-height: 1.5; }
-  .locked-text { color: #555; }
-
-  .feature-locked-preview { margin-top: 0.75rem; text-align: left; }
-  .rank-preview { display: flex; flex-direction: column; gap: 0.4rem; }
-  .rank-line { font-size: 0.72rem; display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.5rem; border-radius: 6px; }
-  .rank-line.active { background: rgba(255,255,255,0.03); }
-  .rank-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .gold-dot { background: #D4A017; }
-  .green-dot { background: #4ade80; }
-  .gray-dot { background: #555; }
-  .gold-line { color: #D4A017; opacity: 0.4; }
-  .green-line { color: #4ade80; opacity: 0.4; }
-  .gray-line { color: #888; }
-
-  /* === AI TOOLS === */
-  .ai-tools-section { margin-bottom: 2rem; }
-  .ai-tools-section .section-title { margin-bottom: 1rem; }
-  .ai-tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; }
-  .ai-tool-card {
-    background: #141414; border: 1px solid #1e1e1e;
-    border-radius: 12px; padding: 1rem;
-    display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;
-  }
-  .ai-tool-card.ai-locked { opacity: 0.55; }
-  .ai-tool-top { display: flex; align-items: center; gap: 0.5rem; }
-  .ai-tool-icon { font-size: 1.2rem; }
-  .ai-tool-name { font-size: 0.82rem; color: #ccc; font-weight: 500; }
-  .ai-tool-bottom { display: flex; align-items: center; justify-content: space-between; }
-  .ai-access-label { font-size: 0.7rem; color: #4ade80; text-transform: uppercase; letter-spacing: 0.06em; }
-  .ai-use-btn {
-    padding: 0.35rem 0.75rem; background: rgba(192,57,43,0.1);
-    border: 1px solid rgba(192,57,43,0.25); color: #c0392b;
-    border-radius: 6px; font-size: 0.75rem; font-weight: 600;
-    cursor: pointer; font-family: 'Sora', sans-serif;
-    transition: background 0.15s;
-  }
-  .ai-use-btn:hover { background: rgba(192,57,43,0.2); }
-  .ai-locked-badge {
-    font-size: 0.7rem; color: #666;
-    background: rgba(255,255,255,0.04); padding: 0.15rem 0.4rem;
-    border-radius: 4px; border: 1px solid #2a2a2a;
-  }
-  .ai-lock-icon { font-size: 0.9rem; }
-
-  .ai-result-panel {
-    margin-top: 1rem; background: #111; border: 1px solid #222;
-    border-radius: 12px; overflow: hidden;
-  }
-  .ai-result-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0.75rem 1rem; background: #141414; border-bottom: 1px solid #222;
-    font-size: 0.85rem; color: #ccc; font-weight: 600;
-  }
-  .ai-result-header button {
-    background: none; border: none; color: #888; cursor: pointer; font-size: 1rem;
-  }
-  .ai-loading { padding: 1.5rem; text-align: center; color: #888; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.75rem; }
-  .ai-result-text { padding: 1rem; font-size: 0.88rem; color: #ccc; line-height: 1.7; white-space: pre-wrap; }
-
-  /* === LISTING DETAILS === */
-  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
-  .section-header h2 { font-family: 'Playfair Display', serif; font-size: 1.25rem; color: #fff; }
-  .edit-btn {
-    padding: 0.55rem 1.1rem;
-    background: rgba(192,57,43,0.08); border: 1px solid rgba(192,57,43,0.2);
-    color: #c0392b; border-radius: 8px;
-    font-family: 'Sora', sans-serif; font-size: 0.85rem; cursor: pointer;
-  }
-  .edit-actions { display: flex; gap: 0.5rem; }
-  .cancel-btn {
-    padding: 0.55rem 1rem; background: transparent;
-    border: 1px solid #2a2a2a; color: #888;
-    border-radius: 8px; font-family: 'Sora', sans-serif; font-size: 0.85rem; cursor: pointer;
-  }
-  .save-btn {
-    padding: 0.55rem 1.25rem;
-    background: #c0392b; border: none; color: #fff;
-    border-radius: 8px; font-family: 'Sora', sans-serif; font-size: 0.85rem; font-weight: 700; cursor: pointer;
-  }
-  .save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-  .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem; }
-  .detail-card {
-    background: #141414; border: 1px solid #1e1e1e;
-    border-radius: 14px; padding: 1.5rem;
-  }
-  .detail-card.full-width { grid-column: 1 / -1; }
-  .detail-title {
-    font-size: 0.78rem; color: #c0392b; letter-spacing: 0.1em;
-    text-transform: uppercase; font-weight: 600; margin-bottom: 1.25rem;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .detail-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-  .detail-row.three-col { grid-template-columns: 1fr 1fr 1fr; }
-  .detail-group { margin-bottom: 1rem; }
-  .detail-group:last-child { margin-bottom: 0; }
-  .detail-label { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.3rem; }
-  .detail-value { font-size: 0.9rem; color: #e0e0e0; line-height: 1.5; }
-  .detail-empty { font-size: 0.85rem; color: #444; font-style: italic; }
-  .detail-input {
-    width: 100%; padding: 0.6rem 0.85rem;
-    background: #0a0a0a; border: 1.5px solid #2a2a2a;
-    border-radius: 8px; color: #e0e0e0;
-    font-family: 'Sora', sans-serif; font-size: 0.9rem; outline: none;
-  }
-  .detail-input:focus { border-color: #c0392b; }
-  .detail-textarea {
-    width: 100%; padding: 0.6rem 0.85rem;
-    background: #0a0a0a; border: 1.5px solid #2a2a2a;
-    border-radius: 8px; color: #e0e0e0;
-    font-family: 'Sora', sans-serif; font-size: 0.9rem; outline: none;
-    resize: vertical; line-height: 1.5;
-  }
-  select.detail-input { cursor: pointer; }
-  select.detail-input option { background: #0a0a0a; color: #e0e0e0; }
-
-  .toggle-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
-  .toggle-item {
-    display: flex; align-items: center; gap: 0.5rem;
-    font-size: 0.85rem; color: #ccc; cursor: pointer;
-  }
-  .toggle-item input[type="checkbox"] {
-    width: 18px; height: 18px; accent-color: #c0392b; cursor: pointer;
-  }
-  .toggle-status { font-size: 0.82rem; font-weight: 500; }
-  .toggle-status.on { color: #4ade80; }
-  .toggle-status.off { color: #555; }
-
-  .menu-link { color: #c0392b; font-size: 0.85rem; text-decoration: underline; }
-
-  .photo-count { font-size: 0.72rem; color: #555; font-weight: 400; letter-spacing: 0; text-transform: none; }
-  .photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.5rem; }
-  .photo-wrap { position: relative; }
-  .photo-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
-  .photo-remove {
-    position: absolute; top: 4px; right: 4px;
-    width: 22px; height: 22px;
-    background: rgba(0,0,0,0.7); color: #f87171;
-    border: none; border-radius: 50%;
-    font-size: 14px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .upload-box {
-    display: flex; align-items: center; justify-content: center;
-    width: 100%; padding: 1rem;
-    border: 2px dashed #2a2a2a; border-radius: 10px;
-    color: #888; cursor: pointer; font-size: 0.85rem;
-  }
-  .upload-box:hover { border-color: #c0392b; color: #c0392b; }
-  .photo-limit-msg {
-    margin-top: 0.75rem; font-size: 0.82rem; color: #888; text-align: center;
-  }
-
-  /* Account */
-  .danger-zone { border: 1px solid rgba(255,80,80,0.08); border-radius: 12px; padding: 1.25rem; }
-  .danger-title { font-size: 0.72rem; color: #f87171; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.75rem; }
-  .danger-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-  .logout-danger-btn {
-    padding: 0.6rem 1.25rem; background: transparent;
-    border: 1px solid rgba(248,113,113,0.15); color: #f87171;
-    border-radius: 8px; font-family: 'Sora', sans-serif; font-size: 0.85rem; cursor: pointer;
-  }
-  .upgrade-footer-link {
-    color: #c0392b; text-decoration: none; font-size: 0.85rem; font-weight: 600;
-  }
-  .upgrade-footer-link:hover { text-decoration: underline; }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 1rem; color: #888; }
-  .loading-spinner { width: 40px; height: 40px; border: 3px solid #222; border-top-color: #c0392b; border-radius: 50%; animation: spin 0.8s linear infinite; }
-  .loading-spinner.small { width: 20px; height: 20px; border-width: 2px; }
-
-  @media (max-width: 640px) {
-    .stats-grid { grid-template-columns: 1fr; }
-    .analytics-charts { grid-template-columns: 1fr; }
-    .feature-cards-row { grid-template-columns: 1fr; }
-    .ai-tools-grid { grid-template-columns: 1fr 1fr; }
-    .details-grid { grid-template-columns: 1fr; }
-    .detail-row { grid-template-columns: 1fr; }
-    .detail-row.three-col { grid-template-columns: 1fr; }
-    .dash-content { padding: 1.25rem 1rem 3rem; }
-    .toggle-row { flex-direction: column; gap: 0.75rem; }
-    .upgrade-hook { flex-direction: column; text-align: center; }
-    .hook-left { flex-direction: column; text-align: center; }
-    .hook-cta { width: 100%; text-align: center; display: block; }
-  }
-`;
+body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text); }
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; flex-shrink: 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; }
+.sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 1px solid var(--border); }
+.logo-mark { width: 32px; height: 32px; background: var(--red); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.logo-text { font-size: 15px; font-weight: 800; letter-spacing: -0.5px; }
+.logo-text span { color: var(--red); }
+.sidebar-nav { padding: 16px 12px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.2s; text-decoration: none; font-family: 'Sora', sans-serif; }
+.nav-item:hover { background: var(--surface2); color: #ccc; }
+.nav-item.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted2); padding: 12px 12px 6px; }
+.sidebar-bottom { padding: 16px 12px; border-top: 1px solid var(--border); }
+.plan-pill { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.badge-basic { background: #333; color: #888; }
+.badge-pro { background: var(--red-soft); color: var(--red); border: 1px solid rgba(192,57,43,0.3); }
+.badge-plus { background: var(--gold-soft); color: var(--gold); border: 1px solid rgba(212,160,23,0.3); }
+.plan-pill .plan-info { flex: 1; }
+.plan-pill .plan-name { font-size: 12px; font-weight: 600; }
+.plan-pill .plan-sub { font-size: 10px; color: var(--muted); }
+.main { margin-left: 220px; flex: 1; padding: 28px; max-width: calc(100vw - 220px); }
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+.topbar-left h1 { font-size: 20px; font-weight: 700; }
+.topbar-left p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.view-listing-btn { display: flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); color: #ccc; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; font-family: 'Sora', sans-serif; text-decoration: none; }
+.view-listing-btn:hover { border-color: #444; color: #fff; }
+.upgrade-hook { background: linear-gradient(135deg, #150808, #111); border: 1px solid #2a1212; border-left: 3px solid var(--red); border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; cursor: pointer; transition: all 0.2s; }
+.upgrade-hook:hover { box-shadow: 0 4px 24px rgba(192,57,43,0.1); }
+.hook-content { display: flex; align-items: center; gap: 14px; flex: 1; }
+.hook-emoji { font-size: 24px; }
+.hook-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+.hook-sub { font-size: 12px; color: var(--muted); }
+.hook-sub span { color: var(--red); font-weight: 600; }
+.hook-stats { display: flex; gap: 20px; }
+.hook-stat { text-align: center; }
+.hook-stat .val { font-size: 18px; font-weight: 800; color: var(--red); }
+.hook-stat .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+.hook-btn { background: var(--red); color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: 'Sora', sans-serif; flex-shrink: 0; }
+.founding-banner { background: linear-gradient(135deg, #0d1a0d, #111); border: 1px solid rgba(39,174,96,0.3); border-left: 3px solid var(--green); border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; gap: 14px; margin-bottom: 24px; font-size: 20px; }
+.founding-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.founding-sub { font-size: 12px; color: var(--muted); }
+.plus-banner { background: linear-gradient(135deg, #1a1500, #111); border: 1px solid rgba(212,160,23,0.3); border-left: 3px solid var(--gold); border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; gap: 14px; margin-bottom: 24px; font-size: 20px; }
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; transition: all 0.2s; }
+.stat-card:hover { border-color: #333; transform: translateY(-1px); }
+.stat-icon { font-size: 20px; margin-bottom: 10px; }
+.stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.stat-value { font-size: 28px; font-weight: 800; line-height: 1; }
+.stat-change { font-size: 11px; color: var(--green); margin-top: 4px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.section-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+.section-card.full { grid-column: 1 / -1; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.card-title { font-size: 14px; font-weight: 700; }
+.card-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.card-action { font-size: 12px; color: var(--red); font-weight: 600; cursor: pointer; background: none; border: none; font-family: 'Sora', sans-serif; }
+.health-section { display: flex; align-items: center; gap: 20px; }
+.health-ring { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+.health-ring svg { transform: rotate(-90deg); }
+.health-ring .progress-bg { fill: none; stroke: var(--surface3); stroke-width: 8; }
+.health-ring .progress { fill: none; stroke: var(--gold); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 188; transition: stroke-dashoffset 0.6s ease; }
+.health-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+.health-center .pct { font-size: 18px; font-weight: 800; color: var(--gold); }
+.health-center .lbl { font-size: 8px; color: var(--muted); text-transform: uppercase; }
+.health-tips { flex: 1; }
+.health-tips h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.tip-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 6px; }
+.tip-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+.ai-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.ai-tool { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 10px; }
+.ai-tool:hover { border-color: #333; background: var(--surface3); }
+.ai-tool.locked { opacity: 0.5; cursor: default; }
+.ai-tool-icon { font-size: 20px; flex-shrink: 0; }
+.ai-tool-text .name { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+.ai-tool-text .desc { font-size: 11px; color: var(--muted); }
+.lock-badge { margin-left: auto; font-size: 10px; background: var(--surface3); border: 1px solid var(--border); color: var(--muted); padding: 2px 7px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; }
+.lock-badge.pro { background: var(--red-soft); color: var(--red); border-color: rgba(192,57,43,0.3); }
+.listing-preview { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.listing-preview .biz-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.listing-preview .biz-cat { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.listing-fields { display: flex; flex-direction: column; gap: 8px; }
+.listing-field { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+.field-label { color: var(--muted); }
+.field-value { color: #ccc; font-weight: 500; }
+.field-value.missing { color: var(--red); font-style: italic; }
+.edit-btn { width: 100%; margin-top: 14px; padding: 10px; background: transparent; border: 1px solid var(--border); border-radius: 8px; color: #aaa; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; }
+.edit-btn:hover { border-color: var(--red); color: var(--red); }
+.chart-placeholder { background: var(--surface2); border-radius: 10px; height: 120px; display: flex; align-items: flex-end; padding: 12px; gap: 6px; margin-bottom: 12px; }
+.bar { flex: 1; border-radius: 4px 4px 0 0; background: var(--red-soft); border: 1px solid rgba(192,57,43,0.2); transition: all 0.3s; position: relative; }
+.bar:hover { background: var(--red); }
+.bar.today { background: var(--red); }
+.chart-labels { display: flex; gap: 6px; }
+.chart-label { flex: 1; text-align: center; font-size: 9px; color: var(--muted); }
+.locked-overlay { position: relative; }
+.locked-overlay::after { content: '🔒 Pro feature — Upgrade to unlock'; position: absolute; inset: 0; background: rgba(10,10,10,0.85); display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); border-radius: 10px; backdrop-filter: blur(2px); }
+`
