@@ -15,8 +15,8 @@ type Business = {
   views?: number; call_clicks?: number; whatsapp_clicks?: number;
   is_verified?: boolean; menu_url?: string;
   price_min?: number; price_max?: number; price_range?: string;
-  amenities?: string; gender?: string; vacancy?: boolean;
-  wifi?: boolean; ac?: boolean; meals?: boolean;
+  amenities?: string; gender?: string;
+  wifi?: boolean; ac?: boolean; meals_included?: boolean;
   room_type?: string; cuisine?: string; vibe_tags?: string;
 };
 
@@ -610,10 +610,9 @@ function DashboardInner() {
                   </div>
                 </div>
                 <div className="toggle-row">
-                  <label className="toggle-item"><span>Vacancy Available</span>{editing ? <input type="checkbox" checked={!!form.vacancy} onChange={e => update('vacancy', e.target.checked)} /> : <span className={`toggle-status ${biz.vacancy ? 'on' : 'off'}`}>{biz.vacancy ? 'Yes' : 'No'}</span>}</label>
                   <label className="toggle-item"><span>WiFi</span>{editing ? <input type="checkbox" checked={!!form.wifi} onChange={e => update('wifi', e.target.checked)} /> : <span className={`toggle-status ${biz.wifi ? 'on' : 'off'}`}>{biz.wifi ? 'Yes' : 'No'}</span>}</label>
                   <label className="toggle-item"><span>AC</span>{editing ? <input type="checkbox" checked={!!form.ac} onChange={e => update('ac', e.target.checked)} /> : <span className={`toggle-status ${biz.ac ? 'on' : 'off'}`}>{biz.ac ? 'Yes' : 'No'}</span>}</label>
-                  <label className="toggle-item"><span>Meals Included</span>{editing ? <input type="checkbox" checked={!!form.meals} onChange={e => update('meals', e.target.checked)} /> : <span className={`toggle-status ${biz.meals ? 'on' : 'off'}`}>{biz.meals ? 'Yes' : 'No'}</span>}</label>
+                  <label className="toggle-item"><span>Meals Included</span>{editing ? <input type="checkbox" checked={!!form.meals_included} onChange={e => update('meals_included', e.target.checked)} /> : <span className={`toggle-status ${biz.meals_included ? 'on' : 'off'}`}>{biz.meals_included ? 'Yes' : 'No'}</span>}</label>
                 </div>
                 <div className="detail-group">
                   <div className="detail-label">Amenities</div>
