@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       status: 'created',
     });
 
-    return NextResponse.json({ order, amount, description });
+    return NextResponse.json({ order, amount, description, key: process.env.RAZORPAY_KEY_ID });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error('Razorpay order creation error:', msg, error);

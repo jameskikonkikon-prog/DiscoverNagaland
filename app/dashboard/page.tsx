@@ -1,8 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
+
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open: () => void }
+  }
+}
 
 // ── TYPES ──────────────────────────────────────────────────────────────────
 type Plan = 'basic' | 'pro' | 'plus'
@@ -78,6 +84,8 @@ export default function DashboardPage() {
   const [foundingLeft, setFoundingLeft] = useState<number>(FOUNDING_LIMIT)
   const [activeTab,    setActiveTab]    = useState<'overview' | 'listing' | 'ai' | 'analytics' | 'billing'>('overview')
   const [loading,      setLoading]      = useState(true)
+  const [upgrading,    setUpgrading]    = useState<string | null>(null)
+  const [paymentMsg,   setPaymentMsg]   = useState<{ text: string; ok: boolean } | null>(null)
 
   // ── LOAD ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -164,6 +172,82 @@ export default function DashboardPage() {
     await supabase.auth.signOut()
     router.push('/login')
   }
+
+  // ── PAYMENT ───────────────────────────────────────────────────────────────
+  const ensureRazorpayScript = useCallback((): Promise<void> => {
+    return new Promise((resolve) => {
+      if (typeof window !== 'undefined' && window.Razorpay) { resolve(); return }
+      const existing = document.querySelector('script[src*="razorpay"]')
+      if (existing) { existing.addEventListener('load', () => resolve()); return }
+      const script = document.createElement('script')
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      script.onload = () => resolve()
+      document.head.appendChild(script)
+    })
+  }, [])
+
+  const handleUpgrade = useCallback(async (targetPlan: 'pro' | 'plus') => {
+    if (!business) return
+    setUpgrading(targetPlan)
+    setPaymentMsg(null)
+
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: business.id, plan: targetPlan }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPaymentMsg({ text: data.error || 'Failed to initiate payment', ok: false })
+        setUpgrading(null)
+        return
+      }
+
+      // Founding member — already upgraded on server, update local state
+      if (data.foundingMember) {
+        setBusiness(prev => prev ? { ...prev, plan: 'pro', plan_expires_at: null } : prev)
+        setPaymentMsg({ text: `Founding member Pro activated! You're in the first ${100 - data.spotsRemaining}.`, ok: true })
+        setUpgrading(null)
+        return
+      }
+
+      // Regular payment via Razorpay
+      await ensureRazorpayScript()
+      const rzp = new window.Razorpay({
+        key: data.key,
+        amount: data.order.amount,
+        currency: 'INR',
+        order_id: data.order.id,
+        name: 'Yana Nagaland',
+        description: data.description || `${targetPlan.charAt(0).toUpperCase() + targetPlan.slice(1)} Plan`,
+        theme: { color: '#c0392b' },
+        handler: async (response: Record<string, string>) => {
+          setPaymentMsg({ text: 'Verifying payment…', ok: true })
+          try {
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...response, businessId: business.id, plan: targetPlan }),
+            })
+            const verifyData = await verifyRes.json()
+            if (!verifyRes.ok) throw new Error(verifyData.error || 'Verification failed')
+            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            setBusiness(prev => prev ? { ...prev, plan: targetPlan, plan_expires_at: expiresAt } : prev)
+            setPaymentMsg({ text: `Upgraded to ${targetPlan.charAt(0).toUpperCase() + targetPlan.slice(1)}!`, ok: true })
+          } catch (verifyErr) {
+            setPaymentMsg({ text: verifyErr instanceof Error ? verifyErr.message : 'Verification failed. Contact support.', ok: false })
+          }
+          setUpgrading(null)
+        },
+        modal: { ondismiss: () => setUpgrading(null) },
+      })
+      rzp.open()
+    } catch (err) {
+      setPaymentMsg({ text: err instanceof Error ? err.message : 'Something went wrong.', ok: false })
+      setUpgrading(null)
+    }
+  }, [business, ensureRazorpayScript])
 
   // ── HELPERS ───────────────────────────────────────────────────────────────
   const plan    = business?.plan ?? 'basic'
@@ -672,6 +756,16 @@ export default function DashboardPage() {
                   ? ` · expires ${new Date(business.plan_expires_at).toLocaleDateString()}`
                   : ''}
               </div>
+              {paymentMsg && (
+                <div style={{
+                  background: paymentMsg.ok ? 'rgba(39,174,96,0.1)' : 'rgba(192,57,43,0.1)',
+                  border: `1px solid ${paymentMsg.ok ? 'rgba(39,174,96,0.3)' : 'rgba(192,57,43,0.3)'}`,
+                  borderRadius:10, padding:'12px 16px', marginBottom:20,
+                  fontSize:13, color: paymentMsg.ok ? 'var(--green)' : 'var(--red)', fontWeight:600,
+                }}>
+                  {paymentMsg.ok ? '✓ ' : '✗ '}{paymentMsg.text}
+                </div>
+              )}
               <div className="plan-grid">
                 {([
                   {
@@ -710,11 +804,17 @@ export default function DashboardPage() {
                     <div style={{ marginTop:16 }}>
                       {plan === p.key ? (
                         <div style={{ textAlign:'center', fontSize:12, color:'var(--green)', fontWeight:700 }}>✓ Current Plan</div>
+                      ) : p.key === 'basic' ? (
+                        <div style={{ textAlign:'center', fontSize:12, color:'var(--muted)' }}>—</div>
                       ) : (
-                        <a href={`/pricing?plan=${p.key}`} className="red-btn"
-                          style={{ display:'block', textAlign:'center', textDecoration:'none', padding:'10px', fontSize:13 }}>
-                          {p.key === 'basic' ? 'Downgrade' : 'Upgrade →'}
-                        </a>
+                        <button
+                          className="red-btn"
+                          style={{ width:'100%', padding:'10px', fontSize:13 }}
+                          onClick={() => handleUpgrade(p.key as 'pro' | 'plus')}
+                          disabled={!!upgrading}
+                        >
+                          {upgrading === p.key ? 'Processing…' : (p.key === 'pro' && foundingLeft > 0 ? 'Claim Free Pro →' : 'Upgrade →')}
+                        </button>
                       )}
                     </div>
                   </div>
