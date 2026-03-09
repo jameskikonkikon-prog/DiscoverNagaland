@@ -28,6 +28,7 @@ type Business = {
   amenities?: string;
   is_verified?: boolean;
   plan?: string;
+  owner_id?: string | null;
   created_at?: string;
 };
 
@@ -110,6 +111,7 @@ export default function BusinessPage() {
   const [hoverRating, setHoverRating] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [navScrolled, setNavScrolled] = useState(false);
 
   useEffect(() => {
@@ -136,10 +138,12 @@ export default function BusinessPage() {
       .then(({ data }) => {
         if (!mounted) return;
         setLoggedIn(!!data.session);
+        setUserId(data.session?.user?.id ?? null);
       })
       .catch(() => {
         if (!mounted) return;
         setLoggedIn(false);
+        setUserId(null);
       });
     return () => {
       mounted = false;
@@ -232,7 +236,11 @@ export default function BusinessPage() {
           <div className="nav-center">{biz.name} · {biz.city}</div>
           <div className="nav-right">
             <Link href={`/search?q=${biz.city}`} className="nav-link">← {biz.city}</Link>
-            <Link href="/register" className="nav-cta">List Business</Link>
+            {mounted && (loggedIn ? (
+              <Link href="/dashboard" className="nav-cta">Dashboard</Link>
+            ) : (
+              <Link href="/register" className="nav-cta">List Business</Link>
+            ))}
             {mounted && loggedIn && (
               <a href="/dashboard" className="nav-avatar" aria-label="Dashboard">
                 <span className="nav-avatar-icon">👤</span>
@@ -280,10 +288,13 @@ export default function BusinessPage() {
                     <span className="dot" /> {openStatus ? 'Open now' : 'Closed'}
                   </span>
                 )}
-                {(biz.plan === 'pro' || biz.plan === 'plus') && (
-                  <span className="meta-chip pro">⚡ {biz.plan === 'plus' ? 'Plus' : 'Pro'}</span>
+                {biz.plan === 'plus' && (
+                  <span className="meta-chip verified">✓ Verified</span>
                 )}
-                {biz.is_verified && (
+                {biz.plan === 'pro' && (
+                  <span className="meta-chip pro">⚡ Pro</span>
+                )}
+                {biz.is_verified && biz.plan !== 'plus' && (
                   <span className="meta-chip">✓ Verified</span>
                 )}
               </div>
@@ -463,11 +474,13 @@ export default function BusinessPage() {
               </div>
             </div>
 
-            <div className="claim-card">
-              <div className="claim-title">Own this business?</div>
-              <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
-              <Link href="/register" className="claim-btn">🏷️ Claim This Listing</Link>
-            </div>
+            {!(userId && biz.owner_id && userId === biz.owner_id) && (
+              <div className="claim-card">
+                <div className="claim-title">Own this business?</div>
+                <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
+                <Link href="/register" className="claim-btn">🏷️ Claim This Listing</Link>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -571,6 +584,7 @@ const styles = `
   .meta-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; background: var(--surface2); border: 1px solid var(--border2); color: var(--text2); }
   .meta-chip.open { color: #27ae60; background: rgba(39,174,96,0.08); border-color: rgba(39,174,96,0.2); }
   .meta-chip.pro { color: var(--red); background: var(--red-soft); border-color: var(--red-border); }
+  .meta-chip.verified { background: white; color: #b8860b; border: 1.5px solid #d4af37; }
   .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
   .location-line { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
 

@@ -289,9 +289,12 @@ export default function HomePage() {
         {!mounted ? (
           <span className="nav-avatar nav-avatar-placeholder" aria-hidden />
         ) : loggedIn ? (
-          <a href="/dashboard" className="nav-avatar" aria-label="Open dashboard">
-            <span className="nav-avatar-icon">👤</span>
-          </a>
+          <>
+            <a href="/dashboard" className="nav-cta-btn">Dashboard</a>
+            <a href="/dashboard" className="nav-avatar" aria-label="Open dashboard">
+              <span className="nav-avatar-icon">👤</span>
+            </a>
+          </>
         ) : (
           <>
             <a href="/login" className="nl" style={{ color: '#999' }}>Sign in</a>

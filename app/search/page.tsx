@@ -251,9 +251,12 @@ function SearchPageInner() {
           {!mounted ? (
             <span className="list-avatar list-avatar-placeholder" aria-hidden />
           ) : loggedIn ? (
-            <Link href="/dashboard" className="list-avatar" aria-label="Open dashboard">
-              <span className="list-avatar-icon">👤</span>
-            </Link>
+            <>
+              <Link href="/dashboard" className="list-btn">Dashboard</Link>
+              <Link href="/dashboard" className="list-avatar" aria-label="Open dashboard">
+                <span className="list-avatar-icon">👤</span>
+              </Link>
+            </>
           ) : (
             <Link href="/register" className="list-btn">List your business</Link>
           )}
