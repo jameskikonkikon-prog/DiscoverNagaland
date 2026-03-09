@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -112,7 +112,9 @@ export default function BusinessPage() {
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [navScrolled, setNavScrolled] = useState(false);
+  const sessionReadyRef = useRef({ getSessionDone: false, authChangeFired: false });
 
   useEffect(() => {
     setMounted(true);
@@ -133,17 +135,43 @@ export default function BusinessPage() {
 
   useEffect(() => {
     let mounted = true;
+    const ref = sessionReadyRef.current;
+    ref.getSessionDone = false;
+    ref.authChangeFired = false;
+
     function updateAuth(session: { user: { id: string } } | null) {
       if (!mounted) return;
       setLoggedIn(!!session);
       setUserId(session?.user?.id ?? null);
     }
-    supabase.auth.getSession().then(({ data }) => updateAuth(data.session));
+
+    function maybeSetSessionReady() {
+      if (!mounted || !ref.getSessionDone || !ref.authChangeFired) return;
+      setSessionLoading(false);
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      updateAuth(data.session);
+      ref.getSessionDone = true;
+      maybeSetSessionReady();
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       updateAuth(session);
+      ref.authChangeFired = true;
+      maybeSetSessionReady();
     });
+
+    const fallback = setTimeout(() => {
+      if (mounted && ref.getSessionDone) {
+        ref.authChangeFired = true;
+        setSessionLoading((prev) => (prev ? false : prev));
+      }
+    }, 2000);
+
     return () => {
       mounted = false;
+      clearTimeout(fallback);
       subscription.unsubscribe();
     };
   }, []);
@@ -473,13 +501,15 @@ export default function BusinessPage() {
               </div>
             </div>
 
-            {!isCurrentUserOwner && (
+            {sessionLoading ? (
+              <div className="claim-card claim-skeleton" aria-hidden />
+            ) : !isCurrentUserOwner ? (
               <div className="claim-card">
                 <div className="claim-title">Own this business?</div>
                 <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
                 <Link href="/register" className="claim-btn">🏷️ Claim This Listing</Link>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </main>
@@ -682,6 +712,7 @@ const styles = `
   .share-btn:hover { border-color: var(--border2); color: var(--text); }
 
   .claim-card { background: var(--surface); border: 1px solid var(--border); border-left: 2px solid var(--red); border-radius: 16px; padding: 20px; margin-bottom: 14px; }
+  .claim-card.claim-skeleton { min-height: 100px; border-left-color: var(--border); }
   .claim-title { font-size: 13px; font-weight: 700; margin-bottom: 5px; }
   .claim-sub { font-size: 11px; color: var(--text2); line-height: 1.6; margin-bottom: 14px; }
   .claim-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 10px; border-radius: 10px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-border); font-size: 12px; font-weight: 700; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; text-decoration: none; }
