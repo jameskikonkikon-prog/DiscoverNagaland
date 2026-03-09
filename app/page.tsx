@@ -701,10 +701,12 @@ const pageStyles = `
   .feat-verified-badge{
     position:absolute;bottom:6px;left:8px;
     padding:3px 8px;border-radius:999px;
-    background:linear-gradient(135deg,#c0392b,#8B1a1a);
-    color:#fff;font-family:'Sora',sans-serif;
+    background:white;
+    color:#b8860b;
+    border:1.5px solid #d4af37;
+    box-shadow:0 2px 8px rgba(212,175,55,0.3);
+    font-family:'Sora',sans-serif;
     font-size:11px;font-weight:700;
-    box-shadow:0 2px 8px rgba(192,57,43,0.4);
     white-space:nowrap;
   }
   .feat-body{padding:12px 14px;}
@@ -741,11 +743,13 @@ const pageStyles = `
   .recent-verified-badge{
     position:absolute;bottom:3px;left:3px;
     padding:2px 5px;border-radius:999px;
-    background:linear-gradient(135deg,#c0392b,#8B1a1a);
-    color:#fff;font-size:8px;font-weight:700;
+    background:white;
+    color:#b8860b;
+    border:1.5px solid #d4af37;
+    box-shadow:0 2px 8px rgba(212,175,55,0.3);
+    font-size:8px;font-weight:700;
     font-family:'Sora',sans-serif;
     white-space:nowrap;
-    box-shadow:0 2px 6px rgba(192,57,43,0.4);
   }
   .recent-info{flex:1;min-width:0;}
   .recent-name{font-size:13px;font-weight:600;color:var(--white);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

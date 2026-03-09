@@ -1044,12 +1044,13 @@ const styles = `
     left: 8px;
     padding: 4px 10px;
     border-radius: 999px;
-    background: linear-gradient(135deg, #c0392b, #8B1a1a);
-    color: #fff;
+    background: white;
+    color: #b8860b;
+    border: 1.5px solid #d4af37;
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
     font-family: 'Sora', sans-serif;
     font-size: 11px;
     font-weight: 700;
-    box-shadow: 0 2px 8px rgba(192, 57, 43, 0.4);
     white-space: nowrap;
   }
   .biz-photo { width: 100%; height: 150px; object-fit: cover; display: block; }
