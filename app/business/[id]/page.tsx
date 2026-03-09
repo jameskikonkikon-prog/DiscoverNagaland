@@ -133,20 +133,18 @@ export default function BusinessPage() {
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (!mounted) return;
-        setLoggedIn(!!data.session);
-        setUserId(data.session?.user?.id ?? null);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setLoggedIn(false);
-        setUserId(null);
-      });
+    function updateAuth(session: { user: { id: string } } | null) {
+      if (!mounted) return;
+      setLoggedIn(!!session);
+      setUserId(session?.user?.id ?? null);
+    }
+    supabase.auth.getSession().then(({ data }) => updateAuth(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      updateAuth(session);
+    });
     return () => {
       mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -226,6 +224,7 @@ export default function BusinessPage() {
   const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent([biz.name, biz.address, biz.city, 'Nagaland'].filter(Boolean).join(' '))}`;
   const waUrl = biz.whatsapp ? `https://wa.me/${biz.whatsapp.replace(/\D/g, '')}?text=Hi!%20I%20found%20you%20on%20Yana%20Nagaland` : '';
   const shareWaUrl = typeof window !== 'undefined' ? `https://wa.me/?text=Check out ${biz.name} on Yana Nagaland: ${window.location.href}` : '';
+  const isCurrentUserOwner = Boolean(biz.owner_id && userId && userId === biz.owner_id);
 
   return (
     <>
@@ -474,7 +473,7 @@ export default function BusinessPage() {
               </div>
             </div>
 
-            {!(userId && biz.owner_id && userId === biz.owner_id) && (
+            {!isCurrentUserOwner && (
               <div className="claim-card">
                 <div className="claim-title">Own this business?</div>
                 <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
