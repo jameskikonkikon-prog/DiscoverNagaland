@@ -77,7 +77,8 @@ export default function BusinessPage() {
           <div className="flex items-start justify-between mb-2">
             <h1 className="text-2xl font-bold text-gray-900">{business.name}</h1>
             <div className="flex gap-2">
-              {business.is_verified && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">✓ Verified</span>}
+              {business.plan === 'plus' && <span className="text-xs px-2 py-1 rounded-full font-bold text-white" style={{ background: 'linear-gradient(135deg, #c0392b, #8B1a1a)', boxShadow: '0 2px 8px rgba(192,57,43,0.4)' }}>✓ Verified Business</span>}
+              {business.is_verified && business.plan !== 'plus' && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">✓ Verified</span>}
               {business.plan === 'pro' && <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full">Pro</span>}
             </div>
           </div>

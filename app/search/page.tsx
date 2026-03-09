@@ -475,18 +475,25 @@ function SearchPageInner() {
             )}
             {!loading && results.length > 0 && (
               <div className="results-grid">
-                {(hasActiveFilter ? filteredResults : results).map((biz) => (
-                  <div key={biz.id} className="biz-card">
+                {(hasActiveFilter ? filteredResults : results).map((biz) => {
+                  const isPlus = (biz.plan || "").toLowerCase() === "plus";
+                  return (
+                  <div key={biz.id} className={`biz-card${isPlus ? " biz-card-plus" : ""}`}>
                     <Link href={`/business/${biz.id}`} className="biz-card-link">
-                      {getBizPhotoUrl(biz) ? (
-                        <img src={getBizPhotoUrl(biz)!} alt={biz.name} className="biz-photo" />
-                      ) : (
-                        <div className="biz-photo-placeholder biz-photo-category">
-                          <span>{biz.category}</span>
-                        </div>
-                      )}
+                      <div className="biz-photo-wrap">
+                        {getBizPhotoUrl(biz) ? (
+                          <img src={getBizPhotoUrl(biz)!} alt={biz.name} className="biz-photo" />
+                        ) : (
+                          <div className="biz-photo-placeholder biz-photo-category">
+                            <span>{biz.category}</span>
+                          </div>
+                        )}
+                        {isPlus && (
+                          <span className="biz-verified-badge">✓ Verified Business</span>
+                        )}
+                      </div>
                       <div className="biz-body">
-                        <div className="biz-category">{biz.category}</div>
+                        <div className="biz-category">{isPlus && "⭐ "}{biz.category}</div>
                         <div className="biz-name">{biz.name}</div>
                         <div className="biz-city">📍 {biz.city}</div>
                         {(biz.is_verified || (biz as Business & { verified?: boolean }).verified) && <span className="biz-verified">✓ Verified</span>}
@@ -514,7 +521,8 @@ function SearchPageInner() {
                       )}
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             )}
           </div>
@@ -1011,14 +1019,38 @@ const styles = `
     flex-direction: column;
     transition: transform 0.2s, border-color 0.2s;
   }
+  .biz-card-plus {
+    border: 1px solid rgba(192, 57, 43, 0.3);
+  }
   .biz-card:hover {
     transform: translateY(-3px);
     border-color: #333;
+  }
+  .biz-card-plus:hover {
+    border-color: rgba(192, 57, 43, 0.5);
   }
   .biz-card-link {
     text-decoration: none;
     color: inherit;
     display: block;
+  }
+  .biz-photo-wrap {
+    position: relative;
+    width: 100%;
+  }
+  .biz-verified-badge {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #c0392b, #8B1a1a);
+    color: #fff;
+    font-family: 'Sora', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(192, 57, 43, 0.4);
+    white-space: nowrap;
   }
   .biz-photo { width: 100%; height: 150px; object-fit: cover; display: block; }
   .biz-photo-placeholder {

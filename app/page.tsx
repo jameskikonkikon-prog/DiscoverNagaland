@@ -345,8 +345,10 @@ export default function HomePage() {
             <button className="sec-more" onClick={() => quickSearch('featured businesses Nagaland')}>See all →</button>
           </div>
           <div className="featured-grid">
-            {featuredBusinesses.map((biz, i) => (
-              <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}`}>
+            {featuredBusinesses.map((biz, i) => {
+              const isPlus = (biz.plan || '').toLowerCase() === 'plus';
+              return (
+              <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}${isPlus ? ' feat-plus' : ''}`}>
                 <div className="feat-photo">
                   {biz.photos && biz.photos[0] ? (
                     <>
@@ -356,18 +358,20 @@ export default function HomePage() {
                   ) : (
                     getCategoryEmoji(biz.category)
                   )}
+                  {isPlus && <span className="feat-verified-badge">✓ Verified Business</span>}
                 </div>
                 <div className="feat-body">
                   <div className="feat-name">{biz.name}</div>
                   <div className="feat-detail">
-                    {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {biz.category}
+                    {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {isPlus ? '⭐ ' : ''}{biz.category}
                   </div>
                   <span className={`feat-tag ${getTagClass(i)}`}>
                     {biz.rating != null ? `⭐ ${biz.rating}` : biz.price_range || (biz.is_verified ? '✓ Verified' : biz.category)}
                   </span>
                 </div>
               </a>
-            ))}
+            );
+            })}
           </div>
 
           {/* CATEGORIES */}
@@ -401,19 +405,21 @@ export default function HomePage() {
           <div className="recent-list">
             {recentBusinesses.map((biz) => {
               const badge = getRecentBadge(biz);
+              const isPlus = (biz.plan || '').toLowerCase() === 'plus';
               return (
-                <a key={biz.id} href={`/business/${biz.id}`} className="recent">
+                <a key={biz.id} href={`/business/${biz.id}`} className={`recent${isPlus ? ' recent-plus' : ''}`}>
                   <div className="recent-photo">
                     {biz.photos && biz.photos[0] ? (
                       <img src={biz.photos[0]} alt={biz.name} />
                     ) : (
                       getCategoryEmoji(biz.category)
                     )}
+                    {isPlus && <span className="recent-verified-badge">✓ Verified</span>}
                   </div>
                   <div className="recent-info">
                     <div className="recent-name">{biz.name}</div>
                     <div className="recent-meta">
-                      {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {biz.category}
+                      {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {isPlus ? '⭐ ' : ''}{biz.category}
                       {biz.price_range ? ` · ${biz.price_range}` : ''}
                     </div>
                   </div>
@@ -677,6 +683,8 @@ const pageStyles = `
   .feat.green::before{background:linear-gradient(90deg,#25d366,transparent);}
   .feat.dim::before{background:linear-gradient(90deg,rgba(255,255,255,0.2),transparent);}
   .feat:hover{background:var(--bg3);border-color:var(--border2);transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,0,0,0.3);}
+  .feat-plus{border-color:rgba(192,57,43,0.3);}
+  .feat-plus:hover{border-color:rgba(192,57,43,0.5);}
   .feat-photo{
     width:100%;height:110px;
     background:linear-gradient(135deg,#1a1a1a,#222);
@@ -687,6 +695,15 @@ const pageStyles = `
   .feat-photo-overlay{
     position:absolute;inset:0;
     background:linear-gradient(transparent 40%,rgba(0,0,0,0.6));
+  }
+  .feat-verified-badge{
+    position:absolute;bottom:6px;left:8px;
+    padding:3px 8px;border-radius:999px;
+    background:linear-gradient(135deg,#c0392b,#8B1a1a);
+    color:#fff;font-family:'Sora',sans-serif;
+    font-size:11px;font-weight:700;
+    box-shadow:0 2px 8px rgba(192,57,43,0.4);
+    white-space:nowrap;
   }
   .feat-body{padding:12px 14px;}
   .feat-name{font-size:13px;font-weight:700;color:var(--white);margin-bottom:3px;}
@@ -709,6 +726,8 @@ const pageStyles = `
     text-decoration:none;color:inherit;
   }
   .recent:hover{background:var(--bg3);border-color:var(--border2);}
+  .recent-plus{border-color:rgba(192,57,43,0.3);}
+  .recent-plus:hover{border-color:rgba(192,57,43,0.5);}
   .recent-photo{
     width:44px;height:44px;
     background:var(--bg3);border-radius:10px;
@@ -717,6 +736,15 @@ const pageStyles = `
     overflow:hidden;position:relative;
   }
   .recent-photo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
+  .recent-verified-badge{
+    position:absolute;bottom:3px;left:3px;
+    padding:2px 5px;border-radius:999px;
+    background:linear-gradient(135deg,#c0392b,#8B1a1a);
+    color:#fff;font-size:8px;font-weight:700;
+    font-family:'Sora',sans-serif;
+    white-space:nowrap;
+    box-shadow:0 2px 6px rgba(192,57,43,0.4);
+  }
   .recent-info{flex:1;min-width:0;}
   .recent-name{font-size:13px;font-weight:600;color:var(--white);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .recent-meta{font-size:11.5px;color:var(--muted);font-weight:300;}

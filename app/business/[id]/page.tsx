@@ -272,7 +272,7 @@ export default function BusinessPage() {
         <div className="content">
           <div className="left">
             <div className="hero-text fade-up">
-              <div className="category-tag">{biz.category}</div>
+              <div className="category-tag">{biz.plan === 'plus' ? '⭐ ' : ''}{biz.category}</div>
               <div className="biz-name">{biz.name}</div>
               <div className="meta-row">
                 {openStatus !== null && (
