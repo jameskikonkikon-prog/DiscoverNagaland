@@ -346,7 +346,9 @@ export default function HomePage() {
           </div>
           <div className="featured-grid">
             {featuredBusinesses.map((biz, i) => {
-              const isPlus = (biz.plan || '').toLowerCase() === 'plus';
+              const planVal = (biz.plan ?? '').toString().trim().toLowerCase();
+              const isPlus = planVal === 'plus';
+              console.log('[featured]', biz.name, 'plan:', biz.plan, '→ isPlus:', isPlus);
               return (
               <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}${isPlus ? ' feat-plus' : ''}`}>
                 <div className="feat-photo">

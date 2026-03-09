@@ -327,7 +327,8 @@ async function fetchBusinessesWithFilter(
   keywords: string[]
 ): Promise<Business[]> {
   const isActiveFilter = 'is_active.eq.true,is_active.is.null';
-  let q = serviceClient.from('businesses').select('*').or(isActiveFilter);
+  const businessColumns = 'id,name,slug,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,verified,tags,vibe_tags,is_active,phone,whatsapp,address,landmark,email,created_at,updated_at';
+  let q = serviceClient.from('businesses').select(businessColumns).or(isActiveFilter);
   if (activeCity) q = q.eq('city', activeCity);
   let orClause = '';
   if (keywords.length > 0) {
@@ -378,19 +379,20 @@ export async function searchBusinesses(
 
   let businesses: Business[];
 
+  const businessColumns = 'id,name,slug,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,verified,tags,vibe_tags,is_active,phone,whatsapp,address,landmark,email,created_at,updated_at';
   if (query.trim() === 'test123') {
-    const { data } = await serviceClient.from('businesses').select('*').or('is_active.eq.true,is_active.is.null');
+    const { data } = await serviceClient.from('businesses').select(businessColumns).or('is_active.eq.true,is_active.is.null');
     businesses = (data as Business[]) || [];
     console.log('[search] test123: returning all businesses', businesses.length);
   } else if (cleanQuery.trim() === '') {
-    const { data } = await serviceClient.from('businesses').select('*').or('is_active.eq.true,is_active.is.null');
+    const { data } = await serviceClient.from('businesses').select(businessColumns).or('is_active.eq.true,is_active.is.null');
     if (activeCity) {
       businesses = ((data as Business[]) || []).filter(b => b.city === activeCity);
     } else {
       businesses = (data as Business[]) || [];
     }
   } else if (keywords.length === 0) {
-    const { data } = await serviceClient.from('businesses').select('*').or('is_active.eq.true,is_active.is.null');
+    const { data } = await serviceClient.from('businesses').select(businessColumns).or('is_active.eq.true,is_active.is.null');
     let all = (data as Business[]) || [];
     if (activeCity) all = all.filter(b => b.city === activeCity);
     const qLower = cleanQuery.toLowerCase();
