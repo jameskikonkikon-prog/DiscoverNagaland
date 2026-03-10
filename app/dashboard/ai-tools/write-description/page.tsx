@@ -36,17 +36,17 @@ export default function WriteDescriptionPage() {
     let mounted = true;
     async function load() {
       // Copy the dashboard pattern exactly:
-      // 1) getSession
-      // 2) if no session -> redirect to /login and stop
+      // 1) getUser
+      // 2) if no user -> redirect to /login and stop
       // 3) fetch business by owner_id (and is_active) -> set state
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!mounted) return;
-      if (!session) { router.push('/login'); return; }
+      if (!user) { router.push('/login'); return; }
 
       const { data: biz } = await supabase
         .from('businesses')
         .select('id, name, description')
-        .eq('owner_id', session.user.id)
+        .eq('owner_id', user.id)
         .eq('is_active', true)
         .single();
 
