@@ -22,6 +22,8 @@ export default function WriteDescriptionPage() {
   );
 
   const [loading, setLoading] = useState(true);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -35,26 +37,38 @@ export default function WriteDescriptionPage() {
   useEffect(() => {
     let mounted = true;
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted) return;
-      // Only redirect AFTER getSession() resolves with no session
-      if (!session) { router.push('/login'); return; }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setSessionChecked(true);
+        setHasSession(!!session);
 
-      const { data: biz } = await supabase
-        .from('businesses')
-        .select('id, name, description')
-        .eq('owner_id', session.user.id)
-        .single();
-      if (!mounted) return;
-      if (!biz) { setBusiness(null); return; }
-      setBusiness(biz as Business);
-      setDescription((biz as Business).description || '');
+        if (!session) return;
+
+        const { data: biz } = await supabase
+          .from('businesses')
+          .select('id, name, description')
+          .eq('owner_id', session.user.id)
+          .single();
+        if (!mounted) return;
+        if (!biz) {
+          setBusiness(null);
+          return;
+        }
+        setBusiness(biz as Business);
+        setDescription((biz as Business).description || '');
+      } finally {
+        if (mounted) setLoading(false);
+      }
     }
-    load().finally(() => {
-      if (mounted) setLoading(false);
-    });
+    load();
     return () => { mounted = false; };
   }, [supabase, router]);
+
+  useEffect(() => {
+    // Only redirect after the session check has completed.
+    if (!loading && sessionChecked && hasSession === false) router.push('/login');
+  }, [loading, sessionChecked, hasSession, router]);
 
   const canGenerate = useMemo(() => !!business && !aiLoading, [business, aiLoading]);
   const canSave = useMemo(() => !!business && description.trim().length > 0 && !saveLoading, [business, description, saveLoading]);
@@ -121,7 +135,19 @@ export default function WriteDescriptionPage() {
     );
   }
 
-  if (!business) {
+  // Session is confirmed absent: we already triggered redirect; render a minimal loading state.
+  if (sessionChecked && hasSession === false) {
+    return (
+      <div style={s.page}>
+        <div style={s.container}>
+          <div style={s.card}>Loading…</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Session exists but no business linked.
+  if (sessionChecked && hasSession === true && !business) {
     return (
       <div style={s.page}>
         <div style={s.container}>
