@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 
 const TOOLS = [
   { href: '/dashboard/ai-tools/write-description', icon: '✍️', name: 'Write Description', desc: 'Generate a compelling description and save it to your listing' },
@@ -14,7 +14,12 @@ const TOOLS = [
 
 export default function AiToolsPage() {
   const router = useRouter();
-  const [supabase] = useState(() => createClientComponentClient());
+  const [supabase] = useState(() =>
+    createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+  );
   const [business, setBusiness] = useState<{ id: string; description: string | null } | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
 
