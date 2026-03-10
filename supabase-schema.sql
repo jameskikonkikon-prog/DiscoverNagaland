@@ -78,6 +78,17 @@ CREATE TABLE payments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- AI tool usage tracking
+CREATE TABLE ai_tool_usage (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  tool_name TEXT NOT NULL,
+  used_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_ai_tool_usage_business_tool ON ai_tool_usage(business_id, tool_name);
+CREATE INDEX idx_ai_tool_usage_used_at ON ai_tool_usage(used_at);
+
 -- Reviews table
 CREATE TABLE reviews (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -131,6 +142,10 @@ CREATE POLICY "Service role full access payments" ON payments
   FOR ALL USING (auth.role() = 'service_role');
 
 CREATE POLICY "Service role full access reviews" ON reviews
+  FOR ALL USING (auth.role() = 'service_role');
+
+ALTER TABLE ai_tool_usage ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Service role full access ai_tool_usage" ON ai_tool_usage
   FOR ALL USING (auth.role() = 'service_role');
 
 -- Storage bucket for business photos
