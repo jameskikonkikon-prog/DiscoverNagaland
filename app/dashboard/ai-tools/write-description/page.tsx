@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 
 type Business = {
   id: string;
@@ -13,7 +13,13 @@ type Business = {
 
 export default function WriteDescriptionPage() {
   const router = useRouter();
-  const [supabase] = useState(() => createClientComponentClient());
+  // Match the dashboard auth pattern exactly (createBrowserClient + getSession)
+  const [supabase] = useState(() =>
+    createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+  );
 
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
@@ -28,29 +34,25 @@ export default function WriteDescriptionPage() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    async function load() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
-      if (!session) {
-        router.push('/login');
-        setLoading(false);
-        return;
-      }
+      // Only redirect AFTER getSession() resolves with no session
+      if (!session) { router.push('/login'); return; }
+
       const { data: biz } = await supabase
         .from('businesses')
         .select('id, name, description')
         .eq('owner_id', session.user.id)
         .single();
       if (!mounted) return;
-      if (!biz) {
-        setBusiness(null);
-        setLoading(false);
-        return;
-      }
+      if (!biz) { setBusiness(null); return; }
       setBusiness(biz as Business);
       setDescription((biz as Business).description || '');
-      setLoading(false);
-    })();
+    }
+    load().finally(() => {
+      if (mounted) setLoading(false);
+    });
     return () => { mounted = false; };
   }, [supabase, router]);
 
