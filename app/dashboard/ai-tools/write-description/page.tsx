@@ -22,8 +22,6 @@ export default function WriteDescriptionPage() {
   );
 
   const [loading, setLoading] = useState(true);
-  const [sessionChecked, setSessionChecked] = useState(false);
-  const [hasSession, setHasSession] = useState<boolean | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -37,38 +35,31 @@ export default function WriteDescriptionPage() {
   useEffect(() => {
     let mounted = true;
     async function load() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-        setSessionChecked(true);
-        setHasSession(!!session);
+      // Copy the dashboard pattern exactly:
+      // 1) getSession
+      // 2) if no session -> redirect to /login and stop
+      // 3) fetch business by owner_id (and is_active) -> set state
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+      if (!session) { router.push('/login'); return; }
 
-        if (!session) return;
+      const { data: biz } = await supabase
+        .from('businesses')
+        .select('id, name, description')
+        .eq('owner_id', session.user.id)
+        .eq('is_active', true)
+        .single();
 
-        const { data: biz } = await supabase
-          .from('businesses')
-          .select('id, name, description')
-          .eq('owner_id', session.user.id)
-          .single();
-        if (!mounted) return;
-        if (!biz) {
-          setBusiness(null);
-          return;
-        }
-        setBusiness(biz as Business);
-        setDescription((biz as Business).description || '');
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      if (!mounted) return;
+      setBusiness((biz as Business) ?? null);
+      setDescription(((biz as Business | null)?.description) || '');
+      setLoading(false);
     }
-    load();
+    load().catch(() => {
+      if (mounted) setLoading(false);
+    });
     return () => { mounted = false; };
   }, [supabase, router]);
-
-  useEffect(() => {
-    // Only redirect after the session check has completed.
-    if (!loading && sessionChecked && hasSession === false) router.push('/login');
-  }, [loading, sessionChecked, hasSession, router]);
 
   const canGenerate = useMemo(() => !!business && !aiLoading, [business, aiLoading]);
   const canSave = useMemo(() => !!business && description.trim().length > 0 && !saveLoading, [business, description, saveLoading]);
@@ -135,19 +126,8 @@ export default function WriteDescriptionPage() {
     );
   }
 
-  // Session is confirmed absent: we already triggered redirect; render a minimal loading state.
-  if (sessionChecked && hasSession === false) {
-    return (
-      <div style={s.page}>
-        <div style={s.container}>
-          <div style={s.card}>Loading…</div>
-        </div>
-      </div>
-    );
-  }
-
   // Session exists but no business linked.
-  if (sessionChecked && hasSession === true && !business) {
+  if (!business) {
     return (
       <div style={s.page}>
         <div style={s.container}>
