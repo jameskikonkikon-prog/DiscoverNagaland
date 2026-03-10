@@ -174,28 +174,34 @@ export async function POST(request: NextRequest) {
 
     const prompt = getPrompt(toolName as ToolId, business as BizRow, { raw_menu_text: rawMenuText, special_note: specialNote });
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
+    let result: string;
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Anthropic API error:', errText);
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('Anthropic API error (non-OK):', errText);
+        return NextResponse.json({ error: 'AI service error. Please try again.' }, { status: 500 });
+      }
+
+      const data = await response.json();
+      result = data.content?.[0]?.text ?? 'No result generated.';
+    } catch (err) {
+      console.error('Anthropic API call failed:', err);
       return NextResponse.json({ error: 'AI service error. Please try again.' }, { status: 500 });
     }
-
-    const data = await response.json();
-    const result = data.content?.[0]?.text ?? 'No result generated.';
 
     await serviceClient.from('ai_tool_usage').insert({
       business_id: businessId,

@@ -680,10 +680,12 @@ export default function DashboardPage() {
                 </div>
                 <div className="ai-grid">
                   {[
-                    { icon:'✨', name:'Write Description', desc:'Auto-generate a compelling business description', locked:false,   href:'/dashboard/ai-tools' },
-                    { icon:'📈', name:'Growth Advisor',    desc:'Get personalised tips to attract more customers', locked:false,   href:'/dashboard/ai-tools' },
-                    { icon:'📷', name:'Menu Reader',       desc:'Upload a photo of your menu to extract prices',  locked:!isPro,  href:'/dashboard/ai-tools' },
-                    { icon:'⚔️', name:'Competitor Intel',  desc:'See how you compare to similar businesses',      locked:!isPlus, href:'/dashboard/ai-tools' },
+                    { icon:'✍️', name:'Write Description',  desc:'AI writes your business description',                                        locked:false,   href:'/dashboard/ai-tools/write-description' },
+                    { icon:'📈', name:'Growth Advisor',      desc:'5 personalised tips for your business',                                      locked:false,   href:'/dashboard/ai-tools/growth-advisor' },
+                    { icon:'💬', name:'Review Analyser',     desc:'AI reads your reviews and tells you what to improve',                        locked:!isPro,  href:'/dashboard/ai-tools/review-analyser' },
+                    { icon:'📱', name:'Social Media Helper', desc:'Generate captions for Instagram, Facebook & WhatsApp',                      locked:!isPro,  href:'/dashboard/ai-tools/social-media' },
+                    { icon:'🔍', name:'Competitor Intel',    desc:'Understand your competition in Nagaland',                                    locked:!isPlus, href:'/dashboard/ai-tools/competitor-intel' },
+                    { icon:'📋', name:'Menu Reader',         desc:'AI reads your menu and generates a QR code',                                locked:!isPlus, href:'/dashboard/ai-tools/menu-reader' },
                   ].map((tool, i) =>
                     tool.locked ? (
                       <div key={i} className="ai-tool locked">
