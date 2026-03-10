@@ -21,9 +21,9 @@ export default function AiToolsPage() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!mounted) return;
-      if (!session) {
+      if (!user) {
         router.push('/login');
         setPageLoading(false);
         return;
@@ -32,7 +32,7 @@ export default function AiToolsPage() {
       const { data: biz } = await supabase
         .from('businesses')
         .select('*')
-        .eq('owner_id', session.user.id)
+        .eq('owner_id', user.id)
         .single();
 
       if (!mounted) return;
