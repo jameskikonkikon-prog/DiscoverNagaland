@@ -18,7 +18,11 @@ interface BizRow {
   plan?: string | null;
 }
 
-function getPrompt(toolName: ToolId, biz: BizRow, extra?: { raw_menu_text?: string; special_note?: string }): string {
+function getPrompt(
+  toolName: ToolId,
+  biz: BizRow,
+  extra?: { raw_menu_text?: string; special_note?: string; customers?: string; discovery?: string; challenge?: string }
+): string {
   const area = biz.area || biz.landmark || '';
   const city = biz.city || '';
   const name = biz.name || 'Business';
@@ -31,7 +35,26 @@ function getPrompt(toolName: ToolId, biz: BizRow, extra?: { raw_menu_text?: stri
     case 'write-description':
       return `You are a copywriter for Yana Nagaland, a business directory in Nagaland India. Write a compelling 3-4 sentence business description for ${name}, a ${category} in ${area ? area + ', ' : ''}${city}, Nagaland. Tags: ${tags}. Special note: ${extra?.special_note || ''}. Make it warm, local and trustworthy. Return only the description text, nothing else.`;
     case 'growth-advisor':
-      return `You are a business growth advisor for small businesses in Nagaland, India. Give 5 practical numbered growth tips for ${name}, a ${category} in ${city}, Nagaland. Be specific to the Northeast India context. Keep each tip to 1–2 sentences.`;
+      return `You are a customer behaviour expert advising a business in Nagaland, Northeast India. Your job is NOT to give the owner an operational to-do list — your job is to help them deeply understand their customers and what will make those customers feel valued, come back repeatedly, and refer their friends.
+
+Business: ${name}
+Type: ${category}
+Location: ${area ? area + ', ' : ''}${city}, Nagaland
+Tags: ${tags}
+
+Owner's answers:
+- Main customers: ${extra?.customers || ''}
+- How customers currently find them: ${extra?.discovery || ''}
+- Biggest challenge right now: ${extra?.challenge || ''}
+
+Give 5 numbered tips. Each tip must:
+- Start from the CUSTOMER'S perspective — what they feel, what they want, what makes them loyal
+- Be specific to this customer type in Nagaland — students behave differently from families, tourists differently from locals
+- Be something the owner can act on this week
+- Be 2-3 sentences max
+- Never be generic — if the tip could apply to any business anywhere, rewrite it
+
+Do not give owner-focused operational advice like \"post 3 times a week\". Give customer-psychology advice like \"your student customers decide where to go based on what their friends are already doing — make it easy for one happy customer to bring three more.\"`;
     case 'menu-reader':
       return `Format the following raw menu text for ${name} in ${city}, Nagaland into a clean structured menu. Group items by category. Format each item as: Item Name — ₹Price — one sentence description. Raw menu:\n\n${extra?.raw_menu_text || '(no text provided)'}`;
     case 'competitor-intel':
@@ -120,11 +143,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tool_name: toolName, business_id: businessId, raw_menu_text: rawMenuText, special_note: specialNote } = body as {
+    const {
+      tool_name: toolName,
+      business_id: businessId,
+      raw_menu_text: rawMenuText,
+      special_note: specialNote,
+      customers,
+      discovery,
+      challenge,
+    } = body as {
       tool_name?: string;
       business_id?: string;
       raw_menu_text?: string;
       special_note?: string;
+      customers?: string;
+      discovery?: string;
+      challenge?: string;
     };
 
     if (!toolName || !businessId) {
@@ -168,11 +202,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Please paste your menu text first.' }, { status: 400 });
     }
 
+    if (toolName === 'growth-advisor') {
+      if (!customers || !discovery || !challenge) {
+        return NextResponse.json({ error: 'Please answer all questions first.' }, { status: 400 });
+      }
+    }
+
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
     }
 
-    const prompt = getPrompt(toolName as ToolId, business as BizRow, { raw_menu_text: rawMenuText, special_note: specialNote });
+    const prompt = getPrompt(toolName as ToolId, business as BizRow, {
+      raw_menu_text: rawMenuText,
+      special_note: specialNote,
+      customers,
+      discovery,
+      challenge,
+    });
 
     let result: string;
     try {
