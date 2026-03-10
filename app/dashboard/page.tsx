@@ -680,10 +680,10 @@ export default function DashboardPage() {
                 </div>
                 <div className="ai-grid">
                   {[
-                    { icon:'✨', name:'Write Description', desc:'Auto-generate a compelling business description', locked:false,   href:'/dashboard/ai/description' },
-                    { icon:'📈', name:'Growth Advisor',    desc:'Get personalised tips to attract more customers', locked:false,   href:'/dashboard/ai/growth'      },
-                    { icon:'📷', name:'Menu Reader',       desc:'Upload a photo of your menu to extract prices',  locked:!isPro,  href:'/dashboard/ai/menu'        },
-                    { icon:'⚔️', name:'Competitor Intel',  desc:'See how you compare to similar businesses',      locked:!isPlus, href:'/dashboard/ai/competitor'  },
+                    { icon:'✨', name:'Write Description', desc:'Auto-generate a compelling business description', locked:false,   href:'/dashboard/ai-tools' },
+                    { icon:'📈', name:'Growth Advisor',    desc:'Get personalised tips to attract more customers', locked:false,   href:'/dashboard/ai-tools' },
+                    { icon:'📷', name:'Menu Reader',       desc:'Upload a photo of your menu to extract prices',  locked:!isPro,  href:'/dashboard/ai-tools' },
+                    { icon:'⚔️', name:'Competitor Intel',  desc:'See how you compare to similar businesses',      locked:!isPlus, href:'/dashboard/ai-tools' },
                   ].map((tool, i) =>
                     tool.locked ? (
                       <div key={i} className="ai-tool locked">
