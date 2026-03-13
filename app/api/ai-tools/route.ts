@@ -5,7 +5,7 @@ import { getServiceClient } from '@/lib/supabase';
 const MODEL = 'claude-sonnet-4-20250514';
 
 type Plan = 'basic' | 'pro' | 'plus';
-type ToolId = 'write-desc' | 'write-description' | 'growth-advisor' | 'menu-reader' | 'competitor-intel';
+type ToolId = 'write-desc' | 'write-description' | 'growth-advisor' | 'menu-reader' | 'competitor-intel' | 'review-analyser' | 'social-media';
 
 interface BizRow {
   name: string;
@@ -21,7 +21,7 @@ interface BizRow {
 function getPrompt(
   toolName: ToolId,
   biz: BizRow,
-  extra?: { raw_menu_text?: string; special_note?: string; customers?: string; discovery?: string; challenge?: string }
+  extra?: { raw_menu_text?: string; special_note?: string; customers?: string; discovery?: string; challenge?: string; reviews_text?: string; platform?: string; purpose?: string; extra_note?: string }
 ): string {
   const area = biz.area || biz.landmark || '';
   const city = biz.city || '';
@@ -59,6 +59,33 @@ Do not give owner-focused operational advice like \"post 3 times a week\". Give 
       return `Format the following raw menu text for ${name} in ${city}, Nagaland into a clean structured menu. Group items by category. Format each item as: Item Name — ₹Price — one sentence description. Raw menu:\n\n${extra?.raw_menu_text || '(no text provided)'}`;
     case 'competitor-intel':
       return `You are a market analyst for Nagaland, India. For ${name}, a ${category} business in ${city}: 1) Describe the likely competitor landscape, 2) List 3 key differentiators this business should emphasize, 3) List 2 threats to watch, 4) Identify 1 untapped opportunity in this category in Nagaland.`;
+    case 'review-analyser':
+      return `You are a customer experience analyst for Yana Nagaland, a business directory in Nagaland, India. Analyse the following customer reviews for ${name}, a ${category} in ${city}, Nagaland.
+
+Reviews:
+${extra?.reviews_text || '(no reviews provided)'}
+
+Provide:
+1. Overall sentiment summary (1-2 sentences)
+2. What customers love most (top 3 points)
+3. What needs improvement (top 3 points)
+4. Specific actions to get more 5-star reviews (3 actionable tips)
+5. One standout quote to use in marketing
+
+Be specific to this business type and Nagaland context. Keep each point to 1-2 sentences.`;
+    case 'social-media':
+      return `You are a social media copywriter for Yana Nagaland, a business directory in Nagaland, India. Write a ${extra?.platform || 'Instagram'} caption for ${name}, a ${category} in ${city}, Nagaland.
+
+Post purpose: ${extra?.purpose || 'general update'}
+${extra?.extra_note ? `Special details: ${extra.extra_note}` : ''}
+
+Requirements:
+- Warm, local Nagaland tone
+- ${extra?.platform === 'WhatsApp Status' ? 'Short (under 100 words), conversational' : extra?.platform === 'Facebook' ? 'Friendly, community-focused, 100-150 words' : 'Engaging, 80-120 words with relevant hashtags'}
+- Include a clear call to action
+- Feel genuine, not corporate
+
+Return only the caption text, ready to copy and post.`;
     default:
       return '';
   }
@@ -67,7 +94,7 @@ Do not give owner-focused operational advice like \"post 3 times a week\". Give 
 function isToolLockedByPlan(plan: Plan, toolName: ToolId): boolean {
   if (plan === 'plus') return false;
   if (plan === 'pro') return toolName === 'competitor-intel';
-  if (plan === 'basic') return toolName === 'menu-reader' || toolName === 'competitor-intel';
+  if (plan === 'basic') return toolName === 'menu-reader' || toolName === 'competitor-intel' || toolName === 'review-analyser' || toolName === 'social-media';
   return true;
 }
 
@@ -151,6 +178,10 @@ export async function POST(request: NextRequest) {
       customers,
       discovery,
       challenge,
+      reviews_text: reviewsText,
+      platform,
+      purpose,
+      extra_note: extraNote,
     } = body as {
       tool_name?: string;
       business_id?: string;
@@ -159,13 +190,17 @@ export async function POST(request: NextRequest) {
       customers?: string;
       discovery?: string;
       challenge?: string;
+      reviews_text?: string;
+      platform?: string;
+      purpose?: string;
+      extra_note?: string;
     };
 
     if (!toolName || !businessId) {
       return NextResponse.json({ error: 'Missing tool_name or business_id' }, { status: 400 });
     }
 
-    const validTools: ToolId[] = ['write-desc', 'write-description', 'growth-advisor', 'menu-reader', 'competitor-intel'];
+    const validTools: ToolId[] = ['write-desc', 'write-description', 'growth-advisor', 'menu-reader', 'competitor-intel', 'review-analyser', 'social-media'];
     if (!validTools.includes(toolName as ToolId)) {
       return NextResponse.json({ error: 'Unknown tool' }, { status: 400 });
     }
@@ -208,6 +243,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (toolName === 'review-analyser' && (!reviewsText || String(reviewsText).trim() === '')) {
+      return NextResponse.json({ error: 'Please paste some reviews first.' }, { status: 400 });
+    }
+
+    if (toolName === 'social-media' && (!purpose || String(purpose).trim() === '')) {
+      return NextResponse.json({ error: 'Please select a post purpose first.' }, { status: 400 });
+    }
+
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
     }
@@ -218,6 +261,10 @@ export async function POST(request: NextRequest) {
       customers,
       discovery,
       challenge,
+      reviews_text: reviewsText,
+      platform,
+      purpose,
+      extra_note: extraNote,
     });
 
     let result: string;
