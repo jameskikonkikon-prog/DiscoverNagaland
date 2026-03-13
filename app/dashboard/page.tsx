@@ -620,7 +620,7 @@ export default function DashboardPage() {
                   <div className="card-sub">Your full business profile</div>
                 </div>
                 {business && (
-                  <a href={`/dashboard/edit-listing/${business.id}`} className="red-btn"
+                  <a href="/dashboard/settings" className="red-btn"
                     style={{ textDecoration:'none', padding:'8px 16px', fontSize:13 }}>
                     ✏️ Edit Listing
                   </a>
