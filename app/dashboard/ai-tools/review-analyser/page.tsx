@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 
 type Business = { id: string; name: string; plan: string };
+type Review = { id: string; rating: number; comment: string; reviewer_name: string; created_at: string };
 
 export default function ReviewAnalyserPage() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function ReviewAnalyserPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [business, setBusiness] = useState<Business | null>(null);
-  const [reviews, setReviews] = useState('');
+  const [reviews, setReviews] = useState<Review[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -36,7 +37,15 @@ export default function ReviewAnalyserPage() {
         .eq('is_active', true)
         .single();
       if (!mounted) return;
-      setBusiness((biz as Business) ?? null);
+      if (!biz) { setLoading(false); return; }
+      setBusiness(biz as Business);
+      const { data: revs } = await supabase
+        .from('reviews')
+        .select('id, rating, comment, reviewer_name, created_at')
+        .eq('business_id', biz.id)
+        .order('created_at', { ascending: false });
+      if (!mounted) return;
+      setReviews((revs as Review[]) ?? []);
       setLoading(false);
     }
     load().catch(() => { if (mounted) setLoading(false); });
@@ -46,10 +55,13 @@ export default function ReviewAnalyserPage() {
   const isPro = business?.plan === 'pro' || business?.plan === 'plus';
 
   async function analyse() {
-    if (!business || !reviews.trim()) return;
+    if (!business || reviews.length === 0) return;
     setAiLoading(true);
     setError(null);
     setResult(null);
+    const reviewsText = reviews
+      .map(r => `"${r.comment}" — ${r.reviewer_name}, ${r.rating} stars`)
+      .join('\n');
     try {
       const res = await fetch('/api/ai-tools', {
         method: 'POST',
@@ -57,7 +69,7 @@ export default function ReviewAnalyserPage() {
         body: JSON.stringify({
           tool_name: 'review-analyser',
           business_id: business.id,
-          reviews_text: reviews.trim(),
+          reviews_text: reviewsText,
         }),
       });
       const json = await res.json();
@@ -110,29 +122,40 @@ export default function ReviewAnalyserPage() {
             <Link href="/dashboard" style={s.back}>←</Link>
             <div>
               <div style={s.title}>💬 Review Analyser</div>
-              <div style={s.sub}>Paste your customer reviews below. AI will identify what customers love, what to improve, and how to get more 5-star reviews.</div>
+              <div style={s.sub}>AI will analyse your Yana Nagaland reviews and tell you what customers love, what to improve, and how to get more 5-star reviews.</div>
             </div>
           </div>
 
-          <label style={s.label}>Paste your reviews (copy from Google Maps, Facebook, etc.)</label>
-          <textarea
-            value={reviews}
-            onChange={e => setReviews(e.target.value)}
-            rows={10}
-            style={s.textarea}
-            placeholder={'Paste reviews here...\n\n"Great food and friendly staff!" - 5 stars\n"A bit slow but worth the wait" - 4 stars\n...'}
-          />
+          <div style={s.sectionLabel}>{reviews.length} review{reviews.length !== 1 ? 's' : ''} found</div>
 
-          <div style={s.actions}>
-            <button
-              type="button"
-              onClick={analyse}
-              disabled={!reviews.trim() || aiLoading}
-              style={s.primaryBtn}
-            >
-              {aiLoading ? 'Analysing…' : '🔍 Analyse Reviews'}
-            </button>
-          </div>
+          {reviews.length === 0 ? (
+            <div style={s.emptyBox}>No reviews yet on Yana Nagaland.</div>
+          ) : (
+            <div style={s.reviewList}>
+              {reviews.map(r => (
+                <div key={r.id} style={s.reviewRow}>
+                  <div style={s.reviewMeta}>
+                    <span style={s.reviewerName}>{r.reviewer_name}</span>
+                    <span style={s.reviewRating}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                  </div>
+                  <div style={s.reviewComment}>{r.comment}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {reviews.length > 0 && (
+            <div style={s.actions}>
+              <button
+                type="button"
+                onClick={analyse}
+                disabled={aiLoading}
+                style={s.primaryBtn}
+              >
+                {aiLoading ? 'Analysing…' : '🔍 Analyse Reviews'}
+              </button>
+            </div>
+          )}
 
           {error && <div style={s.error}>{error}</div>}
 
@@ -158,8 +181,14 @@ const s: Record<string, React.CSSProperties> = {
   back: { width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center', background: '#0a0a0a', border: '1px solid #1e1e1e', color: '#c0392b', textDecoration: 'none', fontWeight: 800, flexShrink: 0 },
   title: { fontSize: 18, fontWeight: 800, marginBottom: 2 },
   sub: { fontSize: 13, color: '#888', lineHeight: 1.5 },
-  label: { display: 'block', marginTop: 14, marginBottom: 8, fontSize: 12, color: '#aaa', fontWeight: 600 },
-  textarea: { width: '100%', background: '#0a0a0a', border: '1px solid #1e1e1e', borderRadius: 10, padding: 12, color: '#e5e5e5', fontFamily: "'Sora', sans-serif", fontSize: 13, resize: 'vertical', boxSizing: 'border-box' as const },
+  sectionLabel: { marginTop: 14, marginBottom: 8, fontSize: 12, color: '#aaa', fontWeight: 600 },
+  emptyBox: { background: '#0a0a0a', border: '1px solid #1e1e1e', borderRadius: 10, padding: 16, fontSize: 13, color: '#666', textAlign: 'center' },
+  reviewList: { display: 'flex', flexDirection: 'column', gap: 8 },
+  reviewRow: { background: '#0a0a0a', border: '1px solid #1e1e1e', borderRadius: 10, padding: 12 },
+  reviewMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  reviewerName: { fontSize: 12, fontWeight: 700, color: '#ccc' },
+  reviewRating: { fontSize: 12, color: '#c0392b', letterSpacing: 1 },
+  reviewComment: { fontSize: 13, color: '#aaa', lineHeight: 1.5 },
   actions: { display: 'flex', gap: 10, alignItems: 'center', marginTop: 14 },
   primaryBtn: { background: '#c0392b', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 14px', fontWeight: 700, cursor: 'pointer', fontFamily: "'Sora', sans-serif", fontSize: 13 },
   resultBox: { marginTop: 18, background: '#141414', borderRadius: 10, border: '1px solid #1e1e1e', padding: 14 },
