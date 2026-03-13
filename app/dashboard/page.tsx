@@ -361,9 +361,6 @@ export default function DashboardPage() {
               onClick={() => setActiveTab('billing')}>
               <span className="icon">💳</span>Plan & Billing
             </button>
-            <a href="/dashboard/settings" className="nav-item">
-              <span className="icon">⚙️</span>Settings
-            </a>
           </nav>
 
           <div className="sidebar-bottom">
@@ -515,10 +512,12 @@ export default function DashboardPage() {
                 </div>
                 <div className="ai-grid">
                   {[
-                    { icon:'✨', name:'Write Description', desc: isPro ? 'Unlimited' : 'One free use',  locked: false, badge: null as string | null },
+                    { icon:'✍️', name:'Write Description', desc: isPro ? 'Unlimited' : 'One free use',  locked: false, badge: null as string | null },
                     { icon:'📈', name:'Growth Advisor',    desc: isPro ? 'Weekly' : 'One free use',     locked: false, badge: null },
-                    { icon:'📷', name:'Menu Reader',       desc:'Read price boards',                   locked: !isPro,  badge: 'Pro' },
-                    { icon:'⚔️', name:'Competitor Intel',  desc:'Beat the competition',                locked: !isPlus, badge: 'Plus' },
+                    { icon:'💬', name:'Review Analyser',   desc:'Analyse your customer reviews',        locked: !isPro,  badge: 'Pro' },
+                    { icon:'📱', name:'Social Media Helper', desc:'Generate captions in one click',     locked: !isPro,  badge: 'Pro' },
+                    { icon:'📋', name:'Menu Reader',       desc:'Format your menu with AI',             locked: !isPro,  badge: 'Pro' },
+                    { icon:'🔍', name:'Competitor Intel',  desc:'Beat the competition',                 locked: !isPlus, badge: 'Plus' },
                   ].map((tool, i) => (
                     <div key={i} className={`ai-tool${tool.locked ? ' locked' : ''}`}
                       onClick={() => !tool.locked && setActiveTab('ai')}>
