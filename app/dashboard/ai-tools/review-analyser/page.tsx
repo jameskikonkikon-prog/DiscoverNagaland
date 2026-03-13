@@ -122,14 +122,14 @@ export default function ReviewAnalyserPage() {
             <Link href="/dashboard" style={s.back}>←</Link>
             <div>
               <div style={s.title}>💬 Review Analyser</div>
-              <div style={s.sub}>AI will analyse your Yana Nagaland reviews and tell you what customers love, what to improve, and how to get more 5-star reviews.</div>
+              <div style={s.sub}>AI will analyse your business reviews and tell you what customers love, what to improve, and how to get more 5-star reviews.</div>
             </div>
           </div>
 
           <div style={s.sectionLabel}>{reviews.length} review{reviews.length !== 1 ? 's' : ''} found</div>
 
           {reviews.length === 0 ? (
-            <div style={s.emptyBox}>No reviews yet on Yana Nagaland.</div>
+            <div style={s.emptyBox}>No reviews yet for your business on Yana Nagaland.</div>
           ) : (
             <div style={s.reviewList}>
               {reviews.map(r => (
