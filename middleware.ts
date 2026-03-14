@@ -25,8 +25,8 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh the session so it doesn't expire mid-visit
-  await supabase.auth.getSession();
+  // Refresh the auth token so it doesn't expire mid-visit
+  await supabase.auth.getUser();
 
   return supabaseResponse;
 }
