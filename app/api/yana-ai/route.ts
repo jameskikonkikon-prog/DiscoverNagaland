@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-const SYSTEM = `You are Yana AI, a friendly local guide for Nagaland, India. Based on the user's situation, give a warm 1-sentence response then suggest 3-4 specific search queries they should use on Yana Nagaland business directory. Return suggestions as a JSON object: {text: string, chips: string[]}`;
+const SYSTEM = `You are Yana AI, a friendly local guide for Nagaland India. Based on the user's situation suggest 3-4 specific search queries for Yana Nagaland business directory. Respond only in JSON: {"text": string, "chips": string[]}`;
 
 export async function POST(req: NextRequest) {
   try {
