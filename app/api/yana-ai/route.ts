@@ -1,14 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-
-const SYSTEM = `You are Yana AI, a friendly local guide for Nagaland India. Based on the user's situation suggest 3-4 specific search queries for Yana Nagaland business directory. Respond only in JSON: {"text": string, "chips": string[]}`;
 
 function extractJSON(raw: string): string {
-  // Strip markdown code fences: ```json ... ``` or ``` ... ```
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fenced) return fenced[1].trim();
   return raw.trim();
@@ -19,21 +13,28 @@ export async function POST(req: NextRequest) {
     const { message } = await req.json();
     if (!message?.trim()) return NextResponse.json({ error: 'No message' }, { status: 400 });
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      systemInstruction: SYSTEM,
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+    const body = {
+      contents: [{ parts: [{ text: message }] }],
+      systemInstruction: { parts: [{ text: 'You are Yana AI, a friendly local guide for Nagaland India. Respond ONLY with raw JSON no markdown: {"text": "one sentence", "chips": ["query1", "query2", "query3"]}' }] },
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
 
-    const result = await model.generateContent(message);
-    const raw = result.response.text();
-    console.log('[yana-ai] raw response:', raw);
+    const json = await res.json();
+    console.log('[yana-ai] raw response:', JSON.stringify(json));
+
+    const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    console.log('[yana-ai] text:', raw);
 
     const cleaned = extractJSON(raw);
-    console.log('[yana-ai] cleaned:', cleaned);
-
     const data = JSON.parse(cleaned);
 
-    // Ensure chips is always an array of strings
     const chips = Array.isArray(data.chips) ? data.chips.map(String) : [];
 
     return NextResponse.json({ text: data.text ?? '', chips });
