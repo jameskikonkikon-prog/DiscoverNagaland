@@ -1,6 +1,6 @@
 'use client';
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { supabase } from '@/lib/supabase';
@@ -89,6 +89,15 @@ export default function HomePage() {
   const placeholderIndex = useRef(0);
   const router = useRouter();
 
+  // Yana AI Chat
+  type ChatMsg = { role: 'user' | 'ai'; text: string; chips?: string[] };
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [hintVisible, setHintVisible] = useState(true);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
   const supabaseBrowser = useState(() =>
     createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -99,6 +108,19 @@ export default function HomePage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Hide hint bubble after 4 seconds
+  useEffect(() => {
+    const t = setTimeout(() => setHintVisible(false), 4000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, chatLoading]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -222,6 +244,26 @@ export default function HomePage() {
   const quickSearch = (q: string) => {
     router.push(`/search?q=${encodeURIComponent(q)}`);
   };
+
+  const sendChat = useCallback(async (msg: string) => {
+    if (!msg.trim() || chatLoading) return;
+    setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const res = await fetch('/api/yana-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      });
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: 'ai', text: data.text || 'Here are some searches for you!', chips: data.chips }]);
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'ai', text: 'Sorry, something went wrong. Try again!' }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [chatLoading]);
 
   function getFeatAccent(index: number): string {
     return ['red', 'gold', 'green', 'dim'][index % 4];
@@ -498,6 +540,107 @@ export default function HomePage() {
       <footer className="yana-footer">
         Yana Nagaland · Built for Nagaland · Powered by Claude AI · yananagaland.com
       </footer>
+
+      {/* ── YANA AI FLOATING CHAT ── */}
+
+      {/* Hint bubble */}
+      {!chatOpen && hintVisible && (
+        <div className="ai-hint">Not sure what to search? 👋</div>
+      )}
+
+      {/* Float pill button */}
+      <button
+        className={`ai-float${chatOpen ? ' ai-float-open' : ''}`}
+        onClick={() => { setChatOpen(o => !o); setHintVisible(false); }}
+        aria-label="Open Yana AI chat"
+      >
+        <span className="ai-float-dot" title="Online now" />
+        <span className="ai-float-star">✦</span>
+        <span className="ai-float-label">Ask Yana AI</span>
+      </button>
+
+      {/* Chat window */}
+      {chatOpen && (
+        <div className="ai-chat" role="dialog" aria-label="Yana AI Chat">
+          {/* Header */}
+          <div className="ai-chat-header">
+            <div className="ai-chat-avatar">✦</div>
+            <div className="ai-chat-header-info">
+              <div className="ai-chat-title">Yana AI</div>
+              <div className="ai-chat-sub">Online · Your local guide</div>
+            </div>
+            <button className="ai-chat-close" onClick={() => setChatOpen(false)} aria-label="Close chat">✕</button>
+          </div>
+
+          {/* Quick prompts — only when no messages yet */}
+          {chatMessages.length === 0 && (
+            <div className="ai-quick-prompts">
+              {[
+                "I'm a tourist, plan my day in Dimapur",
+                'New in Kohima, need a PG near DCB Bank',
+                'Need NPSC coaching + PG nearby',
+              ].map(p => (
+                <button key={p} className="ai-qp" onClick={() => sendChat(p)}>{p}</button>
+              ))}
+            </div>
+          )}
+
+          {/* Messages */}
+          <div className="ai-messages" ref={chatScrollRef}>
+            {chatMessages.map((m, i) => (
+              <div key={i} className={`ai-msg ai-msg-${m.role}`}>
+                {m.role === 'ai' && <div className="ai-msg-avatar">✦</div>}
+                <div className="ai-msg-body">
+                  <div className="ai-msg-text">{m.text}</div>
+                  {m.chips && m.chips.length > 0 && (
+                    <div className="ai-chips">
+                      {m.chips.map(c => (
+                        <button
+                          key={c}
+                          className="ai-chip"
+                          onClick={() => {
+                            setQuery(c);
+                            setChatOpen(false);
+                            router.push(`/search?q=${encodeURIComponent(c)}`);
+                          }}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {chatLoading && (
+              <div className="ai-msg ai-msg-ai">
+                <div className="ai-msg-avatar">✦</div>
+                <div className="ai-msg-body">
+                  <div className="ai-typing"><span /><span /><span /></div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div className="ai-chat-input-row">
+            <input
+              className="ai-chat-inp"
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') sendChat(chatInput); }}
+              placeholder="Ask me anything about Nagaland…"
+              autoComplete="off"
+            />
+            <button
+              className="ai-chat-send"
+              onClick={() => sendChat(chatInput)}
+              disabled={!chatInput.trim() || chatLoading}
+              aria-label="Send"
+            >→</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -870,6 +1013,171 @@ const pageStyles = `
     border-top:1px solid var(--border);
   }
 
+  /* ── YANA AI CHAT ── */
+  .ai-hint{
+    position:fixed;bottom:90px;right:24px;z-index:10000;
+    background:#111;border:1px solid #1e1e1e;
+    border-radius:12px;padding:9px 16px;
+    font-size:12.5px;color:#e5e5e5;font-family:'Sora',sans-serif;
+    box-shadow:0 4px 24px rgba(0,0,0,0.5);
+    animation:ai-fadeInUp 0.3s ease, ai-fadeOut 0.4s 3.6s ease forwards;
+    pointer-events:none;white-space:nowrap;
+  }
+  .ai-float{
+    position:fixed;bottom:24px;right:24px;z-index:10000;
+    display:flex;align-items:center;gap:8px;
+    background:#0a0a0a;
+    border:1px solid rgba(192,57,43,0.45);
+    border-radius:999px;padding:11px 20px;
+    cursor:pointer;
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:#fff;
+    animation:ai-glowPulse 2.2s infinite;
+    transition:background 0.2s,border-color 0.2s;
+  }
+  .ai-float:hover{background:rgba(192,57,43,0.08);border-color:rgba(192,57,43,0.7);}
+  .ai-float-open{background:rgba(192,57,43,0.12)!important;border-color:rgba(192,57,43,0.65)!important;}
+  .ai-float-dot{
+    width:7px;height:7px;
+    background:#25d366;border-radius:50%;flex-shrink:0;
+    box-shadow:0 0 0 2px rgba(37,211,102,0.2);
+    animation:blink 2s infinite;
+  }
+  .ai-float-star{color:#c0392b;font-size:16px;line-height:1;}
+  .ai-float-label{letter-spacing:0.2px;}
+
+  .ai-chat{
+    position:fixed;bottom:78px;right:24px;z-index:9999;
+    width:310px;max-height:480px;
+    background:#0a0a0a;border:1px solid #1e1e1e;
+    border-radius:18px;
+    box-shadow:0 24px 70px rgba(0,0,0,0.7);
+    display:flex;flex-direction:column;overflow:hidden;
+    animation:ai-slideUp 0.22s cubic-bezier(0.22,1,0.36,1);
+  }
+  .ai-chat-header{
+    display:flex;align-items:center;gap:10px;
+    padding:14px 16px;border-bottom:1px solid #161616;
+    flex-shrink:0;background:#0d0d0d;
+  }
+  .ai-chat-avatar{
+    width:36px;height:36px;flex-shrink:0;
+    background:rgba(192,57,43,0.14);border:1.5px solid rgba(192,57,43,0.35);
+    border-radius:50%;display:grid;place-items:center;
+    color:#c0392b;font-size:16px;
+  }
+  .ai-chat-header-info{flex:1;}
+  .ai-chat-title{font-size:14px;font-weight:800;font-family:'Sora',sans-serif;color:#fff;}
+  .ai-chat-sub{font-size:11px;color:#25d366;font-family:'Sora',sans-serif;}
+  .ai-chat-close{
+    background:none;border:none;color:#444;font-size:15px;
+    cursor:pointer;padding:4px 6px;line-height:1;
+    border-radius:6px;transition:color 0.15s,background 0.15s;
+    font-family:'Sora',sans-serif;
+  }
+  .ai-chat-close:hover{color:#e5e5e5;background:#1a1a1a;}
+
+  .ai-quick-prompts{
+    display:flex;flex-direction:column;gap:6px;
+    padding:12px;border-bottom:1px solid #131313;flex-shrink:0;
+  }
+  .ai-qp{
+    text-align:left;background:#111;border:1px solid #1e1e1e;
+    border-radius:10px;padding:9px 13px;
+    font-size:12px;color:#b0b0b0;cursor:pointer;
+    font-family:'Sora',sans-serif;line-height:1.4;
+    transition:all 0.15s;
+  }
+  .ai-qp:hover{background:#181818;border-color:rgba(192,57,43,0.35);color:#fff;}
+
+  .ai-messages{
+    flex:1;overflow-y:auto;padding:12px;
+    display:flex;flex-direction:column;gap:10px;min-height:0;
+    scrollbar-width:thin;scrollbar-color:#1e1e1e transparent;
+  }
+  .ai-msg{display:flex;gap:8px;align-items:flex-start;}
+  .ai-msg-user{flex-direction:row-reverse;}
+  .ai-msg-avatar{
+    width:28px;height:28px;flex-shrink:0;
+    background:rgba(192,57,43,0.14);border:1.5px solid rgba(192,57,43,0.3);
+    border-radius:50%;display:grid;place-items:center;
+    color:#c0392b;font-size:12px;
+  }
+  .ai-msg-body{flex:1;display:flex;flex-direction:column;}
+  .ai-msg-user .ai-msg-body{align-items:flex-end;}
+  .ai-msg-text{
+    display:inline-block;font-size:12.5px;line-height:1.55;
+    padding:9px 13px;border-radius:14px;max-width:100%;
+    font-family:'Sora',sans-serif;
+  }
+  .ai-msg-user .ai-msg-text{
+    background:rgba(192,57,43,0.18);color:#fff;
+    border-radius:14px 14px 4px 14px;
+  }
+  .ai-msg-ai .ai-msg-text{
+    background:#111;border:1px solid #1e1e1e;color:#e5e5e5;
+    border-radius:14px 14px 14px 4px;
+  }
+  .ai-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+  .ai-chip{
+    background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.32);
+    border-radius:999px;padding:5px 12px;
+    font-size:11px;color:#c0392b;font-weight:700;
+    cursor:pointer;font-family:'Sora',sans-serif;
+    transition:all 0.15s;text-align:left;
+  }
+  .ai-chip:hover{background:rgba(192,57,43,0.22);color:#fff;border-color:rgba(192,57,43,0.6);}
+
+  .ai-typing{display:flex;gap:5px;padding:10px 13px;align-items:center;
+    background:#111;border:1px solid #1e1e1e;border-radius:14px 14px 14px 4px;
+    width:fit-content;}
+  .ai-typing span{
+    width:6px;height:6px;background:#444;border-radius:50%;
+    animation:ai-typingBounce 1.2s infinite;
+  }
+  .ai-typing span:nth-child(2){animation-delay:0.2s;}
+  .ai-typing span:nth-child(3){animation-delay:0.4s;}
+
+  .ai-chat-input-row{
+    display:flex;gap:8px;padding:10px 12px;
+    border-top:1px solid #131313;flex-shrink:0;background:#0d0d0d;
+  }
+  .ai-chat-inp{
+    flex:1;background:#111;border:1px solid #1e1e1e;
+    border-radius:10px;padding:9px 13px;
+    color:#e5e5e5;font-family:'Sora',sans-serif;font-size:12px;outline:none;
+    transition:border-color 0.15s;
+  }
+  .ai-chat-inp::placeholder{color:#383838;}
+  .ai-chat-inp:focus{border-color:rgba(192,57,43,0.4);}
+  .ai-chat-send{
+    width:36px;height:36px;flex-shrink:0;
+    background:#c0392b;border:none;border-radius:10px;
+    color:#fff;font-size:17px;cursor:pointer;
+    display:grid;place-items:center;
+    transition:background 0.15s,transform 0.1s;
+  }
+  .ai-chat-send:hover{background:#a93226;}
+  .ai-chat-send:active{transform:scale(0.94);}
+  .ai-chat-send:disabled{opacity:0.35;cursor:default;transform:none;}
+
+  @keyframes ai-glowPulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0.55);}
+    50%{box-shadow:0 0 0 9px rgba(192,57,43,0);}
+  }
+  @keyframes ai-slideUp{
+    from{opacity:0;transform:translateY(18px);}
+    to{opacity:1;transform:translateY(0);}
+  }
+  @keyframes ai-fadeInUp{
+    from{opacity:0;transform:translateY(8px);}
+    to{opacity:1;transform:translateY(0);}
+  }
+  @keyframes ai-fadeOut{to{opacity:0;transform:translateY(4px);}}
+  @keyframes ai-typingBounce{
+    0%,60%,100%{transform:translateY(0);}
+    30%{transform:translateY(-5px);}
+  }
+
   /* Responsive */
   @media(max-width:860px){
     .main-grid{grid-template-columns:1fr;}
@@ -881,5 +1189,8 @@ const pageStyles = `
     .hero{padding:48px 16px 36px;}
     .main-grid{padding:0 16px 40px;}
     .featured-grid{grid-template-columns:1fr;}
+    .ai-chat{width:calc(100vw - 32px);right:16px;bottom:72px;}
+    .ai-float{right:16px;bottom:16px;}
+    .ai-hint{right:16px;bottom:88px;}
   }
 `;
