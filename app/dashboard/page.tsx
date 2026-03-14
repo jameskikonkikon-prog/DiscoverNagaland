@@ -517,7 +517,7 @@ export default function DashboardPage() {
                     { icon:'📈', name:'Growth Advisor',    desc: isPro ? 'Weekly' : 'One free use',     locked: false, badge: null },
                     { icon:'💬', name:'Review Analyser',   desc:'Analyse your customer reviews',        locked: !isPro,  badge: 'Pro' },
                     { icon:'📱', name:'Social Media Helper', desc:'Generate captions in one click',     locked: !isPro,  badge: 'Pro' },
-                    { icon:'📋', name:'Menu Reader',       desc:'Format your menu with AI',             locked: !isPro,  badge: 'Pro' },
+                    { icon:'📋', name:'Menu / Catalogue QR',       desc:'Format your menu with AI',             locked: !isPro,  badge: 'Pro' },
                     { icon:'🔍', name:'Competitor Intel',  desc:'Beat the competition',                 locked: !isPlus, badge: 'Plus' },
                   ].map((tool, i) => (
                     <div key={i} className={`ai-tool${tool.locked ? ' locked' : ''}`}
@@ -685,7 +685,7 @@ export default function DashboardPage() {
                     { icon:'💬', name:'Review Analyser',     desc:'AI reads your reviews and tells you what to improve',                        locked:!isPro,  href:'/dashboard/ai-tools/review-analyser' },
                     { icon:'📱', name:'Social Media Helper', desc:'Generate captions for Instagram, Facebook & WhatsApp',                      locked:!isPro,  href:'/dashboard/ai-tools/social-media' },
                     { icon:'🔍', name:'Competitor Intel',    desc:'Understand your competition in Nagaland',                                    locked:!isPlus, href:'/dashboard/ai-tools/competitor-intel' },
-                    { icon:'📋', name:'Menu Reader',         desc:'AI reads your menu and generates a QR code',                                locked:!isPlus, href:'/dashboard/ai-tools/menu-reader' },
+                    { icon:'📋', name:'Menu / Catalogue QR',         desc:'AI reads your menu and generates a QR code',                                locked:!isPlus, href:'/dashboard/ai-tools/menu-reader' },
                   ].map((tool, i) =>
                     tool.locked ? (
                       <div key={i} className="ai-tool locked">
@@ -824,7 +824,7 @@ export default function DashboardPage() {
                     sub: earlyAccessFull ? '/month' : (foundingLeft > 0 ? 'founding members' : '/month'),
                     border: '1px solid var(--red)',
                     popular: true,
-                    features: ['Everything in Basic', '10 photos', 'Higher search ranking', 'Weekly analytics', 'AI description unlimited', 'AI menu reader', 'AI growth advisor weekly', 'WhatsApp booking button'],
+                    features: ['Everything in Basic', '10 photos', 'Higher search ranking', 'Weekly analytics', 'AI description unlimited', 'AI menu / catalogue QR', 'AI growth advisor weekly', 'WhatsApp booking button'],
                   },
                   {
                     key: 'plus',
