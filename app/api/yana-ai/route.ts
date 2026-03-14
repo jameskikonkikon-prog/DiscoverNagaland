@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const { message } = await req.json();
     if (!message?.trim()) return NextResponse.json({ error: 'No message' }, { status: 400 });
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
     const body = {
       contents: [{ parts: [{ text: message }] }],
