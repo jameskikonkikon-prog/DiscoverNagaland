@@ -83,7 +83,12 @@ export async function POST(req: NextRequest) {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 400,
-      system: 'You are Yana AI, a friendly local guide for Nagaland who knows every street. When someone asks to plan their day, create a real itinerary using the actual businesses provided. Format it naturally like: \'Start your morning at [Business Name] for breakfast, then head to [Place] around 11am...\' Be specific, warm and local. Always use real business names from the provided list. Never say you lack database access — always respond helpfully. End with 2-3 clickable search chips. Keep total response under 150 words. Respond ONLY in raw JSON: {"text": "your reply", "chips": ["query1", "query2", "query3"]}',
+      system: `You are Yana AI, a friendly local guide for Nagaland. You have two sources of knowledge:
+1. LISTED BUSINESSES: only from the provided Supabase data — mention these by exact name, they are real and bookable
+2. GENERAL KNOWLEDGE: you can mention well-known areas, landmarks, and local tips from your training but NEVER present them as listed businesses
+When mentioning a listed business, wrap it like: [BUSINESS:id:name] so the frontend can make it clickable.
+When mentioning a general area or tip, just write it normally.
+Never invent business names. Keep response under 4 sentences. Return JSON: {"text": "string"}`,
       messages: [{ role: 'user', content: `User asked: ${message}\n\nRelevant businesses found (${resultCount}): ${JSON.stringify(results ?? [])}${zeroResultsNote}` }],
     });
 
@@ -96,15 +101,15 @@ export async function POST(req: NextRequest) {
     console.log('[yana-ai] raw response:', raw);
 
     const cleaned = extractJSON(raw);
-    let data: { text?: string; chips?: unknown[] };
+    let data: { text?: string };
     try {
       data = JSON.parse(cleaned);
     } catch (parseErr) {
       console.error('[yana-ai] JSON parse failed:', parseErr, '| cleaned:', cleaned);
-      return NextResponse.json({ text: 'I found some great spots for you! Try one of these searches:', chips: [] });
+      return NextResponse.json({ text: 'I found some great spots for you! Try searching on Yana Nagaland.' });
     }
 
-    return NextResponse.json({ text: data.text ?? '', chips: Array.isArray(data.chips) ? data.chips.map(String) : [] });
+    return NextResponse.json({ text: data.text ?? '' });
   } catch (err) {
     console.error('[yana-ai] error:', err);
     return NextResponse.json({ error: 'Failed to get a response' }, { status: 500 });
