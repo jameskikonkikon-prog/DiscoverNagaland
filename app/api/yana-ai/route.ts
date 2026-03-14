@@ -16,28 +16,75 @@ function extractJSON(raw: string): string {
   return raw.trim();
 }
 
-const STOP_WORDS = new Set([
-  'a','an','the','in','at','of','for','and','or','with','to','is','are',
-  'i','me','my','we','need','want','find','show','get','some','any',
-  'where','which','what','how','can','you','please','looking','help',
-]);
+// --- Location detection ---
+const NAGALAND_CITIES = [
+  'Kohima','Dimapur','Mokokchung','Wokha','Mon','Phek',
+  'Tuensang','Zunheboto','Peren','Longleng','Kiphire',
+  'Noklak','Shamator','Tseminyü','Chümoukedima','Niuland','Meluri',
+];
 
-const CATEGORY_SYNONYMS: Record<string, string> = {
-  cafe: 'Cafés', cafes: 'Cafés', café: 'Cafés', coffee: 'Cafés',
-  restaurant: 'Restaurants', restaurants: 'Restaurants', food: 'Restaurants', eat: 'Restaurants', dining: 'Restaurants',
-  pg: 'PG & Hostels', hostel: 'PG & Hostels', hostels: 'PG & Hostels', accommodation: 'PG & Hostels', stay: 'PG & Hostels', room: 'PG & Hostels',
-  gym: 'Gyms', gyms: 'Gyms', fitness: 'Gyms', workout: 'Gyms',
-  turf: 'Turfs & Sports', turfs: 'Turfs & Sports', sports: 'Turfs & Sports', football: 'Turfs & Sports', cricket: 'Turfs & Sports',
-  study: 'Study Spaces', library: 'Study Spaces', coworking: 'Study Spaces', coaching: 'Study Spaces',
+function detectLocation(message: string): string | null {
+  const lower = message.toLowerCase();
+  for (const city of NAGALAND_CITIES) {
+    if (lower.includes(city.toLowerCase())) return city;
+  }
+  return null;
+}
+
+// --- Intent detection ---
+type Intent = 'day_plan' | 'new_in_city' | 'medical' | 'food' | 'stay' | 'general';
+
+function detectIntent(message: string): Intent {
+  const lower = message.toLowerCase();
+  if (/sick|ill|unwell|hospital|clinic|pharmacy|medicine|doctor|emergency|medical|hurt|pain/.test(lower)) return 'medical';
+  if (/stay|accommodation|hotel|pg\b|hostel|room|rent|relocat|moved|moving|new here|just arrived/.test(lower)) return 'stay';
+  if (/hungry|eat|food|lunch|dinner|breakfast|snack|restaurant|cafe|coffee/.test(lower)) return 'food';
+  if (/new in|new to|just moved|relocat|settling|shifted/.test(lower)) return 'new_in_city';
+  if (/plan.*day|day.*plan|tourist|tourism|visit|hangout|friends|explore|itinerary|trip|outing/.test(lower)) return 'day_plan';
+  return 'general';
+}
+
+// --- Category fetch config per intent ---
+type CategoryFetch = { category: string; limit: number };
+
+const INTENT_CATEGORIES: Record<Intent, CategoryFetch[]> = {
+  day_plan:    [{ category: 'Cafés', limit: 2 }, { category: 'Restaurants', limit: 2 }, { category: 'Turfs & Sports', limit: 2 }, { category: 'shop', limit: 2 }],
+  new_in_city: [{ category: 'PG & Hostels', limit: 3 }, { category: 'Restaurants', limit: 2 }, { category: 'Study Spaces', limit: 2 }],
+  medical:     [{ category: 'Hospitals', limit: 3 }, { category: 'Clinics', limit: 3 }, { category: 'Pharmacies', limit: 3 }],
+  food:        [{ category: 'Restaurants', limit: 4 }, { category: 'Cafés', limit: 3 }],
+  stay:        [{ category: 'PG & Hostels', limit: 4 }, { category: 'Hotels', limit: 3 }],
+  general:     [{ category: 'Cafés', limit: 2 }, { category: 'Restaurants', limit: 2 }, { category: 'PG & Hostels', limit: 2 }, { category: 'Gyms', limit: 1 }, { category: 'Turfs & Sports', limit: 1 }],
 };
 
-function extractKeywords(message: string): { keywords: string[]; category: string | null } {
-  const words = message.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
-  let category: string | null = null;
-  for (const w of words) {
-    if (CATEGORY_SYNONYMS[w]) { category = CATEGORY_SYNONYMS[w]; break; }
+type BizRow = { id: string; name: string; category: string; address: string; description: string; price_range: string; plan: string };
+
+async function fetchByIntent(intent: Intent, location: string | null): Promise<BizRow[]> {
+  const fetches = INTENT_CATEGORIES[intent];
+  const results = await Promise.all(
+    fetches.map(async ({ category, limit }) => {
+      let q = supabase
+        .from('businesses')
+        .select('id, name, category, address, description, price_range, plan')
+        .ilike('category', `%${category}%`)
+        .limit(limit);
+      if (location) q = q.ilike('city', `%${location}%`);
+      const { data } = await q;
+      return (data as BizRow[]) ?? [];
+    })
+  );
+
+  // Merge, deduplicate by id, cap at 8
+  const seen = new Set<string>();
+  const merged: BizRow[] = [];
+  for (const batch of results) {
+    for (const biz of batch) {
+      if (!seen.has(biz.id)) {
+        seen.add(biz.id);
+        merged.push(biz);
+      }
+    }
   }
-  return { keywords: words, category };
+  return merged.slice(0, 8);
 }
 
 export async function POST(req: NextRequest) {
@@ -48,53 +95,34 @@ export async function POST(req: NextRequest) {
       ? history.filter(h => (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string').slice(-4)
       : [];
 
-    const { keywords, category } = extractKeywords(message);
+    const location = detectLocation(message);
+    const intent = detectIntent(message);
+    const results = await fetchByIntent(intent, location);
+    const resultCount = results.length;
 
-    // Build OR filter: each keyword checked against name, description, address, category, city
-    const searchTerms = category ? [...new Set([...keywords, category])] : keywords;
-    const orParts = searchTerms.slice(0, 10).flatMap(kw => {
-      const escaped = kw.replace(/%/g, '\\%').replace(/_/g, '\\_');
-      return [
-        `name.ilike.%${escaped}%`,
-        `description.ilike.%${escaped}%`,
-        `address.ilike.%${escaped}%`,
-        `category.ilike.%${escaped}%`,
-        `city.ilike.%${escaped}%`,
-      ];
-    });
-
-    let results: { id: string; name: string; category: string; address: string; description: string; price_range: string; plan: string }[] | null = null;
-
-    if (orParts.length > 0) {
-      const { data } = await supabase
-        .from('businesses')
-        .select('id, name, category, address, description, price_range, plan')
-        .or(orParts.join(','))
-        .limit(5);
-      results = data;
-    }
-
-    const resultCount = results?.length ?? 0;
     console.log('[yana-ai] message:', message);
-    console.log('[yana-ai] keywords:', keywords, '| category:', category);
+    console.log('[yana-ai] intent:', intent, '| location:', location);
     console.log('[yana-ai] supabase results count:', resultCount);
 
     const zeroResultsNote = resultCount === 0
-      ? `\n\nNOTE: No businesses were found in the database for this query. Do NOT say you lack database access. Instead say something like "I couldn't find exact matches on Yana right now, but you can browse ${category || 'relevant'} listings on the platform" and give 2-3 search chip suggestions.`
+      ? `\n\nNOTE: No businesses found. Do NOT say you lack database access. Say "We are growing our listings in this area, browse more on Yana" and keep response helpful.`
       : '';
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 400,
-      system: `You are Yana AI, a friendly local guide for Nagaland. You have two sources of knowledge:
-1. LISTED BUSINESSES: only from the provided Supabase data — mention these by exact name, they are real and bookable
-2. GENERAL KNOWLEDGE: you can mention well-known areas, landmarks, and local tips from your training but NEVER present them as listed businesses
+      system: `You are Yana AI, a warm local guide for Nagaland. STRICT RULES:
+1. ONLY recommend businesses from the provided list — never invent place names, landmarks, hospitals, pharmacies or attractions that are not in the list
+2. Only recommend categories relevant to what the user is asking — do not suggest hospitals for a day plan or cafes when someone needs medical help
+3. Always recommend a MIX of relevant businesses from the provided list
+4. For general tips say things like 'explore local markets' or 'try Naga street food' without naming fake specific places
+5. If listings are limited say: 'We are growing our listings in this area, browse more on Yana'
+6. Keep response warm, specific, helpful and under 4 sentences
 When mentioning a listed business, wrap it like: [BUSINESS:id:name] so the frontend can make it clickable.
-When mentioning a general area or tip, just write it normally.
-Never invent business names. Keep response under 4 sentences. Return JSON: {"text": "string"}`,
+Return JSON: {"text": "string"}`,
       messages: [
         ...validHistory,
-        { role: 'user', content: `User asked: ${message}\n\nRelevant businesses found (${resultCount}): ${JSON.stringify(results ?? [])}${zeroResultsNote}` },
+        { role: 'user', content: `User asked: ${message}\n\nRelevant businesses found (${resultCount}): ${JSON.stringify(results)}${zeroResultsNote}` },
       ],
     });
 
