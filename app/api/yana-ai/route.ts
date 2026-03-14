@@ -1,9 +1,6 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function extractJSON(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -16,14 +13,30 @@ export async function POST(req: NextRequest) {
     const { message } = await req.json();
     if (!message?.trim()) return NextResponse.json({ error: 'No message' }, { status: 400 });
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 256,
-      system: 'You are Yana AI, a friendly local guide for Nagaland India. Respond ONLY with raw JSON, no markdown fences: {"text": "one helpful sentence", "chips": ["query1", "query2", "query3"]}',
-      messages: [{ role: 'user', content: message }],
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+    const body = {
+      contents: [{ parts: [{ text: message }] }],
+      systemInstruction: {
+        parts: [{ text: 'You are Yana AI, a friendly local guide for Nagaland India. Respond ONLY with raw JSON, no markdown fences: {"text": "one helpful sentence", "chips": ["query1", "query2", "query3"]}' }],
+      },
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
 
-    const raw = response.content[0].type === 'text' ? response.content[0].text : '';
+    const json = await res.json();
+    console.log('[yana-ai] gemini response status:', res.status);
+
+    if (!res.ok) {
+      console.error('[yana-ai] gemini error:', JSON.stringify(json));
+      return NextResponse.json({ error: 'Gemini API error' }, { status: 500 });
+    }
+
+    const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     console.log('[yana-ai] text:', raw);
 
     const cleaned = extractJSON(raw);
