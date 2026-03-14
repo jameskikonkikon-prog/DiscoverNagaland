@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { getServiceClient } from './supabase';
 import { Business } from '@/types';
 
@@ -188,107 +187,6 @@ export function detectCity(query: string): string | null {
   return null;
 }
 
-interface AiRankedResult {
-  id: string;
-  reason: string;
-}
-
-/** Re-order within each plan tier by Claude's relevance order; preserve Plus > Pro > Basic. */
-function applyAiRankWithinPlanTiers(
-  planSorted: Business[],
-  claudeRanked: AiRankedResult[]
-): Business[] {
-  const claudeOrder = claudeRanked.map((r) => r.id);
-  const byPlan: { plus: Business[]; pro: Business[]; basic: Business[] } = {
-    plus: [],
-    pro: [],
-    basic: [],
-  };
-  for (const b of planSorted) {
-    const p = (b.plan || 'basic').toString().toLowerCase();
-    if (p === 'plus') byPlan.plus.push(b);
-    else if (p === 'pro') byPlan.pro.push(b);
-    else byPlan.basic.push(b);
-  }
-  const reorderWithinTier = (tier: Business[]): Business[] =>
-    [...tier].sort((a, b) => {
-      const ia = claudeOrder.indexOf(a.id);
-      const ib = claudeOrder.indexOf(b.id);
-      if (ia === -1 && ib === -1) return 0;
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
-    });
-  return [
-    ...reorderWithinTier(byPlan.plus),
-    ...reorderWithinTier(byPlan.pro),
-    ...reorderWithinTier(byPlan.basic),
-  ];
-}
-
-async function aiRankWithClaude(
-  query: string,
-  businesses: Business[]
-): Promise<{ ranked: AiRankedResult[]; summary: string } | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    console.warn('ANTHROPIC_API_KEY not set — skipping AI ranking');
-    return null;
-  }
-
-  const businessList = businesses.map((b) => ({
-    id: b.id,
-    name: b.name,
-    category: b.category,
-    plan: (b.plan || 'basic').toString().toLowerCase(),
-    description: (b.description || '').slice(0, 300),
-  }));
-
-  try {
-    const client = new Anthropic({ apiKey });
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: 'You are Yana AI for Nagaland. You must FILTER first: remove any business that is clearly irrelevant to the search query (e.g. if the user searched "cafe", remove sports shops, PG hostels, clothing stores—only keep cafes, restaurants, food places). Then rank the REMAINING businesses by relevance within each plan tier (Plus first, then Pro, then Basic) and give each a short 4-6 word reason (e.g. "Good for dates", "Affordable near PR Hill"). Return ONLY the businesses that genuinely match the search intent. Return valid JSON only.',
-      messages: [
-        {
-          role: 'user',
-          content: `Search query: "${query}"
-
-Businesses (id, name, category, plan, description):
-${JSON.stringify(businessList, null, 2)}
-
-Steps:
-1. REMOVE businesses that do not match the search intent (e.g. for "cafe" remove sports shops, PG, unrelated categories).
-2. Keep ONLY businesses that genuinely match (cafes, restaurants, food for "cafe"; gyms/fitness for "gym"; etc.).
-3. Order the remaining by plan (Plus, then Pro, then Basic) and within each tier by relevance to the query.
-4. For each kept business give a 4-6 word reason.
-
-Return a JSON object:
-- "summary": Brief 1-2 sentence overview of what you found (only for the relevant businesses).
-- "ranked": Array of objects ONLY for businesses that match: { "id": "<uuid>", "reason": "4-6 word reason" }. Order: Plus (by relevance), then Pro (by relevance), then Basic (by relevance). Do NOT include any business that is irrelevant to the search.
-
-Return ONLY valid JSON, no markdown.`,
-        },
-      ],
-    });
-
-    const text = message.content[0].type === 'text' ? message.content[0].text : '';
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      const ranked = Array.isArray(parsed.ranked) ? parsed.ranked : [];
-      return {
-        ranked: ranked.filter((r: { id?: string; reason?: string }) => r?.id && r?.reason),
-        summary: typeof parsed.summary === 'string' ? parsed.summary : '',
-      };
-    }
-  } catch (error) {
-    console.error('Claude AI ranking failed:', error);
-  }
-
-  return null;
-}
 
 const MIN_QUERY_LEN = 4;
 const MIN_WORD_LEN_AFTER_SHORTEN = 3;
@@ -360,7 +258,7 @@ function filterByKeywords(pool: Business[], searchQuery: string): Business[] {
 export async function searchBusinesses(
   query: string,
   cityFilter?: string
-): Promise<{ businesses: Business[]; detectedCity: string | null; correctedQuery?: string; aiSummary?: string; aiReasons?: Record<string, string> }> {
+): Promise<{ businesses: Business[]; detectedCity: string | null; correctedQuery?: string }> {
   const serviceClient = getServiceClient();
 
   const detectedCity = detectCity(query);
@@ -491,25 +389,6 @@ export async function searchBusinesses(
   const sorted = sortByPlan(candidates);
   if (sorted.length === 0) {
     return { businesses: [], detectedCity, correctedQuery };
-  }
-
-  const aiResult = await aiRankWithClaude(query, sorted);
-
-  if (aiResult && aiResult.ranked.length > 0) {
-    const reasonMap: Record<string, string> = {};
-    for (const r of aiResult.ranked) {
-      if (r.id && r.reason) reasonMap[r.id] = r.reason;
-    }
-    const relevantIds = new Set(aiResult.ranked.map((r) => r.id));
-    const onlyRelevant = sorted.filter((b) => relevantIds.has(b.id));
-    const ordered = applyAiRankWithinPlanTiers(onlyRelevant, aiResult.ranked);
-    return {
-      businesses: ordered,
-      detectedCity,
-      correctedQuery,
-      aiSummary: aiResult.summary,
-      aiReasons: reasonMap,
-    };
   }
 
   return { businesses: sorted, detectedCity, correctedQuery };

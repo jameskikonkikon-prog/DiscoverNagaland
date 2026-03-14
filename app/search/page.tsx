@@ -29,8 +29,6 @@ function SearchPageInner() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedCity, setSelectedCity] = useState("");
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [aiReasons, setAiReasons] = useState<Record<string, string>>({});
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
   const [baseResults, setBaseResults] = useState<Business[]>([]);
@@ -101,8 +99,6 @@ function SearchPageInner() {
       const biz = json.businesses ?? [];
       setResults(biz);
       setBaseResults(biz);
-      setAiSummary(json.aiSummary || null);
-      setAiReasons(json.aiReasons || {});
       setCorrectedQuery(json.correctedQuery ?? null);
       setAiPickedActive(false);
       setFilterOpenNow(false);
@@ -173,8 +169,17 @@ function SearchPageInner() {
     }
   }
 
-  const displayReasons = aiPickedActive ? aiPickedReasons : aiReasons;
   const budgetOptions = ["Affordable", "Mid-range", "Premium", "Any"];
+
+  function isConversationalQuery(q: string): boolean {
+    return q.trim().split(/\s+/).length > 6;
+  }
+
+  const showYanaButton =
+    hasSearched &&
+    !loading &&
+    query.trim() !== "" &&
+    (isConversationalQuery(query) || results.length < 3);
 
   function applyFilterChips(list: Business[]): Business[] {
     return list.filter((b) => {
@@ -353,6 +358,11 @@ function SearchPageInner() {
                     </button>
                   ))}
                 </div>
+                {showYanaButton && (
+                  <a href={`/?yana=${encodeURIComponent(query)}`} className="yana-hint-btn" style={{ display: "inline-block", marginTop: "1.25rem" }}>
+                    This looks like a Yana question → Ask Yana AI
+                  </a>
+                )}
                 <p className="zero-register">
                   <Link href="/register" style={{ color: "#c0392b" }}>List your business</Link>
                   {activeCity && <> · Growing in <strong style={{ color: "#c0392b" }}>{activeCity}</strong></>}
@@ -366,16 +376,8 @@ function SearchPageInner() {
                     Showing results for <strong>&ldquo;{correctedQuery}&rdquo;</strong>
                   </div>
                 )}
-                {(aiPickedActive || aiSummary || Object.keys(aiReasons).length > 0) && (
-                  <span className="ai-matched-badge">
-                    {aiPickedActive ? "✨ AI picked for you" : "✨ AI matched"}
-                  </span>
-                )}
-                {aiSummary && (
-                  <div className="ai-summary-box">
-                    <div className="ai-summary-label">Yana AI</div>
-                    <p>{aiSummary}</p>
-                  </div>
+                {aiPickedActive && (
+                  <span className="ai-matched-badge">✨ AI picked for you</span>
                 )}
                 <div className="results-meta">
                   <strong>{hasActiveFilter ? filteredResults.length : results.length}</strong> result{(hasActiveFilter ? filteredResults.length : results.length) !== 1 ? "s" : ""}
@@ -383,6 +385,14 @@ function SearchPageInner() {
                   {activeCity && <> in {activeCity}</>}
                   {hasActiveFilter && <span className="filtered-hint"> (filtered)</span>}
                 </div>
+                {showYanaButton && !aiPanelOpen && (
+                  <a
+                    href={`/?yana=${encodeURIComponent(query)}`}
+                    className="yana-hint-btn"
+                  >
+                    This looks like a Yana question → Ask Yana AI
+                  </a>
+                )}
                 {!aiPanelOpen && (
                   <button type="button" className="ask-ai-btn" onClick={openAiPanel}>
                     ✨ Ask AI to help you choose
@@ -457,7 +467,7 @@ function SearchPageInner() {
             {loading && (
               <>
                 <div className="loading-ai-hint">
-                  {query.trim() ? "Finding results and ranking with AI…" : "Loading…"}
+                  {query.trim() ? "Searching…" : "Loading…"}
                 </div>
                 <div className="results-grid">
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -500,10 +510,10 @@ function SearchPageInner() {
                         <div className="biz-name">{biz.name}</div>
                         <div className="biz-city">📍 {biz.city}</div>
                         {(biz.is_verified || (biz as Business & { verified?: boolean }).verified) && <span className="biz-verified">✓ Verified</span>}
-                        {displayReasons[biz.id] && (
+                        {aiPickedReasons[biz.id] && (
                           <div className="biz-ai-matched">
-                            <span className="ai-matched-label">{aiPickedActive ? "✨ AI picked for you" : "✨ AI matched"}</span>
-                            <span className="ai-reason-text">{displayReasons[biz.id]}</span>
+                            <span className="ai-matched-label">✨ AI picked for you</span>
+                            <span className="ai-reason-text">{aiPickedReasons[biz.id]}</span>
                           </div>
                         )}
                         <div className="biz-desc">{getBizDescription(biz)}</div>
@@ -896,6 +906,25 @@ const styles = `
     font-size: 0.85rem;
     color: #666;
     margin-bottom: 0.75rem;
+  }
+
+  .yana-hint-btn {
+    display: inline-block;
+    margin-bottom: 1rem;
+    padding: 0.45rem 0.9rem;
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #777;
+    font-size: 0.8rem;
+    font-family: 'Sora', sans-serif;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .yana-hint-btn:hover {
+    border-color: #444;
+    color: #aaa;
   }
 
   .ask-ai-btn {
