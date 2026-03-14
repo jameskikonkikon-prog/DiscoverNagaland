@@ -577,8 +577,8 @@ export default function HomePage() {
             <div className="ai-quick-prompts">
               {[
                 "I'm a tourist, plan my day in Dimapur",
-                'New in Kohima, need a PG near DCB Bank',
-                'Need NPSC coaching + PG nearby',
+                'Looking for a PG near Imperial Coaching Centre Kohima',
+                'Plan a friends hangout day in Kohima',
               ].map(p => (
                 <button key={p} className="ai-qp" onClick={() => sendChat(p)}>{p}</button>
               ))}
