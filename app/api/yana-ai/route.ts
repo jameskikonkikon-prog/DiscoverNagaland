@@ -42,8 +42,11 @@ function extractKeywords(message: string): { keywords: string[]; category: strin
 
 export async function POST(req: NextRequest) {
   try {
-    const { message } = await req.json();
+    const { message, history } = await req.json();
     if (!message?.trim()) return NextResponse.json({ error: 'No message' }, { status: 400 });
+    const validHistory: { role: 'user' | 'assistant'; content: string }[] = Array.isArray(history)
+      ? history.filter(h => (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string').slice(-4)
+      : [];
 
     const { keywords, category } = extractKeywords(message);
 
@@ -89,7 +92,10 @@ export async function POST(req: NextRequest) {
 When mentioning a listed business, wrap it like: [BUSINESS:id:name] so the frontend can make it clickable.
 When mentioning a general area or tip, just write it normally.
 Never invent business names. Keep response under 4 sentences. Return JSON: {"text": "string"}`,
-      messages: [{ role: 'user', content: `User asked: ${message}\n\nRelevant businesses found (${resultCount}): ${JSON.stringify(results ?? [])}${zeroResultsNote}` }],
+      messages: [
+        ...validHistory,
+        { role: 'user', content: `User asked: ${message}\n\nRelevant businesses found (${resultCount}): ${JSON.stringify(results ?? [])}${zeroResultsNote}` },
+      ],
     });
 
     console.log('[yana-ai] stop_reason:', response.stop_reason);

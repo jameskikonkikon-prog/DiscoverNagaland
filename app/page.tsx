@@ -109,6 +109,7 @@ export default function HomePage() {
   }
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [hintVisible, setHintVisible] = useState(true);
@@ -267,19 +268,22 @@ export default function HomePage() {
     setChatInput('');
     setChatLoading(true);
     try {
+      const history = chatHistory.slice(-4);
       const res = await fetch('/api/yana-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg }),
+        body: JSON.stringify({ message: msg, history }),
       });
       const data = await res.json();
-      setChatMessages(prev => [...prev, { role: 'ai', text: data.text || 'Here are some searches for you!', chips: data.chips }]);
+      const aiText = data.text || 'Here are some searches for you!';
+      setChatMessages(prev => [...prev, { role: 'ai', text: aiText, chips: data.chips }]);
+      setChatHistory(prev => [...prev, { role: 'user', content: msg }, { role: 'assistant', content: aiText }]);
     } catch {
       setChatMessages(prev => [...prev, { role: 'ai', text: 'Sorry, something went wrong. Try again!' }]);
     } finally {
       setChatLoading(false);
     }
-  }, [chatLoading]);
+  }, [chatLoading, chatHistory]);
 
   function getFeatAccent(index: number): string {
     return ['red', 'gold', 'green', 'dim'][index % 4];
@@ -585,7 +589,7 @@ export default function HomePage() {
               <div className="ai-chat-title">Yana AI</div>
               <div className="ai-chat-sub">Online · Your local guide</div>
             </div>
-            <button className="ai-chat-close" onClick={() => setChatOpen(false)} aria-label="Close chat">✕</button>
+            <button className="ai-chat-close" onClick={() => { setChatOpen(false); setChatMessages([]); setChatHistory([]); }} aria-label="Close chat">✕</button>
           </div>
 
           {/* Quick prompts — only when no messages yet */}
