@@ -1,6 +1,14 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import Anthropic from '@anthropic-ai/sdk';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function extractJSON(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -13,38 +21,24 @@ export async function POST(req: NextRequest) {
     const { message } = await req.json();
     if (!message?.trim()) return NextResponse.json({ error: 'No message' }, { status: 400 });
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const { data: results } = await supabase
+      .from('businesses')
+      .select('id, name, category, address, description, price_range, plan')
+      .ilike('description', `%${message}%`)
+      .limit(5);
 
-    const body = {
-      contents: [{ parts: [{ text: message }] }],
-      systemInstruction: {
-        parts: [{ text: 'You are Yana AI, a friendly local guide for Nagaland India. Respond ONLY with raw JSON, no markdown fences: {"text": "one helpful sentence", "chips": ["query1", "query2", "query3"]}' }],
-      },
-    };
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 150,
+      system: 'You are Yana AI, local guide for Nagaland. Based on the user message and these businesses from Yana Nagaland platform, give a warm helpful reply and suggest 2-3 search queries. Respond ONLY in raw JSON: {"text": "one sentence", "chips": ["query1", "query2"]}',
+      messages: [{ role: 'user', content: `User asked: ${message}\n\nRelevant businesses: ${JSON.stringify(results ?? [])}` }],
     });
 
-    const json = await res.json();
-    console.log('[yana-ai] gemini response status:', res.status);
-
-    if (!res.ok) {
-      console.error('[yana-ai] gemini error:', JSON.stringify(json));
-      return NextResponse.json({ error: 'Gemini API error' }, { status: 500 });
-    }
-
-    const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    console.log('[yana-ai] text:', raw);
-
+    const raw = response.content[0].type === 'text' ? response.content[0].text : '';
     const cleaned = extractJSON(raw);
     const data = JSON.parse(cleaned);
 
-    const chips = Array.isArray(data.chips) ? data.chips.map(String) : [];
-
-    return NextResponse.json({ text: data.text ?? '', chips });
+    return NextResponse.json({ text: data.text ?? '', chips: Array.isArray(data.chips) ? data.chips.map(String) : [] });
   } catch (err) {
     console.error('[yana-ai] error:', err);
     return NextResponse.json({ error: 'Failed to get a response' }, { status: 500 });
