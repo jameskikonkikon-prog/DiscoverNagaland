@@ -137,7 +137,7 @@ export default function MenuCatalogueQRPage() {
       <div style={s.page}><div style={s.container}><div style={s.card}>
         <div style={s.titleRow}>
           <Link href="/dashboard" style={s.back}>←</Link>
-          <div><div style={s.title}>📋 Menu & Catalogue QR</div><div style={s.sub}>No business linked to your account.</div></div>
+          <div><div style={s.title}>📋 Menu / Catalogue QR</div><div style={s.sub}>No business linked to your account.</div></div>
         </div>
       </div></div></div>
     );
@@ -148,7 +148,7 @@ export default function MenuCatalogueQRPage() {
       <div style={s.page}><div style={s.container}><div style={s.card}>
         <div style={s.titleRow}>
           <Link href="/dashboard" style={s.back}>←</Link>
-          <div><div style={s.title}>📋 Menu & Catalogue QR</div><div style={s.sub}>Upgrade to Pro to unlock this tool.</div></div>
+          <div><div style={s.title}>📋 Menu / Catalogue QR</div><div style={s.sub}>Upgrade to Pro to unlock this tool.</div></div>
         </div>
         <div style={s.lockBox}>
           <div style={s.lockIcon}>🔒</div>
@@ -169,7 +169,7 @@ export default function MenuCatalogueQRPage() {
           <div style={s.titleRow}>
             <Link href="/dashboard" style={s.back}>←</Link>
             <div>
-              <div style={s.title}>📋 Menu & Catalogue QR</div>
+              <div style={s.title}>📋 Menu / Catalogue QR</div>
               <div style={s.sub}>Add your items manually or upload a menu image/PDF. Share the QR so customers can browse instantly.</div>
             </div>
           </div>
