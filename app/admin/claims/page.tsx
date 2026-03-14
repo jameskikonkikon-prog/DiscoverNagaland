@@ -18,12 +18,21 @@ type Claim = {
   businesses: { name: string } | null;
 };
 
+type DebugInfo = {
+  sessionExists: boolean;
+  userExists: boolean;
+  detectedEmail: string;
+  expectedEmail: string;
+  adminCheckPassed: boolean;
+};
+
 export default function AdminClaimsPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null); // claim id being processed
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -34,9 +43,18 @@ export default function AdminClaimsPage() {
       console.log('[admin/claims] user exists:', !!user);
       console.log('[admin/claims] user email:', user?.email ?? 'none');
 
+      const adminCheckPassed = !!user && user.email === ADMIN_EMAIL;
+      setDebugInfo({
+        sessionExists: !!session,
+        userExists: !!user,
+        detectedEmail: user?.email ?? '(none)',
+        expectedEmail: ADMIN_EMAIL,
+        adminCheckPassed,
+      });
+
       setAuthChecked(true);
 
-      if (!user || user.email !== ADMIN_EMAIL) {
+      if (!adminCheckPassed) {
         setAuthorized(false);
         return;
       }
@@ -73,9 +91,32 @@ export default function AdminClaimsPage() {
     return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
-  if (!authChecked) return null; // still checking
+  const DebugBox = () => (
+    <div style={{
+      position: 'fixed', bottom: '1rem', right: '1rem', zIndex: 9999,
+      background: '#111', border: '1px solid #333', borderRadius: '8px',
+      padding: '12px 16px', fontFamily: 'monospace', fontSize: '0.75rem',
+      color: '#ccc', maxWidth: '340px', lineHeight: 1.7,
+    }}>
+      <div style={{ fontWeight: 700, color: '#fff', marginBottom: '6px' }}>🔍 Auth Debug</div>
+      {debugInfo ? (
+        <>
+          <div>session exists: <span style={{ color: debugInfo.sessionExists ? '#27ae60' : '#c0392b' }}>{String(debugInfo.sessionExists)}</span></div>
+          <div>user exists: <span style={{ color: debugInfo.userExists ? '#27ae60' : '#c0392b' }}>{String(debugInfo.userExists)}</span></div>
+          <div>detected email: <span style={{ color: '#e0e0e0' }}>{debugInfo.detectedEmail}</span></div>
+          <div>expected email: <span style={{ color: '#e0e0e0' }}>{debugInfo.expectedEmail}</span></div>
+          <div>admin check: <span style={{ color: debugInfo.adminCheckPassed ? '#27ae60' : '#c0392b', fontWeight: 700 }}>{debugInfo.adminCheckPassed ? 'PASSED' : 'FAILED'}</span></div>
+        </>
+      ) : (
+        <div style={{ color: '#666' }}>checking…</div>
+      )}
+    </div>
+  );
+
+  if (!authChecked) return <><DebugBox /></>; // still checking
   if (!authorized) return (
     <main style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora, sans-serif' }}>
+      <DebugBox />
       <div style={{ textAlign: 'center', color: '#666' }}>
         <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#c0392b', marginBottom: '0.5rem' }}>Unauthorized</div>
         <div style={{ fontSize: '0.85rem' }}>You must be logged in as the admin to view this page.</div>
@@ -87,6 +128,7 @@ export default function AdminClaimsPage() {
   return (
     <>
       <style>{styles}</style>
+      <DebugBox />
       <main className="ac-page">
         <div className="ac-header">
           <div className="ac-header-left">
