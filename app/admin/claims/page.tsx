@@ -19,6 +19,7 @@ type Claim = {
 };
 
 export default function AdminClaimsPage() {
+  const [authChecked, setAuthChecked] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,11 +27,20 @@ export default function AdminClaimsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use getSession() — reads from localStorage, reliable on preview domains
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user ?? null;
+
+      console.log('[admin/claims] user exists:', !!user);
+      console.log('[admin/claims] user email:', user?.email ?? 'none');
+
+      setAuthChecked(true);
+
       if (!user || user.email !== ADMIN_EMAIL) {
-        window.location.href = '/';
+        setAuthorized(false);
         return;
       }
+
       setAuthorized(true);
       const { data } = await supabase
         .from('claims')
@@ -63,7 +73,16 @@ export default function AdminClaimsPage() {
     return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
-  if (!authorized) return null;
+  if (!authChecked) return null; // still checking
+  if (!authorized) return (
+    <main style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora, sans-serif' }}>
+      <div style={{ textAlign: 'center', color: '#666' }}>
+        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#c0392b', marginBottom: '0.5rem' }}>Unauthorized</div>
+        <div style={{ fontSize: '0.85rem' }}>You must be logged in as the admin to view this page.</div>
+        <a href="/" style={{ display: 'inline-block', marginTop: '1rem', fontSize: '0.82rem', color: '#555', textDecoration: 'none' }}>← Go home</a>
+      </div>
+    </main>
+  );
 
   return (
     <>
