@@ -91,6 +91,22 @@ export default function HomePage() {
 
   // Yana AI Chat
   type ChatMsg = { role: 'user' | 'ai'; text: string; chips?: string[] };
+
+  function renderAiText(text: string) {
+    const parts = text.split(/(\[BUSINESS:[^\]]+\])/g);
+    return parts.map((part, i) => {
+      const m = part.match(/^\[BUSINESS:([^:]+):(.+)\]$/);
+      if (m) {
+        const [, id, name] = m;
+        return (
+          <a key={i} href={`/business/${id}`} target="_blank" rel="noopener noreferrer" className="ai-biz-link">
+            {name}
+          </a>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  }
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -591,7 +607,7 @@ export default function HomePage() {
               <div key={i} className={`ai-msg ai-msg-${m.role}`}>
                 {m.role === 'ai' && <div className="ai-msg-avatar">✦</div>}
                 <div className="ai-msg-body">
-                  <div className="ai-msg-text">{m.text}</div>
+                  <div className="ai-msg-text">{m.role === 'ai' ? renderAiText(m.text) : m.text}</div>
                   {m.chips && m.chips.length > 0 && (
                     <div className="ai-chips">
                       {m.chips.map(c => (
@@ -1118,6 +1134,8 @@ const pageStyles = `
     border-radius:14px 14px 14px 4px;
   }
   .ai-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+  .ai-biz-link{color:#c0392b;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+  .ai-biz-link:hover{color:#e74c3c;}
   .ai-chip{
     background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.32);
     border-radius:999px;padding:5px 12px;
