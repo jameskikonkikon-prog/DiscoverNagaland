@@ -3,12 +3,51 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import { getServiceClient } from '@/lib/supabase';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const DAILY_LIMIT = 10;
+
+function getIdentifier(req: NextRequest): string {
+  // Prefer logged-in user ID decoded from Bearer token (no extra network call)
+  const auth = req.headers.get('authorization');
+  if (auth?.startsWith('Bearer ')) {
+    try {
+      const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64url').toString());
+      if (payload.sub) return `user:${payload.sub}`;
+    } catch { /* fall through to IP */ }
+  }
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+    || req.headers.get('x-real-ip')
+    || 'unknown';
+  return `ip:${ip}`;
+}
+
+async function checkAndIncrement(identifier: string): Promise<boolean> {
+  const today = new Date().toISOString().split('T')[0];
+  const service = getServiceClient();
+
+  const { data } = await service
+    .from('yana_ai_usage')
+    .select('count')
+    .eq('identifier', identifier)
+    .eq('date', today)
+    .maybeSingle();
+
+  const current = data?.count ?? 0;
+  if (current >= DAILY_LIMIT) return false;
+
+  await service.from('yana_ai_usage').upsert(
+    { identifier, date: today, count: current + 1 },
+    { onConflict: 'identifier,date' }
+  );
+  return true;
+}
 
 function extractJSON(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -89,6 +128,15 @@ async function fetchByIntent(intent: Intent, location: string | null): Promise<B
 
 export async function POST(req: NextRequest) {
   try {
+    const identifier = getIdentifier(req);
+    const allowed = await checkAndIncrement(identifier);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "You've reached today's Yana AI limit. Please try again tomorrow." },
+        { status: 429 }
+      );
+    }
+
     const { message, history } = await req.json();
     if (!message?.trim()) return NextResponse.json({ error: 'No message' }, { status: 400 });
     const validHistory: { role: 'user' | 'assistant'; content: string }[] = Array.isArray(history)
