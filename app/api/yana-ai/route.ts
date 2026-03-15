@@ -110,10 +110,25 @@ const NAGALAND_CITIES = [
   'Noklak','Shamator','Tseminyü','Chümoukedima','Niuland','Meluri',
 ];
 
-function detectLocation(message: string): string | null {
-  const lower = message.toLowerCase();
+function detectLocation(text: string): string | null {
+  const lower = text.toLowerCase();
   for (const city of NAGALAND_CITIES) {
     if (lower.includes(city.toLowerCase())) return city;
+  }
+  return null;
+}
+
+// Resolve location from current message first, then scan history (most recent first)
+// so follow-up messages like "what about cafes?" inherit the city from earlier turns
+function resolveLocation(
+  message: string,
+  history: { role: string; content: string }[]
+): string | null {
+  const fromMessage = detectLocation(message);
+  if (fromMessage) return fromMessage;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const fromHistory = detectLocation(history[i].content);
+    if (fromHistory) return fromHistory;
   }
   return null;
 }
@@ -194,7 +209,7 @@ export async function POST(req: NextRequest) {
       ? history.filter(h => (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string').slice(-4)
       : [];
 
-    const location = detectLocation(message);
+    const location = resolveLocation(message, validHistory);
     const intent = detectIntent(message);
     const results = await fetchByIntent(intent, location);
     const resultCount = results.length;
@@ -203,25 +218,30 @@ export async function POST(req: NextRequest) {
     console.log('[yana-ai] intent:', intent, '| location:', location);
     console.log('[yana-ai] supabase results count:', resultCount);
 
-    const zeroResultsNote = resultCount === 0
-      ? `\n\nNOTE: No businesses found. Do NOT say you lack database access. Say "We are growing our listings in this area, browse more on Yana" and keep response helpful.`
+    // Tell Claude exactly what was queried and what came back
+    const locationContext = location
+      ? `Location filter: ${location} (ONLY recommend businesses from this city)`
+      : `Location filter: none (user did not specify a city)`;
+
+    const resultsNote = resultCount === 0
+      ? `\n\nNOTE: Zero businesses found for this query${location ? ` in ${location}` : ''}. Tell the user honestly. Do NOT invent places or give generic redirects.`
       : '';
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 400,
-      system: `You are Yana AI, a warm local guide for Nagaland. STRICT RULES:
-1. ONLY recommend businesses from the provided list — never invent place names, landmarks, hospitals, pharmacies or attractions that are not in the list
-2. Only recommend categories relevant to what the user is asking — do not suggest hospitals for a day plan or cafes when someone needs medical help
-3. Always recommend a MIX of relevant businesses from the provided list
-4. For general tips say things like 'explore local markets' or 'try Naga street food' without naming fake specific places
-5. If listings are limited say: 'We are growing our listings in this area, browse more on Yana'
-6. Keep response warm, specific, helpful and under 4 sentences
+      system: `You are Yana AI, a local guide for Nagaland. Be honest, specific, and brief. STRICT RULES:
+1. ONLY recommend businesses from the provided list — never invent place names, businesses, or services not in the list.
+2. If a city was specified, ONLY mention businesses from that city. Never mention businesses from other cities even if the list contains them.
+3. If the user corrects you (e.g. "those aren't in Kohima", "I said Dimapur"), acknowledge the mistake, apologize briefly, then use only the corrected city's results.
+4. If there are no or few matching businesses for the requested location, say so honestly. Example: "I don't have enough listings in [city] right now — we're still growing there." Do not bluff, redirect, or pad with generic positivity.
+5. Only recommend categories relevant to what the user is asking.
+6. Keep replies conversational, honest, and under 4 sentences. No filler phrases.
 When mentioning a listed business, wrap it like: [BUSINESS:id:name] so the frontend can make it clickable.
 Return JSON: {"text": "string"}`,
       messages: [
         ...validHistory,
-        { role: 'user', content: `User asked: ${message}\n\nRelevant businesses found (${resultCount}): ${JSON.stringify(results)}${zeroResultsNote}` },
+        { role: 'user', content: `User asked: ${message}\n\n${locationContext}\nBusinesses found (${resultCount}): ${JSON.stringify(results)}${resultsNote}` },
       ],
     });
 
