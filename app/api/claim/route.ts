@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -71,10 +73,20 @@ export async function POST(req: NextRequest) {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return NextResponse.json({ error: 'valid email is required' }, { status: 400 });
 
+    // Read logged-in user's id (if any) — used to transfer ownership on approve
+    const cookieStore = await cookies();
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+    );
+    const { data: { session } } = await supabaseAuth.auth.getSession();
+    const claimant_user_id = session?.user?.id ?? null;
+
     // Insert into claims table
     const { error: dbError } = await supabase
       .from('claims')
-      .insert({ business_id, name, phone, email, designation: designation || null, status: 'pending' });
+      .insert({ business_id, name, phone, email, designation: designation || null, status: 'pending', claimant_user_id });
 
     if (dbError) {
       console.error('[claim] DB insert error:', dbError);

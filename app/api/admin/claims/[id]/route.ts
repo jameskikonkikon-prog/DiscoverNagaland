@@ -31,10 +31,10 @@ export async function PATCH(
   const service = getServiceClient();
   const claimId = params.id;
 
-  // Fetch the claim to get business_id
+  // Fetch the claim to get business_id and claimant_user_id
   const { data: claim, error: fetchErr } = await service
     .from('claims')
-    .select('business_id')
+    .select('business_id, claimant_user_id')
     .eq('id', claimId)
     .single();
 
@@ -53,11 +53,18 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update claim' }, { status: 500 });
   }
 
-  // If approving, mark the business as claimed
+  // If approving, mark the business as claimed and transfer ownership
   if (action === 'approve') {
+    // Always set claimed = true
+    // Set owner_id = claimant_user_id only if it was captured at claim time
+    const bizUpdate: Record<string, unknown> = { claimed: true };
+    if (claim.claimant_user_id) {
+      bizUpdate.owner_id = claim.claimant_user_id;
+    }
+
     const { error: bizErr } = await service
       .from('businesses')
-      .update({ claimed: true })
+      .update(bizUpdate)
       .eq('id', claim.business_id);
 
     if (bizErr) {
@@ -66,6 +73,9 @@ export async function PATCH(
     }
   }
 
-  console.log(`[admin/claims] ${action}d claim ${claimId} (business ${claim.business_id})`);
+  console.log(
+    `[admin/claims] ${action}d claim ${claimId}`,
+    `(business ${claim.business_id}, new owner: ${claim.claimant_user_id ?? 'none'})`
+  );
   return NextResponse.json({ success: true });
 }
