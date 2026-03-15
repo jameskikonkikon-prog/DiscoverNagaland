@@ -105,7 +105,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
 
   // Claim modal state
   const [showClaimModal, setShowClaimModal] = useState(false);
-  const [claimForm, setClaimForm] = useState({ name: '', phone: '', email: '', designation: '', password: '', confirmPassword: '' });
+  const [claimForm, setClaimForm] = useState({ name: '', phone: '', email: '', designation: '' });
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState(false);
   const [claimError, setClaimError] = useState('');
@@ -135,9 +135,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
   };
 
   const submitClaim = async () => {
-    if (!claimForm.name || !claimForm.phone || !claimForm.email || !claimForm.password) return;
-    if (claimForm.password.length < 8) { setClaimError('Password must be at least 8 characters.'); return; }
-    if (claimForm.password !== claimForm.confirmPassword) { setClaimError('Passwords do not match.'); return; }
+    if (!claimForm.name || !claimForm.phone || !claimForm.email) return;
     setClaimLoading(true);
     setClaimError('');
     try {
@@ -150,7 +148,6 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
           phone: claimForm.phone,
           email: claimForm.email,
           designation: claimForm.designation,
-          password: claimForm.password,
         }),
       });
       const data = await res.json();
@@ -463,7 +460,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
                   <div className="claim-title">Own this business?</div>
                   <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
                   {claimSuccess ? (
-                    <div className="claim-success-msg">✅ Claim request submitted. We&apos;ll review it soon.</div>
+                    <div className="claim-success-msg">✅ Claim request submitted. Check your email to verify and finish setting up your account.</div>
                   ) : (
                     <button type="button" className="claim-btn" onClick={() => setShowClaimModal(true)}>🏷️ Claim This Listing</button>
                   )}
@@ -499,23 +496,12 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               <label className="cm-label">Designation</label>
               <input className="cm-input" type="text" placeholder="e.g. Owner, Manager" value={claimForm.designation} onChange={e => setClaimForm(f => ({ ...f, designation: e.target.value }))} />
             </div>
-            <div className="cm-divider" />
-            <div className="cm-section-label">Create your login</div>
-            <div className="cm-field">
-              <label className="cm-label">Password *</label>
-              <input className="cm-input" type="password" placeholder="Min. 8 characters" value={claimForm.password} onChange={e => setClaimForm(f => ({ ...f, password: e.target.value }))} />
-            </div>
-            <div className="cm-field">
-              <label className="cm-label">Confirm Password *</label>
-              <input className="cm-input" type="password" placeholder="Repeat password" value={claimForm.confirmPassword} onChange={e => setClaimForm(f => ({ ...f, confirmPassword: e.target.value }))} />
-            </div>
-
             {claimError && <div className="cm-error">{claimError}</div>}
 
             <button
               className="cm-submit"
               onClick={submitClaim}
-              disabled={claimLoading || !claimForm.name || !claimForm.phone || !claimForm.email || !claimForm.password || !claimForm.confirmPassword}
+              disabled={claimLoading || !claimForm.name || !claimForm.phone || !claimForm.email}
             >
               {claimLoading ? 'Submitting…' : 'Submit Claim Request'}
             </button>
