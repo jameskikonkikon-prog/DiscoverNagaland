@@ -239,7 +239,7 @@ Return JSON: {"text": "string"}`,
       data = JSON.parse(cleaned);
     } catch (parseErr) {
       console.error('[yana-ai] JSON parse failed:', parseErr, '| cleaned:', cleaned);
-      return withCookie(NextResponse.json({ text: 'I found some great spots for you! Try searching on Yana Nagaland.' }), newCookieId);
+      return withCookie(NextResponse.json({ error: 'Sorry, Yana is having trouble right now. Please try again in a bit.' }, { status: 500 }), newCookieId);
     }
 
     return withCookie(NextResponse.json({ text: data.text ?? '' }), newCookieId);
