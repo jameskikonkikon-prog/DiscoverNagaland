@@ -58,7 +58,6 @@ export async function POST(req: NextRequest) {
     const phone       = sanitize(body.phone);
     const email       = sanitize(body.email);
     const designation = sanitize(body.designation);
-    const password    = typeof body.password === 'string' ? body.password : '';
 
     // Validate required fields
     if (!business_id) return NextResponse.json({ error: 'business_id is required' }, { status: 400 });
@@ -66,24 +65,20 @@ export async function POST(req: NextRequest) {
     if (!phone)       return NextResponse.json({ error: 'phone is required' }, { status: 400 });
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return NextResponse.json({ error: 'A valid email is required' }, { status: 400 });
-    if (!password || password.length < 8)
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
 
     const service = getServiceClient();
 
-    // Create auth user with the provided email + password.
-    // email_confirm: true so they can log in immediately after approval.
-    const { data: authData, error: authError } = await service.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
+    // Invite the claimant by email. Supabase sends an invite link; the account
+    // is unconfirmed until the claimant clicks it. They cannot log in before
+    // accepting. email_confirm: true is intentionally NOT used here.
+    const { data: authData, error: authError } = await service.auth.admin.inviteUserByEmail(email);
 
     if (authError) {
       // Supabase returns this message when the email is already registered
       const isDuplicate =
         authError.message?.toLowerCase().includes('already registered') ||
         authError.message?.toLowerCase().includes('already exists') ||
+        authError.message?.toLowerCase().includes('already been invited') ||
         authError.message?.toLowerCase().includes('email_exists') ||
         (authError as { code?: string }).code === 'email_exists';
 
@@ -94,7 +89,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      console.error('[claim] auth.admin.createUser error:', authError);
+      console.error('[claim] auth.admin.inviteUserByEmail error:', authError);
       return NextResponse.json({ error: 'Failed to create account. Please try again.' }, { status: 500 });
     }
 
