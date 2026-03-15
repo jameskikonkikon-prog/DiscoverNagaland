@@ -5,13 +5,12 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getServiceClient } from '@/lib/supabase';
 
-const ADMIN_EMAIL = 'jameskikonkikon@gmail.com';
-
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  // Auth check
+  // Auth check — admin email is read from server-side env only, never bundled client-side
+  const adminEmail = process.env.ADMIN_EMAIL;
   const cookieStore = await cookies();
   const supabaseAuth = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +18,7 @@ export async function PATCH(
     { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
   );
   const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!user || !adminEmail || user.email !== adminEmail) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

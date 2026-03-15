@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
-const ADMIN_EMAIL = 'jameskikonkikon@gmail.com';
-
 type Claim = {
   id: string;
   business_id: string;
@@ -32,7 +30,10 @@ export default function AdminClaimsPage() {
 
       setAuthChecked(true);
 
-      if (!user || user.email !== ADMIN_EMAIL) {
+      // Real admin enforcement: middleware (server-side) + RLS on claims table + API route
+      // Client-side: only check that a user is logged in; unauthenticated visitors
+      // are already redirected by middleware before reaching this page
+      if (!user) {
         setAuthorized(false);
         return;
       }

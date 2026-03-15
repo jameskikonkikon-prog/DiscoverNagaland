@@ -96,7 +96,11 @@ export async function GET(req: NextRequest) {
     let query = supabase.from('businesses').select('*').eq('is_active', true);
     if (category) query = query.eq('category', category);
     if (city) query = query.eq('city', city);
-    if (q) query = query.or(`name.ilike.%${q}%,description.ilike.%${q}%,tags.ilike.%${q}%,category.ilike.%${q}%,city.ilike.%${q}%`);
+    if (q) {
+      // Strip ILIKE wildcard characters (% _) to prevent pattern abuse; cap length
+      const safeQ = q.trim().slice(0, 100).replace(/[%_]/g, '');
+      if (safeQ) query = query.or(`name.ilike.%${safeQ}%,description.ilike.%${safeQ}%,tags.ilike.%${safeQ}%,category.ilike.%${safeQ}%,city.ilike.%${safeQ}%`);
+    }
 
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

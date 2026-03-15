@@ -12,6 +12,8 @@ const supabase = createClient(
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DAILY_LIMIT = 10;
+const BURST_LIMIT = 5;          // max requests per BURST_WINDOW_MINS window per IP
+const BURST_WINDOW_MINS = 10;
 const COOKIE_NAME = 'yana_ai_id';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
@@ -93,6 +95,37 @@ async function checkAndIncrement(identifier: string): Promise<boolean> {
   } else {
     console.log('[yana-ai] rate-limit upsert OK — count now:', current + 1);
   }
+
+  return true;
+}
+
+// Burst protection: 5 requests per 10-minute window per IP
+// Reuses yana_ai_usage table — window is encoded into the identifier key,
+// so no schema changes are needed.
+async function checkBurstLimit(req: NextRequest): Promise<boolean> {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+    || req.headers.get('x-real-ip')
+    || 'unknown';
+  const now = new Date();
+  const slotMinute = Math.floor(now.getUTCMinutes() / BURST_WINDOW_MINS) * BURST_WINDOW_MINS;
+  const windowKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}T${String(now.getUTCHours()).padStart(2, '0')}:${String(slotMinute).padStart(2, '0')}`;
+  const burstId = `burst:${ip}:${windowKey}`;
+  const today = now.toISOString().split('T')[0];
+  const service = getServiceClient();
+
+  const { data: existing } = await service
+    .from('yana_ai_usage')
+    .select('count')
+    .eq('identifier', burstId)
+    .eq('date', today)
+    .maybeSingle();
+
+  const current = existing?.count ?? 0;
+  if (current >= BURST_LIMIT) return false;
+
+  await service
+    .from('yana_ai_usage')
+    .upsert({ identifier: burstId, date: today, count: current + 1 }, { onConflict: 'identifier,date' });
 
   return true;
 }
@@ -192,6 +225,16 @@ async function fetchByIntent(intent: Intent, location: string | null): Promise<B
 export async function POST(req: NextRequest) {
   try {
     const { identifier, newCookieId } = getIdentifier(req);
+
+    // Burst check first (5 / 10 min per IP) — doesn't consume daily quota when triggered
+    const burstOk = await checkBurstLimit(req);
+    if (!burstOk) {
+      return withCookie(
+        NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 }),
+        newCookieId
+      );
+    }
+
     const allowed = await checkAndIncrement(identifier);
     if (!allowed) {
       return withCookie(
