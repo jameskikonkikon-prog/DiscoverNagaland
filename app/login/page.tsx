@@ -34,18 +34,12 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError('Wrong email or password. Please try again.');
       setLoading(false);
       return;
     }
-    // Debug: confirm session was created
-    const { data: { session } } = await supabase.auth.getSession();
-    console.log('[login] sign-in succeeded:', !!data.user);
-    console.log('[login] session exists after login:', !!session);
-    console.log('[login] detected email:', session?.user?.email ?? '(none)');
-    console.log('[login] session storage key prefix:', Object.keys(localStorage).filter(k => k.startsWith('sb-')));
     router.push(getRedirect());
   };
 
