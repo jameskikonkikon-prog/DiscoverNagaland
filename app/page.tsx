@@ -355,6 +355,7 @@ export default function HomePage() {
           {NAV_QUICK.map((n) => (
             <button key={n.label} className="nl" onClick={() => quickSearch(n.query)}>{n.label}</button>
           ))}
+          <a href="/real-estate" className="nl" style={{ color: '#c0392b', fontWeight: 600 }}>Real Estate</a>
         </div>
         {!mounted ? (
           <span className="nav-avatar nav-avatar-placeholder" aria-hidden />
