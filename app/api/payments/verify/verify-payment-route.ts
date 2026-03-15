@@ -5,7 +5,7 @@ import { getServiceClient } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, businessId, plan, billing } = await req.json();
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, billing } = await req.json();
 
     // Verify signature
     const body = razorpay_order_id + '|' + razorpay_payment_id;
@@ -20,18 +20,31 @@ export async function POST(req: NextRequest) {
 
     const supabase = getServiceClient();
 
+    // Read business_id from the stored payment record — never from the request body
+    const { data: payment } = await supabase
+      .from('payments')
+      .select('business_id')
+      .eq('razorpay_order_id', razorpay_order_id)
+      .single();
+
+    if (!payment?.business_id) {
+      return NextResponse.json({ error: 'Payment record not found' }, { status: 404 });
+    }
+
+    const storedBusinessId = payment.business_id;
+
     // Calculate expiry
     const now = new Date();
     const expiresAt = billing === 'yearly'
       ? new Date(now.setFullYear(now.getFullYear() + 1))
       : new Date(now.setMonth(now.getMonth() + 1));
 
-    // Upgrade the business plan
+    // Upgrade the business plan using the stored business_id only
     await supabase.from('businesses').update({
       plan,
       plan_expires_at: expiresAt.toISOString(),
       is_verified: plan === 'pro',
-    }).eq('id', businessId);
+    }).eq('id', storedBusinessId);
 
     // Update payment record
     await supabase.from('payments').update({
@@ -40,7 +53,7 @@ export async function POST(req: NextRequest) {
     }).eq('razorpay_order_id', razorpay_order_id);
 
     // Get business for email
-    const { data: biz } = await supabase.from('businesses').select('name, email').eq('id', businessId).single();
+    const { data: biz } = await supabase.from('businesses').select('name, email').eq('id', storedBusinessId).single();
 
     // Send payment success email
     if (biz?.email) {
