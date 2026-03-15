@@ -12,20 +12,46 @@ const supabase = createClient(
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DAILY_LIMIT = 10;
+const COOKIE_NAME = 'yana_ai_id';
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
-function getIdentifier(req: NextRequest): string {
-  // Prefer logged-in user ID decoded from Bearer token (no extra network call)
+function getIdentifier(req: NextRequest): { identifier: string; newCookieId: string | null } {
+  // 1. Logged-in business owner — Bearer JWT (decoded locally, no network call)
   const auth = req.headers.get('authorization');
   if (auth?.startsWith('Bearer ')) {
     try {
       const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64url').toString());
-      if (payload.sub) return `user:${payload.sub}`;
-    } catch { /* fall through to IP */ }
+      if (payload.sub) return { identifier: `user:${payload.sub}`, newCookieId: null };
+    } catch { /* fall through */ }
   }
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim()
-    || req.headers.get('x-real-ip')
-    || 'unknown';
-  return `ip:${ip}`;
+
+  // 2. Returning anonymous visitor — existing yana_ai_id cookie
+  const existing = req.cookies.get(COOKIE_NAME)?.value;
+  if (existing) return { identifier: `anon:${existing}`, newCookieId: null };
+
+  // 3. New anonymous visitor — generate a fresh ID and persist it as a cookie
+  try {
+    const newId = crypto.randomUUID();
+    return { identifier: `anon:${newId}`, newCookieId: newId };
+  } catch {
+    // 4. Fallback: cookie generation failed — use IP address
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+      || req.headers.get('x-real-ip')
+      || 'unknown';
+    return { identifier: `ip:${ip}`, newCookieId: null };
+  }
+}
+
+function withCookie(res: NextResponse, newCookieId: string | null): NextResponse {
+  if (newCookieId) {
+    res.cookies.set(COOKIE_NAME, newCookieId, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: COOKIE_MAX_AGE,
+    });
+  }
+  return res;
 }
 
 async function checkAndIncrement(identifier: string): Promise<boolean> {
@@ -128,17 +154,20 @@ async function fetchByIntent(intent: Intent, location: string | null): Promise<B
 
 export async function POST(req: NextRequest) {
   try {
-    const identifier = getIdentifier(req);
+    const { identifier, newCookieId } = getIdentifier(req);
     const allowed = await checkAndIncrement(identifier);
     if (!allowed) {
-      return NextResponse.json(
-        { error: "You've reached today's Yana AI limit. Please try again tomorrow." },
-        { status: 429 }
+      return withCookie(
+        NextResponse.json(
+          { error: "You've reached today's Yana AI limit. Please try again tomorrow." },
+          { status: 429 }
+        ),
+        newCookieId
       );
     }
 
     const { message, history } = await req.json();
-    if (!message?.trim()) return NextResponse.json({ error: 'No message' }, { status: 400 });
+    if (!message?.trim()) return withCookie(NextResponse.json({ error: 'No message' }, { status: 400 }), newCookieId);
     const validHistory: { role: 'user' | 'assistant'; content: string }[] = Array.isArray(history)
       ? history.filter(h => (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string').slice(-4)
       : [];
@@ -188,10 +217,10 @@ Return JSON: {"text": "string"}`,
       data = JSON.parse(cleaned);
     } catch (parseErr) {
       console.error('[yana-ai] JSON parse failed:', parseErr, '| cleaned:', cleaned);
-      return NextResponse.json({ text: 'I found some great spots for you! Try searching on Yana Nagaland.' });
+      return withCookie(NextResponse.json({ text: 'I found some great spots for you! Try searching on Yana Nagaland.' }), newCookieId);
     }
 
-    return NextResponse.json({ text: data.text ?? '' });
+    return withCookie(NextResponse.json({ text: data.text ?? '' }), newCookieId);
   } catch (err) {
     console.error('[yana-ai] error:', err);
     return NextResponse.json({ error: 'Failed to get a response' }, { status: 500 });
