@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
 type Claim = {
@@ -25,26 +24,19 @@ export default function AdminClaimsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user ?? null;
-
+      // Fetch claims via server-side API — admin identity verified server-side,
+      // data read through service role (bypasses RLS on claims table)
+      const res = await fetch('/api/admin/claims');
       setAuthChecked(true);
 
-      // Real admin enforcement: middleware (server-side) + RLS on claims table + API route
-      // Client-side: only check that a user is logged in; unauthenticated visitors
-      // are already redirected by middleware before reaching this page
-      if (!user) {
+      if (res.status === 401) {
         setAuthorized(false);
         return;
       }
 
       setAuthorized(true);
-      const { data } = await supabase
-        .from('claims')
-        .select('*, businesses(name)')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
-      setClaims((data as Claim[]) || []);
+      const json = await res.json();
+      setClaims((json.claims as Claim[]) || []);
       setLoading(false);
     };
     load();
