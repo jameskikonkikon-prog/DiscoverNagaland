@@ -82,8 +82,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   return NextResponse.json({ business: data });
 }
 
+const VALID_EVENTS = new Set([
+  'profile_view',
+  'whatsapp_click',
+  'call_click',
+  'maps_click',
+  'search_appearance',
+]);
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const { event } = await request.json();
+  if (!event || !VALID_EVENTS.has(event)) {
+    return NextResponse.json({ error: 'Invalid event' }, { status: 400 });
+  }
   try {
     const today = new Date().toISOString().split('T')[0];
     const { createClient } = await import('@supabase/supabase-js');
