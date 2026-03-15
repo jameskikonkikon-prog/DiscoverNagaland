@@ -58,20 +58,42 @@ async function checkAndIncrement(identifier: string): Promise<boolean> {
   const today = new Date().toISOString().split('T')[0];
   const service = getServiceClient();
 
-  const { data } = await service
+  console.log('[yana-ai] rate-limit identifier:', identifier, '| date:', today);
+
+  const { data: existing, error: selectError } = await service
     .from('yana_ai_usage')
     .select('count')
     .eq('identifier', identifier)
     .eq('date', today)
     .maybeSingle();
 
-  const current = data?.count ?? 0;
-  if (current >= DAILY_LIMIT) return false;
+  if (selectError) {
+    console.error('[yana-ai] rate-limit SELECT error:', JSON.stringify(selectError));
+  }
 
-  await service.from('yana_ai_usage').upsert(
-    { identifier, date: today, count: current + 1 },
-    { onConflict: 'identifier,date' }
-  );
+  const current = existing?.count ?? 0;
+  console.log('[yana-ai] rate-limit current count:', current);
+
+  if (current >= DAILY_LIMIT) {
+    console.log('[yana-ai] rate-limit BLOCKED — limit reached for', identifier);
+    return false;
+  }
+
+  const payload = { identifier, date: today, count: current + 1 };
+  console.log('[yana-ai] rate-limit upsert payload:', JSON.stringify(payload));
+
+  const { error: upsertError } = await service
+    .from('yana_ai_usage')
+    .upsert(payload, { onConflict: 'identifier,date' });
+
+  if (upsertError) {
+    console.error('[yana-ai] rate-limit UPSERT error:', JSON.stringify(upsertError));
+    // Non-fatal: allow the request through even if tracking fails,
+    // so a write bug does not break Yana AI for users.
+  } else {
+    console.log('[yana-ai] rate-limit upsert OK — count now:', current + 1);
+  }
+
   return true;
 }
 
