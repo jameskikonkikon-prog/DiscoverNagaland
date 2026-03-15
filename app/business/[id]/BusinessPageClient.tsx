@@ -105,7 +105,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
 
   // Claim modal state
   const [showClaimModal, setShowClaimModal] = useState(false);
-  const [claimForm, setClaimForm] = useState({ name: '', phone: '', email: '', designation: '' });
+  const [claimForm, setClaimForm] = useState({ name: '', phone: '', email: '', designation: '', password: '', confirmPassword: '' });
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState(false);
   const [claimError, setClaimError] = useState('');
@@ -135,14 +135,23 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
   };
 
   const submitClaim = async () => {
-    if (!claimForm.name || !claimForm.phone || !claimForm.email) return;
+    if (!claimForm.name || !claimForm.phone || !claimForm.email || !claimForm.password) return;
+    if (claimForm.password.length < 8) { setClaimError('Password must be at least 8 characters.'); return; }
+    if (claimForm.password !== claimForm.confirmPassword) { setClaimError('Passwords do not match.'); return; }
     setClaimLoading(true);
     setClaimError('');
     try {
       const res = await fetch('/api/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: biz.id, ...claimForm }),
+        body: JSON.stringify({
+          business_id: biz.id,
+          name: claimForm.name,
+          phone: claimForm.phone,
+          email: claimForm.email,
+          designation: claimForm.designation,
+          password: claimForm.password,
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setClaimError(data.error || 'Something went wrong. Try again.'); return; }
@@ -472,7 +481,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               <div className="cm-title">🏷️ Claim This Listing</div>
               <button className="cm-close" onClick={() => setShowClaimModal(false)} aria-label="Close">✕</button>
             </div>
-            <div className="cm-sub">Tell us who you are and we&apos;ll verify and transfer the listing to you.</div>
+            <div className="cm-sub">Fill in your details and create a login. We&apos;ll verify your claim and transfer the listing to your account.</div>
 
             <div className="cm-field">
               <label className="cm-label">Your Name *</label>
@@ -490,13 +499,23 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               <label className="cm-label">Designation</label>
               <input className="cm-input" type="text" placeholder="e.g. Owner, Manager" value={claimForm.designation} onChange={e => setClaimForm(f => ({ ...f, designation: e.target.value }))} />
             </div>
+            <div className="cm-divider" />
+            <div className="cm-section-label">Create your login</div>
+            <div className="cm-field">
+              <label className="cm-label">Password *</label>
+              <input className="cm-input" type="password" placeholder="Min. 8 characters" value={claimForm.password} onChange={e => setClaimForm(f => ({ ...f, password: e.target.value }))} />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label">Confirm Password *</label>
+              <input className="cm-input" type="password" placeholder="Repeat password" value={claimForm.confirmPassword} onChange={e => setClaimForm(f => ({ ...f, confirmPassword: e.target.value }))} />
+            </div>
 
             {claimError && <div className="cm-error">{claimError}</div>}
 
             <button
               className="cm-submit"
               onClick={submitClaim}
-              disabled={claimLoading || !claimForm.name || !claimForm.phone || !claimForm.email}
+              disabled={claimLoading || !claimForm.name || !claimForm.phone || !claimForm.email || !claimForm.password || !claimForm.confirmPassword}
             >
               {claimLoading ? 'Submitting…' : 'Submit Claim Request'}
             </button>
@@ -716,6 +735,8 @@ const styles = `
   .cm-close { background: none; border: none; color: var(--text2); font-size: 16px; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1; transition: color 0.15s; font-family: 'Sora', sans-serif; }
   .cm-close:hover { color: var(--text); }
   .cm-sub { font-size: 12px; color: var(--text2); line-height: 1.6; margin-bottom: 20px; }
+  .cm-divider { height: 1px; background: var(--border); margin: 16px 0 12px; }
+  .cm-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 12px; }
   .cm-field { margin-bottom: 12px; }
   .cm-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); margin-bottom: 6px; }
   .cm-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; outline: none; transition: border-color 0.2s; }

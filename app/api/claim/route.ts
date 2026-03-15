@@ -1,14 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { getServiceClient } from '@/lib/supabase';
 
 /** Strip HTML tags and trim */
 function sanitize(value: unknown): string {
@@ -43,7 +36,7 @@ async function sendClaimEmail(fields: {
             <tr><td style="padding:8px 0;color:#888;">Email</td><td style="padding:8px 0;">${fields.email}</td></tr>
             <tr><td style="padding:8px 0;color:#888;">Designation</td><td style="padding:8px 0;">${fields.designation || '—'}</td></tr>
           </table>
-          <p style="margin-top:1.5rem;font-size:0.85rem;color:#888;">Review and approve or reject this claim in Supabase.</p>
+          <p style="margin-top:1.5rem;font-size:0.85rem;color:#888;">Review and approve or reject this claim in the admin panel.</p>
         </div>
       `,
     }),
@@ -52,7 +45,7 @@ async function sendClaimEmail(fields: {
   if (!res.ok) {
     const body = await res.text();
     console.error('[claim] Resend error:', res.status, body);
-    throw new Error('Failed to send claim email');
+    // Non-fatal — claim is already saved
   }
 }
 
@@ -65,37 +58,63 @@ export async function POST(req: NextRequest) {
     const phone       = sanitize(body.phone);
     const email       = sanitize(body.email);
     const designation = sanitize(body.designation);
+    const password    = typeof body.password === 'string' ? body.password : '';
 
     // Validate required fields
     if (!business_id) return NextResponse.json({ error: 'business_id is required' }, { status: 400 });
     if (!name)        return NextResponse.json({ error: 'name is required' }, { status: 400 });
     if (!phone)       return NextResponse.json({ error: 'phone is required' }, { status: 400 });
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      return NextResponse.json({ error: 'valid email is required' }, { status: 400 });
+      return NextResponse.json({ error: 'A valid email is required' }, { status: 400 });
+    if (!password || password.length < 8)
+      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
 
-    // Read logged-in user's id (if any) — used to transfer ownership on approve
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-    );
-    const { data: { session } } = await supabaseAuth.auth.getSession();
-    const claimant_user_id = session?.user?.id ?? null;
+    const service = getServiceClient();
 
-    // Insert into claims table
-    const { error: dbError } = await supabase
+    // Create auth user with the provided email + password.
+    // email_confirm: true so they can log in immediately after approval.
+    const { data: authData, error: authError } = await service.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+
+    if (authError) {
+      // Supabase returns this message when the email is already registered
+      const isDuplicate =
+        authError.message?.toLowerCase().includes('already registered') ||
+        authError.message?.toLowerCase().includes('already exists') ||
+        authError.message?.toLowerCase().includes('email_exists') ||
+        (authError as { code?: string }).code === 'email_exists';
+
+      if (isDuplicate) {
+        return NextResponse.json(
+          { error: 'An account with this email already exists. Please log in or use a different email.' },
+          { status: 409 }
+        );
+      }
+
+      console.error('[claim] auth.admin.createUser error:', authError);
+      return NextResponse.json({ error: 'Failed to create account. Please try again.' }, { status: 500 });
+    }
+
+    const claimant_user_id = authData.user.id;
+
+    // Insert claim row
+    const { error: dbError } = await service
       .from('claims')
       .insert({ business_id, name, phone, email, designation: designation || null, status: 'pending', claimant_user_id });
 
     if (dbError) {
       console.error('[claim] DB insert error:', dbError);
-      return NextResponse.json({ error: 'Failed to save claim' }, { status: 500 });
+      // Roll back the created auth user so they don't end up with an orphaned account
+      await service.auth.admin.deleteUser(claimant_user_id);
+      return NextResponse.json({ error: 'Failed to save claim. Please try again.' }, { status: 500 });
     }
 
-    console.log('[claim] inserted — business_id:', business_id, '| claimant:', name, email);
+    console.log('[claim] inserted — business_id:', business_id, '| claimant:', name, email, '| user_id:', claimant_user_id);
 
-    // Send notification email
+    // Send notification email (non-fatal)
     await sendClaimEmail({ business_id, name, phone, email, designation });
 
     return NextResponse.json({ success: true });
