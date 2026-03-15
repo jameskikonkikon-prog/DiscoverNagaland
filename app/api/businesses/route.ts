@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import { getServiceClient } from '@/lib/supabase';
 import { FOUNDING_MEMBER_LIMIT } from '@/types';
 
 export async function POST(req: NextRequest) {
   try {
+    // Authenticate — owner_id is always taken from the session, never the request body
+    const cookieStore = await cookies();
+    const authClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+    );
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await req.json();
-    const { name, category, city, address, landmark, phone, whatsapp, email, website, description, opening_hours, tags, amenities, owner_id, slug, custom_fields, vibe_tags, price_min, price_max, price_range, gender, wifi, ac, meals_included, room_type, cuisine } = body;
+    // owner_id is intentionally excluded from destructuring — it is set server-side below
+    const { name, category, city, address, landmark, phone, whatsapp, email, website, description, opening_hours, tags, amenities, slug, custom_fields, vibe_tags, price_min, price_max, price_range, gender, wifi, ac, meals_included, room_type, cuisine } = body;
 
     if (!name || !category || !city || !address || !phone) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -46,7 +61,7 @@ export async function POST(req: NextRequest) {
       meals_included: meals_included || null,
       room_type: room_type || null,
       cuisine: cuisine || null,
-      owner_id: owner_id || null,
+      owner_id: user.id,
       plan: isFoundingMember ? 'pro' : 'basic',
       is_active: true,
       is_verified: false,
