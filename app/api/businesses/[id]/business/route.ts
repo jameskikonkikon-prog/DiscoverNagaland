@@ -19,29 +19,58 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return NextResponse.json({ error: 'Not configured' }, { status: 500 });
   }
-  const body = await request.json();
 
-  const ALLOWED_COLUMNS = new Set([
-    'name','slug','category','city','address','landmark','phone','whatsapp','email',
-    'description','opening_hours','photos','plan','plan_expires_at','is_verified',
-    'is_active','owner_id','price_range','price_min','price_max','price_unit',
-    'menu_url','tags','website','amenities','custom_fields','trial_ends_at',
-    'ac','wifi','parking','meals_included','gender','room_type','claimed','status',
-    'area','vibe_tags','verified','featured','cuisine','furnished','trainer',
-    'delivery','fuel_included','deposit','bhk','sport_types','floodlights',
-    'covered','subjects','batch_size','timing','online','entry_fee','private_seating',
-  ]);
-  const sanitized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(body)) {
-    if (ALLOWED_COLUMNS.has(key)) sanitized[key] = value;
+  // --- Authentication ---
+  const { createServerClient } = await import('@supabase/ssr');
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const authClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  );
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { createClient } = await import('@supabase/supabase-js');
   const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
+  // --- Authorization: must own the business ---
+  const { data: existing } = await client
+    .from('businesses')
+    .select('id, owner_id, plan')
+    .eq('id', params.id)
+    .single();
+  if (!existing) {
+    return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+  }
+  if (existing.owner_id !== user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // --- Safe editable fields only ---
+  // Deliberately excluded: plan, plan_expires_at, is_verified, owner_id,
+  //   claimed, status, featured, trial_ends_at, verified
+  const ALLOWED_COLUMNS = new Set([
+    'name','slug','category','city','address','landmark','phone','whatsapp','email',
+    'description','opening_hours','photos','price_range','price_min','price_max','price_unit',
+    'menu_url','tags','website','amenities','custom_fields',
+    'ac','wifi','parking','meals_included','gender','room_type',
+    'area','vibe_tags','cuisine','furnished','trainer',
+    'delivery','fuel_included','deposit','bhk','sport_types','floodlights',
+    'covered','subjects','batch_size','timing','online','entry_fee','private_seating',
+    'is_active',
+  ]);
+  const body = await request.json();
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (ALLOWED_COLUMNS.has(key)) sanitized[key] = value;
+  }
+
   if (Array.isArray(sanitized.photos)) {
-    const { data: biz } = await client.from('businesses').select('plan').eq('id', params.id).single();
-    const plan = (biz?.plan ?? 'basic') as 'basic' | 'pro' | 'plus';
+    const plan = (existing.plan ?? 'basic') as 'basic' | 'pro' | 'plus';
     const maxPhotos = PLANS[plan]?.maxPhotos ?? (plan === 'plus' ? Infinity : plan === 'pro' ? 10 : 2);
     if (typeof maxPhotos === 'number' && sanitized.photos.length > maxPhotos) {
       sanitized.photos = sanitized.photos.slice(0, maxPhotos);
@@ -53,8 +82,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   return NextResponse.json({ business: data });
 }
 
+const VALID_EVENTS = new Set([
+  'profile_view',
+  'whatsapp_click',
+  'call_click',
+  'maps_click',
+  'search_appearance',
+]);
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const { event } = await request.json();
+  if (!event || !VALID_EVENTS.has(event)) {
+    return NextResponse.json({ error: 'Invalid event' }, { status: 400 });
+  }
   try {
     const today = new Date().toISOString().split('T')[0];
     const { createClient } = await import('@supabase/supabase-js');

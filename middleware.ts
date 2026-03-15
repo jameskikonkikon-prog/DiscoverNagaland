@@ -26,7 +26,15 @@ export async function middleware(request: NextRequest) {
   );
 
   // Refresh the auth token so it doesn't expire mid-visit
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Protect all /admin/* routes server-side — redirect to home if not admin
+  if (request.nextUrl.pathname.startsWith('/admin')) {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!user || !adminEmail || user.email !== adminEmail) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
 
   return supabaseResponse;
 }

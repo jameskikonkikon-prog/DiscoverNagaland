@@ -1,15 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
+// Browser client — uses cookies for session storage (same as login page)
+// This ensures getSession() reads the same session that signInWithPassword() wrote
 export function getSupabaseClient() {
-  return createClient(
+  return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 }
 
 // Lazy singleton — safe during build when env vars aren't available
-let _supabase: ReturnType<typeof createClient> | null = null;
-export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+let _supabase: ReturnType<typeof createBrowserClient> | null = null;
+export const supabase = new Proxy({} as ReturnType<typeof createBrowserClient>, {
   get(_, prop) {
     if (!_supabase) _supabase = getSupabaseClient();
     return (_supabase as Record<string, unknown>)[prop as string];

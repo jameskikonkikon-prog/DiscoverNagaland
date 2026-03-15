@@ -3,12 +3,132 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import { getServiceClient } from '@/lib/supabase';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const DAILY_LIMIT = 10;
+const BURST_LIMIT = 5;          // max requests per BURST_WINDOW_MINS window per IP
+const BURST_WINDOW_MINS = 10;
+const COOKIE_NAME = 'yana_ai_id';
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+
+function getIdentifier(req: NextRequest): { identifier: string; newCookieId: string | null } {
+  // 1. Logged-in business owner — Bearer JWT (decoded locally, no network call)
+  const auth = req.headers.get('authorization');
+  if (auth?.startsWith('Bearer ')) {
+    try {
+      const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64url').toString());
+      if (payload.sub) return { identifier: `user:${payload.sub}`, newCookieId: null };
+    } catch { /* fall through */ }
+  }
+
+  // 2. Returning anonymous visitor — existing yana_ai_id cookie
+  const existing = req.cookies.get(COOKIE_NAME)?.value;
+  if (existing) return { identifier: `anon:${existing}`, newCookieId: null };
+
+  // 3. New anonymous visitor — generate a fresh ID and persist it as a cookie
+  try {
+    const newId = crypto.randomUUID();
+    return { identifier: `anon:${newId}`, newCookieId: newId };
+  } catch {
+    // 4. Fallback: cookie generation failed — use IP address
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+      || req.headers.get('x-real-ip')
+      || 'unknown';
+    return { identifier: `ip:${ip}`, newCookieId: null };
+  }
+}
+
+function withCookie(res: NextResponse, newCookieId: string | null): NextResponse {
+  if (newCookieId) {
+    res.cookies.set(COOKIE_NAME, newCookieId, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: COOKIE_MAX_AGE,
+    });
+  }
+  return res;
+}
+
+async function checkAndIncrement(identifier: string): Promise<boolean> {
+  const today = new Date().toISOString().split('T')[0];
+  const service = getServiceClient();
+
+  console.log('[yana-ai] rate-limit identifier:', identifier, '| date:', today);
+
+  const { data: existing, error: selectError } = await service
+    .from('yana_ai_usage')
+    .select('count')
+    .eq('identifier', identifier)
+    .eq('date', today)
+    .maybeSingle();
+
+  if (selectError) {
+    console.error('[yana-ai] rate-limit SELECT error:', JSON.stringify(selectError));
+  }
+
+  const current = existing?.count ?? 0;
+  console.log('[yana-ai] rate-limit current count:', current);
+
+  if (current >= DAILY_LIMIT) {
+    console.log('[yana-ai] rate-limit BLOCKED — limit reached for', identifier);
+    return false;
+  }
+
+  const payload = { identifier, date: today, count: current + 1 };
+  console.log('[yana-ai] rate-limit upsert payload:', JSON.stringify(payload));
+
+  const { error: upsertError } = await service
+    .from('yana_ai_usage')
+    .upsert(payload, { onConflict: 'identifier,date' });
+
+  if (upsertError) {
+    console.error('[yana-ai] rate-limit UPSERT error:', JSON.stringify(upsertError));
+    // Non-fatal: allow the request through even if tracking fails,
+    // so a write bug does not break Yana AI for users.
+  } else {
+    console.log('[yana-ai] rate-limit upsert OK — count now:', current + 1);
+  }
+
+  return true;
+}
+
+// Burst protection: 5 requests per 10-minute window per IP
+// Reuses yana_ai_usage table — window is encoded into the identifier key,
+// so no schema changes are needed.
+async function checkBurstLimit(req: NextRequest): Promise<boolean> {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+    || req.headers.get('x-real-ip')
+    || 'unknown';
+  const now = new Date();
+  const slotMinute = Math.floor(now.getUTCMinutes() / BURST_WINDOW_MINS) * BURST_WINDOW_MINS;
+  const windowKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}T${String(now.getUTCHours()).padStart(2, '0')}:${String(slotMinute).padStart(2, '0')}`;
+  const burstId = `burst:${ip}:${windowKey}`;
+  const today = now.toISOString().split('T')[0];
+  const service = getServiceClient();
+
+  const { data: existing } = await service
+    .from('yana_ai_usage')
+    .select('count')
+    .eq('identifier', burstId)
+    .eq('date', today)
+    .maybeSingle();
+
+  const current = existing?.count ?? 0;
+  if (current >= BURST_LIMIT) return false;
+
+  await service
+    .from('yana_ai_usage')
+    .upsert({ identifier: burstId, date: today, count: current + 1 }, { onConflict: 'identifier,date' });
+
+  return true;
+}
 
 function extractJSON(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -23,10 +143,25 @@ const NAGALAND_CITIES = [
   'Noklak','Shamator','Tseminyü','Chümoukedima','Niuland','Meluri',
 ];
 
-function detectLocation(message: string): string | null {
-  const lower = message.toLowerCase();
+function detectLocation(text: string): string | null {
+  const lower = text.toLowerCase();
   for (const city of NAGALAND_CITIES) {
     if (lower.includes(city.toLowerCase())) return city;
+  }
+  return null;
+}
+
+// Resolve location from current message first, then scan history (most recent first)
+// so follow-up messages like "what about cafes?" inherit the city from earlier turns
+function resolveLocation(
+  message: string,
+  history: { role: string; content: string }[]
+): string | null {
+  const fromMessage = detectLocation(message);
+  if (fromMessage) return fromMessage;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const fromHistory = detectLocation(history[i].content);
+    if (fromHistory) return fromHistory;
   }
   return null;
 }
@@ -89,13 +224,35 @@ async function fetchByIntent(intent: Intent, location: string | null): Promise<B
 
 export async function POST(req: NextRequest) {
   try {
+    const { identifier, newCookieId } = getIdentifier(req);
+
+    // Burst check first (5 / 10 min per IP) — doesn't consume daily quota when triggered
+    const burstOk = await checkBurstLimit(req);
+    if (!burstOk) {
+      return withCookie(
+        NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 }),
+        newCookieId
+      );
+    }
+
+    const allowed = await checkAndIncrement(identifier);
+    if (!allowed) {
+      return withCookie(
+        NextResponse.json(
+          { error: "You've reached today's Yana AI limit. Please try again tomorrow." },
+          { status: 429 }
+        ),
+        newCookieId
+      );
+    }
+
     const { message, history } = await req.json();
-    if (!message?.trim()) return NextResponse.json({ error: 'No message' }, { status: 400 });
+    if (!message?.trim()) return withCookie(NextResponse.json({ error: 'No message' }, { status: 400 }), newCookieId);
     const validHistory: { role: 'user' | 'assistant'; content: string }[] = Array.isArray(history)
       ? history.filter(h => (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string').slice(-4)
       : [];
 
-    const location = detectLocation(message);
+    const location = resolveLocation(message, validHistory);
     const intent = detectIntent(message);
     const results = await fetchByIntent(intent, location);
     const resultCount = results.length;
@@ -104,25 +261,30 @@ export async function POST(req: NextRequest) {
     console.log('[yana-ai] intent:', intent, '| location:', location);
     console.log('[yana-ai] supabase results count:', resultCount);
 
-    const zeroResultsNote = resultCount === 0
-      ? `\n\nNOTE: No businesses found. Do NOT say you lack database access. Say "We are growing our listings in this area, browse more on Yana" and keep response helpful.`
+    // Tell Claude exactly what was queried and what came back
+    const locationContext = location
+      ? `Location filter: ${location} (ONLY recommend businesses from this city)`
+      : `Location filter: none (user did not specify a city)`;
+
+    const resultsNote = resultCount === 0
+      ? `\n\nNOTE: Zero businesses found for this query${location ? ` in ${location}` : ''}. Tell the user honestly. Do NOT invent places or give generic redirects.`
       : '';
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 400,
-      system: `You are Yana AI, a warm local guide for Nagaland. STRICT RULES:
-1. ONLY recommend businesses from the provided list — never invent place names, landmarks, hospitals, pharmacies or attractions that are not in the list
-2. Only recommend categories relevant to what the user is asking — do not suggest hospitals for a day plan or cafes when someone needs medical help
-3. Always recommend a MIX of relevant businesses from the provided list
-4. For general tips say things like 'explore local markets' or 'try Naga street food' without naming fake specific places
-5. If listings are limited say: 'We are growing our listings in this area, browse more on Yana'
-6. Keep response warm, specific, helpful and under 4 sentences
+      system: `You are Yana AI, a local guide for Nagaland. Be honest, specific, and brief. STRICT RULES:
+1. ONLY recommend businesses from the provided list — never invent place names, businesses, or services not in the list.
+2. If a city was specified, ONLY mention businesses from that city. Never mention businesses from other cities even if the list contains them.
+3. If the user corrects you (e.g. "those aren't in Kohima", "I said Dimapur"), acknowledge the mistake, apologize briefly, then use only the corrected city's results.
+4. If there are no or few matching businesses for the requested location, say so honestly. Example: "I don't have enough listings in [city] right now — we're still growing there." Do not bluff, redirect, or pad with generic positivity.
+5. Only recommend categories relevant to what the user is asking.
+6. Keep replies conversational, honest, and under 4 sentences. No filler phrases.
 When mentioning a listed business, wrap it like: [BUSINESS:id:name] so the frontend can make it clickable.
 Return JSON: {"text": "string"}`,
       messages: [
         ...validHistory,
-        { role: 'user', content: `User asked: ${message}\n\nRelevant businesses found (${resultCount}): ${JSON.stringify(results)}${zeroResultsNote}` },
+        { role: 'user', content: `User asked: ${message}\n\n${locationContext}\nBusinesses found (${resultCount}): ${JSON.stringify(results)}${resultsNote}` },
       ],
     });
 
@@ -140,10 +302,10 @@ Return JSON: {"text": "string"}`,
       data = JSON.parse(cleaned);
     } catch (parseErr) {
       console.error('[yana-ai] JSON parse failed:', parseErr, '| cleaned:', cleaned);
-      return NextResponse.json({ text: 'I found some great spots for you! Try searching on Yana Nagaland.' });
+      return withCookie(NextResponse.json({ error: 'Sorry, Yana is having trouble right now. Please try again in a bit.' }, { status: 500 }), newCookieId);
     }
 
-    return NextResponse.json({ text: data.text ?? '' });
+    return withCookie(NextResponse.json({ text: data.text ?? '' }), newCookieId);
   } catch (err) {
     console.error('[yana-ai] error:', err);
     return NextResponse.json({ error: 'Failed to get a response' }, { status: 500 });

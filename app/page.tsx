@@ -275,11 +275,18 @@ export default function HomePage() {
         body: JSON.stringify({ message: msg, history }),
       });
       const data = await res.json();
-      const aiText = data.text || 'Here are some searches for you!';
+      if (!res.ok) {
+        const errText = res.status === 429
+          ? (data.error || "You've reached today's Yana AI limit. Please try again tomorrow.")
+          : (data.error || 'Sorry, Yana is having trouble right now. Please try again in a bit.');
+        setChatMessages(prev => [...prev, { role: 'ai', text: errText }]);
+        return;
+      }
+      const aiText = data.text || 'Sorry, Yana is having trouble right now. Please try again in a bit.';
       setChatMessages(prev => [...prev, { role: 'ai', text: aiText, chips: data.chips }]);
       setChatHistory(prev => [...prev, { role: 'user', content: msg }, { role: 'assistant', content: aiText }]);
     } catch {
-      setChatMessages(prev => [...prev, { role: 'ai', text: 'Sorry, something went wrong. Try again!' }]);
+      setChatMessages(prev => [...prev, { role: 'ai', text: 'Sorry, Yana is having trouble right now. Please try again in a bit.' }]);
     } finally {
       setChatLoading(false);
     }

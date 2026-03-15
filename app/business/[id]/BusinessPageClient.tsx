@@ -29,6 +29,7 @@ type Business = {
   is_verified?: boolean;
   plan?: string;
   owner_id?: string | null;
+  claimed?: boolean | null;
   created_at?: string;
 };
 
@@ -102,6 +103,13 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
   const [hoverRating, setHoverRating] = useState(0);
   const [navScrolled, setNavScrolled] = useState(false);
 
+  // Claim modal state
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [claimForm, setClaimForm] = useState({ name: '', phone: '', email: '', designation: '' });
+  const [claimLoading, setClaimLoading] = useState(false);
+  const [claimSuccess, setClaimSuccess] = useState(false);
+  const [claimError, setClaimError] = useState('');
+
   useEffect(() => {
     const onScroll = () => setNavScrolled(typeof window !== 'undefined' && window.scrollY > 100);
     if (typeof window !== 'undefined') {
@@ -124,6 +132,33 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
     setReviewSuccess(true);
     setReviewForm({ name: '', rating: 5, comment: '' });
     setSubmittingReview(false);
+  };
+
+  const submitClaim = async () => {
+    if (!claimForm.name || !claimForm.phone || !claimForm.email) return;
+    setClaimLoading(true);
+    setClaimError('');
+    try {
+      const res = await fetch('/api/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: biz.id,
+          name: claimForm.name,
+          phone: claimForm.phone,
+          email: claimForm.email,
+          designation: claimForm.designation,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setClaimError(data.error || 'Something went wrong. Try again.'); return; }
+      setClaimSuccess(true);
+      setShowClaimModal(false);
+    } catch {
+      setClaimError('Something went wrong. Try again.');
+    } finally {
+      setClaimLoading(false);
+    }
   };
 
   const avgRating = reviews.length > 0 ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : null;
@@ -409,16 +444,70 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               </div>
             </div>
 
+            {/* Claim card:
+                - isOwner            → hidden entirely
+                - !isOwner + claimed → "already claimed" notice
+                - !isOwner + !claimed → full claim button/modal
+            */}
             {!isOwner && (
-              <div className="claim-card">
-                <div className="claim-title">Own this business?</div>
-                <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
-                <Link href="/register" className="claim-btn">🏷️ Claim This Listing</Link>
-              </div>
+              biz.claimed ? (
+                <div className="claim-card">
+                  <div className="claim-title">Listing claimed</div>
+                  <div className="claim-already">✅ This listing has already been claimed.</div>
+                </div>
+              ) : (
+                <div className="claim-card">
+                  <div className="claim-title">Own this business?</div>
+                  <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
+                  {claimSuccess ? (
+                    <div className="claim-success-msg">✅ Claim request submitted. Check your email to verify and finish setting up your account.</div>
+                  ) : (
+                    <button type="button" className="claim-btn" onClick={() => setShowClaimModal(true)}>🏷️ Claim This Listing</button>
+                  )}
+                </div>
+              )
             )}
           </div>
         </div>
       </main>
+
+      {showClaimModal && (
+        <div className="claim-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowClaimModal(false); }}>
+          <div className="claim-modal">
+            <div className="cm-header">
+              <div className="cm-title">🏷️ Claim This Listing</div>
+              <button className="cm-close" onClick={() => setShowClaimModal(false)} aria-label="Close">✕</button>
+            </div>
+            <div className="cm-sub">Fill in your details and create a login. We&apos;ll verify your claim and transfer the listing to your account.</div>
+
+            <div className="cm-field">
+              <label className="cm-label">Your Name *</label>
+              <input className="cm-input" type="text" placeholder="Full name" value={claimForm.name} onChange={e => setClaimForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label">Phone *</label>
+              <input className="cm-input" type="tel" placeholder="e.g. 9876543210" value={claimForm.phone} onChange={e => setClaimForm(f => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label">Email *</label>
+              <input className="cm-input" type="email" placeholder="you@example.com" value={claimForm.email} onChange={e => setClaimForm(f => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label">Designation</label>
+              <input className="cm-input" type="text" placeholder="e.g. Owner, Manager" value={claimForm.designation} onChange={e => setClaimForm(f => ({ ...f, designation: e.target.value }))} />
+            </div>
+            {claimError && <div className="cm-error">{claimError}</div>}
+
+            <button
+              className="cm-submit"
+              onClick={submitClaim}
+              disabled={claimLoading || !claimForm.name || !claimForm.phone || !claimForm.email}
+            >
+              {claimLoading ? 'Submitting…' : 'Submit Claim Request'}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -622,6 +711,27 @@ const styles = `
   .claim-sub { font-size: 11px; color: var(--text2); line-height: 1.6; margin-bottom: 14px; }
   .claim-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 10px; border-radius: 10px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-border); font-size: 12px; font-weight: 700; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; text-decoration: none; }
   .claim-btn:hover { background: var(--red); color: #fff; border-color: var(--red); }
+  .claim-success-msg { font-size: 12px; color: #27ae60; background: rgba(39,174,96,0.1); border: 1px solid rgba(39,174,96,0.2); border-radius: 10px; padding: 10px 12px; line-height: 1.5; }
+  .claim-already { font-size: 12px; color: var(--text2); line-height: 1.5; }
+
+  .claim-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.15s ease; }
+  .claim-modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px; width: 100%; max-width: 420px; animation: fadeUp 0.2s cubic-bezier(0.22,1,0.36,1) both; }
+  .cm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .cm-title { font-size: 15px; font-weight: 800; }
+  .cm-close { background: none; border: none; color: var(--text2); font-size: 16px; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1; transition: color 0.15s; font-family: 'Sora', sans-serif; }
+  .cm-close:hover { color: var(--text); }
+  .cm-sub { font-size: 12px; color: var(--text2); line-height: 1.6; margin-bottom: 20px; }
+  .cm-divider { height: 1px; background: var(--border); margin: 16px 0 12px; }
+  .cm-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 12px; }
+  .cm-field { margin-bottom: 12px; }
+  .cm-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); margin-bottom: 6px; }
+  .cm-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; outline: none; transition: border-color 0.2s; }
+  .cm-input:focus { border-color: rgba(255,255,255,0.2); }
+  .cm-input::placeholder { color: var(--text3); }
+  .cm-error { font-size: 12px; color: #e74c3c; background: rgba(231,76,60,0.08); border: 1px solid rgba(231,76,60,0.2); border-radius: 8px; padding: 9px 12px; margin-bottom: 12px; }
+  .cm-submit { width: 100%; padding: 13px; background: var(--red); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: 'Sora', sans-serif; margin-top: 4px; transition: opacity 0.2s; }
+  .cm-submit:hover:not(:disabled) { opacity: 0.85; }
+  .cm-submit:disabled { opacity: 0.45; cursor: not-allowed; }
 
   @media (max-width: 900px) {
     .content { grid-template-columns: 1fr; padding: 0 20px 80px; }
