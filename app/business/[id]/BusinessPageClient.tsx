@@ -29,6 +29,7 @@ type Business = {
   is_verified?: boolean;
   plan?: string;
   owner_id?: string | null;
+  claimed?: boolean | null;
   created_at?: string;
 };
 
@@ -437,16 +438,28 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               </div>
             </div>
 
+            {/* Claim card:
+                - isOwner            → hidden entirely
+                - !isOwner + claimed → "already claimed" notice
+                - !isOwner + !claimed → full claim button/modal
+            */}
             {!isOwner && (
-              <div className="claim-card">
-                <div className="claim-title">Own this business?</div>
-                <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
-                {claimSuccess ? (
-                  <div className="claim-success-msg">✅ Claim request submitted. We&apos;ll review it soon.</div>
-                ) : (
-                  <button type="button" className="claim-btn" onClick={() => setShowClaimModal(true)}>🏷️ Claim This Listing</button>
-                )}
-              </div>
+              biz.claimed ? (
+                <div className="claim-card">
+                  <div className="claim-title">Listing claimed</div>
+                  <div className="claim-already">✅ This listing has already been claimed.</div>
+                </div>
+              ) : (
+                <div className="claim-card">
+                  <div className="claim-title">Own this business?</div>
+                  <div className="claim-sub">Claim your listing to manage your profile, reply to reviews, and see who&apos;s finding you.</div>
+                  {claimSuccess ? (
+                    <div className="claim-success-msg">✅ Claim request submitted. We&apos;ll review it soon.</div>
+                  ) : (
+                    <button type="button" className="claim-btn" onClick={() => setShowClaimModal(true)}>🏷️ Claim This Listing</button>
+                  )}
+                </div>
+              )
             )}
           </div>
         </div>
@@ -694,6 +707,7 @@ const styles = `
   .claim-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 10px; border-radius: 10px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-border); font-size: 12px; font-weight: 700; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; text-decoration: none; }
   .claim-btn:hover { background: var(--red); color: #fff; border-color: var(--red); }
   .claim-success-msg { font-size: 12px; color: #27ae60; background: rgba(39,174,96,0.1); border: 1px solid rgba(39,174,96,0.2); border-radius: 10px; padding: 10px 12px; line-height: 1.5; }
+  .claim-already { font-size: 12px; color: var(--text2); line-height: 1.5; }
 
   .claim-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.15s ease; }
   .claim-modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px; width: 100%; max-width: 420px; animation: fadeUp 0.2s cubic-bezier(0.22,1,0.36,1) both; }
