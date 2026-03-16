@@ -355,7 +355,7 @@ export default function HomePage() {
           {NAV_QUICK.map((n) => (
             <button key={n.label} className="nl" onClick={() => quickSearch(n.query)}>{n.label}</button>
           ))}
-          <a href="/real-estate" className="nl">Real Estate</a>
+          <a href="/real-estate" className="nl-re">Real Estate</a>
         </div>
         {!mounted ? (
           <span className="nav-avatar nav-avatar-placeholder" aria-hidden />
@@ -692,6 +692,8 @@ const pageStyles = `
   .nav-links{display:flex;gap:2px;}
   .nl{padding:7px 13px;font-size:12px;color:var(--muted);border-radius:6px;font-weight:500;cursor:pointer;transition:all 0.15s;background:none;border:none;font-family:'Sora',sans-serif;}
   .nl:hover{color:var(--white);background:rgba(255,255,255,0.05);}
+  .nl-re{padding:7px 14px;font-size:12px;color:rgba(255,255,255,0.65);border-radius:20px;font-weight:600;cursor:pointer;transition:all 0.15s;background:none;border:1px solid rgba(192,57,43,0.28);font-family:'Sora',sans-serif;text-decoration:none;}
+  .nl-re:hover{color:var(--white);border-color:rgba(192,57,43,0.55);background:var(--red-bg);}
   .nav-cta-btn{
     padding:9px 20px;
     background:var(--red);
