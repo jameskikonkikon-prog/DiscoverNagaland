@@ -57,15 +57,15 @@ export default function RealEstatePage() {
         .re-nav-tag{font-size:12px;font-weight:600;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);padding:3px 10px;border-radius:999px;}
         .re-nav-back{font-size:13px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:5px;transition:color 0.15s;}
         .re-nav-back:hover{color:var(--off);}
-        .re-hero{position:relative;z-index:1;text-align:center;padding:80px 24px 60px;}
-        .re-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.2);padding:5px 14px;border-radius:999px;margin-bottom:28px;}
-        .re-hero h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(36px,6.5vw,64px);font-weight:700;line-height:1.12;letter-spacing:-0.01em;margin-bottom:22px;color:var(--white);}
-        .re-hero h1 span{color:var(--red);}
-        .re-hero p{font-size:clamp(15px,2vw,17.5px);color:rgba(255,255,255,0.52);max-width:500px;margin:0 auto 40px;line-height:1.78;font-weight:400;letter-spacing:0.01em;}
+        .re-hero{position:relative;z-index:1;text-align:center;padding:96px 24px 68px;}
+        .re-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.2);padding:6px 16px;border-radius:999px;margin-bottom:32px;}
+        .re-hero h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(40px,7.5vw,76px);font-weight:700;line-height:1.06;letter-spacing:-0.015em;margin-bottom:26px;color:var(--white);}
+        .re-hero h1 span{color:var(--red);font-style:italic;}
+        .re-hero p{font-family:'Sora',sans-serif;font-size:clamp(15.5px,2.1vw,18px);color:rgba(255,255,255,0.5);max-width:480px;margin:0 auto 44px;line-height:1.82;font-weight:400;letter-spacing:0.008em;}
         .re-hero-cta{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;}
-        .re-btn-primary{background:var(--red);color:#fff;font-size:14px;font-weight:600;padding:11px 26px;border-radius:10px;text-decoration:none;border:none;cursor:pointer;font-family:'Sora',sans-serif;transition:background 0.15s;}
+        .re-btn-primary{background:var(--red);color:#fff;font-size:13.5px;font-weight:600;letter-spacing:0.02em;padding:12px 28px;border-radius:10px;text-decoration:none;border:none;cursor:pointer;font-family:'Sora',sans-serif;transition:background 0.15s;}
         .re-btn-primary:hover{background:var(--red2);}
-        .re-btn-ghost{background:transparent;color:var(--off);font-size:14px;font-weight:500;padding:11px 22px;border-radius:10px;text-decoration:none;border:1px solid var(--border2);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
+        .re-btn-ghost{background:transparent;color:rgba(255,255,255,0.7);font-size:13.5px;font-weight:500;letter-spacing:0.01em;padding:12px 24px;border-radius:10px;text-decoration:none;border:1px solid var(--border2);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
         .re-btn-ghost:hover{border-color:rgba(255,255,255,0.25);color:var(--white);}
         .re-cats{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:0 24px 48px;}
         .re-cat-card{display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px 28px;cursor:pointer;text-decoration:none;transition:all 0.15s;min-width:110px;}
@@ -73,8 +73,8 @@ export default function RealEstatePage() {
         .re-cat-icon{font-size:24px;}
         .re-cat-label{font-size:11.5px;font-weight:600;color:var(--off);letter-spacing:0.02em;}
         .re-section{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:0 24px 80px;}
-        .re-section-title{font-size:20px;font-weight:700;color:var(--white);margin-bottom:6px;letter-spacing:-0.02em;}
-        .re-section-sub{font-size:14px;color:var(--muted);margin-bottom:24px;}
+        .re-section-title{font-family:'Playfair Display',Georgia,serif;font-size:24px;font-weight:700;color:var(--white);margin-bottom:6px;letter-spacing:-0.01em;line-height:1.2;}
+        .re-section-sub{font-size:13.5px;color:var(--muted);margin-bottom:24px;letter-spacing:0.01em;}
         .re-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;}
         .re-filter-btn{font-size:12px;font-weight:600;padding:7px 16px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
         .re-filter-btn.active{background:var(--red-bg);border-color:rgba(192,57,43,0.35);color:var(--white);}
@@ -87,7 +87,7 @@ export default function RealEstatePage() {
         .re-card-type{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--red);margin-bottom:6px;}
         .re-card-title{font-size:15px;font-weight:600;color:var(--white);margin-bottom:5px;line-height:1.45;letter-spacing:-0.01em;}
         .re-card-loc{font-size:12.5px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:4px;}
-        .re-card-price{font-size:17px;font-weight:700;color:var(--white);}
+        .re-card-price{font-size:17px;font-weight:700;color:var(--white);letter-spacing:-0.02em;}
         .re-card-meta{display:flex;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
         .re-card-meta span{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:4px;}
         .re-empty{text-align:center;padding:80px 24px;}
