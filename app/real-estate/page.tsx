@@ -11,7 +11,7 @@ interface Property {
   city: string
   locality: string | null
   landmark: string | null
-  price: string
+  price: number
   price_unit: string | null
   area: number | null
   area_unit: string | null
@@ -206,7 +206,7 @@ export default function RealEstatePage() {
                   <div className="re-card-type">{p.property_type || 'Property'}</div>
                   <div className="re-card-title">{p.title}</div>
                   <div className="re-card-loc">📍 {p.city}{p.locality ? `, ${p.locality}` : ''}</div>
-                  <div className="re-card-price">{p.price}{p.price_unit ? <span style={{fontSize:'12px',fontWeight:400,color:'var(--muted)',marginLeft:5}}>{p.price_unit}</span> : null}</div>
+                  <div className="re-card-price">₹{Number(p.price).toLocaleString('en-IN')}{p.price_unit ? <span style={{fontSize:'12px',fontWeight:400,color:'var(--muted)',marginLeft:5}}>{p.price_unit}</span> : null}</div>
                   {(p.area) && (
                     <div className="re-card-meta">
                       <span>📐 {p.area} {p.area_unit || 'sqft'}</span>
