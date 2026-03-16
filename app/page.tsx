@@ -409,6 +409,23 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* REAL ESTATE BANNER */}
+      <div className="re-banner">
+        <div className="re-inner">
+          <div className="re-left">
+            <div className="re-eyebrow">Real Estate in Nagaland</div>
+            <div className="re-headline">Buy, sell or rent<br/>property — Kohima &amp; Dimapur</div>
+            <div className="re-pills">
+              <span className="re-pill">Land for sale</span>
+              <span className="re-pill">Houses for sale</span>
+              <span className="re-pill">Apartments for rent</span>
+              <span className="re-pill">Houses for rent</span>
+            </div>
+          </div>
+          <a href="/real-estate" className="re-cta">Browse Properties →</a>
+        </div>
+      </div>
+
       {/* MAIN GRID */}
       <div className="main-grid">
         {/* LEFT COLUMN */}
@@ -1208,6 +1225,52 @@ const pageStyles = `
     30%{transform:translateY(-5px);}
   }
 
+  /* ── REAL ESTATE BANNER ── */
+  .re-banner{
+    position:relative;z-index:1;
+    padding:0 28px 36px;
+    max-width:1100px;margin:0 auto;
+  }
+  .re-inner{
+    display:flex;align-items:center;justify-content:space-between;gap:24px;
+    background:linear-gradient(120deg,#130a08 0%,#0f0f0f 60%,#0a0a0a 100%);
+    border:1px solid rgba(192,57,43,0.22);
+    border-left:3px solid var(--red);
+    border-radius:14px;
+    padding:28px 32px;
+    box-shadow:0 8px 40px rgba(192,57,43,0.07);
+  }
+  .re-left{flex:1;}
+  .re-eyebrow{
+    font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;
+    color:var(--red);margin-bottom:10px;
+  }
+  .re-headline{
+    font-family:'Playfair Display',serif;
+    font-size:clamp(18px,2.4vw,26px);
+    font-weight:700;line-height:1.2;
+    color:var(--white);margin-bottom:16px;
+  }
+  .re-pills{display:flex;flex-wrap:wrap;gap:8px;}
+  .re-pill{
+    padding:5px 13px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:20px;
+    font-size:11.5px;color:var(--off);font-weight:400;
+  }
+  .re-cta{
+    flex-shrink:0;
+    padding:14px 28px;
+    background:var(--red);
+    border-radius:10px;
+    font-size:13px;font-weight:700;color:white;
+    text-decoration:none;white-space:nowrap;
+    box-shadow:0 4px 20px rgba(192,57,43,0.3);
+    transition:all 0.15s;
+  }
+  .re-cta:hover{background:var(--red2);transform:translateY(-1px);box-shadow:0 6px 24px rgba(192,57,43,0.4);}
+
   /* Responsive */
   @media(max-width:860px){
     .main-grid{grid-template-columns:1fr;}
@@ -1217,6 +1280,9 @@ const pageStyles = `
     .yana-nav{padding:0 16px;}
     .nav-links{display:none;}
     .hero{padding:48px 16px 36px;}
+    .re-banner{padding:0 16px 28px;}
+    .re-inner{flex-direction:column;align-items:flex-start;padding:20px 20px;}
+    .re-cta{width:100%;text-align:center;}
     .main-grid{padding:0 16px 40px;}
     .featured-grid{grid-template-columns:1fr;}
     .ai-chat{width:calc(100vw - 32px);right:16px;bottom:72px;}
