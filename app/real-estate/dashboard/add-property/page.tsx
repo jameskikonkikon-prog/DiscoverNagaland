@@ -1,6 +1,55 @@
 'use client'
 
+import { useState } from 'react'
+
+const EMPTY = {
+  title: '', property_type: '', listing_type: '', city: '', locality: '',
+  landmark: '', price: '', price_unit: '', area: '', area_unit: '',
+  description: '', posted_by_name: '', phone: '', whatsapp: '',
+}
+
+const REQUIRED = ['title', 'property_type', 'listing_type', 'city', 'price'] as const
+
 export default function AddPropertyPage() {
+  const [form, setForm] = useState(EMPTY)
+  const [errors, setErrors] = useState<Partial<typeof EMPTY>>({})
+  const [submitted, setSubmitted] = useState(false)
+
+  function set(field: keyof typeof EMPTY, value: string) {
+    setForm(f => ({ ...f, [field]: value }))
+    if (errors[field]) setErrors(e => ({ ...e, [field]: '' }))
+  }
+
+  function validate() {
+    const next: Partial<typeof EMPTY> = {}
+    if (!form.title.trim()) next.title = 'Required'
+    if (!form.property_type) next.property_type = 'Select a type'
+    if (!form.listing_type) next.listing_type = 'Select sale or rent'
+    if (!form.city.trim()) next.city = 'Required'
+    if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0) next.price = 'Enter a valid price'
+    return next
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    setSubmitted(true)
+  }
+
+  const inp = (field: keyof typeof EMPTY, extra?: React.InputHTMLAttributes<HTMLInputElement>) => ({
+    className: 'aw-input' + (errors[field] ? ' aw-input-err' : ''),
+    value: form[field],
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(field, e.target.value),
+    ...extra,
+  })
+
+  const sel = (field: keyof typeof EMPTY) => ({
+    className: 'aw-select' + (errors[field] ? ' aw-input-err' : ''),
+    value: form[field],
+    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => set(field, e.target.value),
+  })
+
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', fontFamily: "'Sora', sans-serif", color: 'var(--white)' }}>
       <style>{`
@@ -25,29 +74,34 @@ export default function AddPropertyPage() {
         .aw-row{display:grid;gap:14px;margin-bottom:14px;}
         .aw-row:last-child{margin-bottom:0;}
         .aw-row.cols2{grid-template-columns:1fr 1fr;}
-        .aw-row.cols3{grid-template-columns:1fr 1fr 1fr;}
         .aw-field{display:flex;flex-direction:column;gap:5px;}
         .aw-label{font-size:11.5px;font-weight:600;color:rgba(255,255,255,0.55);letter-spacing:0.02em;}
+        .aw-hint{font-size:11px;color:rgba(255,255,255,0.25);margin-top:2px;}
+        .aw-err{font-size:11px;color:#e05a4a;margin-top:3px;}
         .aw-input{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:14px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;}
         .aw-input::placeholder{color:var(--muted);}
         .aw-input:focus{border-color:rgba(192,57,43,0.4);}
+        .aw-input-err{border-color:rgba(224,90,74,0.5) !important;}
         .aw-select{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:14px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.3)' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;}
         .aw-select:focus{border-color:rgba(192,57,43,0.4);}
+        .aw-select option{background:var(--bg3);}
         .aw-textarea{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:14px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;resize:vertical;min-height:96px;line-height:1.6;}
         .aw-textarea::placeholder{color:var(--muted);}
         .aw-textarea:focus{border-color:rgba(192,57,43,0.4);}
-        .aw-photo-area{background:var(--bg3);border:1.5px dashed var(--border2);border-radius:12px;padding:28px 20px;text-align:center;cursor:not-allowed;}
+        .aw-photo-area{background:var(--bg3);border:1.5px dashed var(--border2);border-radius:12px;padding:28px 20px;text-align:center;}
         .aw-photo-icon{font-size:26px;margin-bottom:8px;}
         .aw-photo-label{font-size:13px;font-weight:600;color:var(--off);margin-bottom:4px;}
         .aw-photo-sub{font-size:11.5px;color:var(--muted);}
         .aw-photo-badge{display:inline-block;margin-top:10px;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);background:var(--bg4);border:1px solid var(--border);padding:3px 10px;border-radius:999px;}
         .aw-footer{margin-top:28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
         .aw-footer-note{font-size:12px;color:rgba(255,255,255,0.2);line-height:1.5;}
-        .aw-submit{background:rgba(192,57,43,0.2);color:rgba(255,255,255,0.3);font-size:14px;font-weight:700;letter-spacing:0.02em;padding:12px 32px;border-radius:10px;border:1px solid rgba(192,57,43,0.2);cursor:not-allowed;font-family:'Sora',sans-serif;}
-        @media(max-width:600px){.aw{padding:36px 16px 60px;}.aw-row.cols2,.aw-row.cols3{grid-template-columns:1fr;}}
+        .aw-submit{background:var(--red);color:#fff;font-size:14px;font-weight:700;letter-spacing:0.02em;padding:12px 32px;border-radius:10px;border:none;cursor:pointer;font-family:'Sora',sans-serif;transition:background 0.15s;}
+        .aw-submit:hover{background:var(--red2);}
+        .aw-notice{background:rgba(232,169,8,0.07);border:1px solid rgba(232,169,8,0.2);border-radius:12px;padding:14px 18px;display:flex;align-items:flex-start;gap:10px;margin-top:20px;}
+        .aw-notice-text{font-size:13px;color:rgba(232,169,8,0.85);line-height:1.55;}
+        @media(max-width:600px){.aw{padding:36px 16px 60px;}.aw-row.cols2{grid-template-columns:1fr;}}
       `}</style>
 
-      {/* NAV */}
       <nav className="an">
         <div className="an-left">
           <a href="/" className="an-logo">Yana Nagaland</a>
@@ -64,144 +118,168 @@ export default function AddPropertyPage() {
       <div className="aw">
         <div className="aw-eyebrow"><span>➕</span><span>New Listing</span></div>
         <h1 className="aw-title">Add a Property</h1>
-        <p className="aw-sub">Fill in the details below. Submission flow is coming next — this form is a preview.</p>
+        <p className="aw-sub">Fill in the details below. No data is saved yet — submission flow is coming next.</p>
 
-        {/* BASIC INFO */}
-        <div className="aw-group">
-          <div className="aw-group-label">Basic Info</div>
-          <div className="aw-row">
-            <div className="aw-field">
-              <label className="aw-label">Listing Title</label>
-              <input className="aw-input" type="text" placeholder="e.g. 3BHK House for Sale in Kohima" disabled />
-            </div>
-          </div>
-          <div className="aw-row cols2">
-            <div className="aw-field">
-              <label className="aw-label">Property Type</label>
-              <select className="aw-select" disabled>
-                <option value="">Select type</option>
-                <option value="land">Land</option>
-                <option value="house">House</option>
-                <option value="apartment">Apartment</option>
-                <option value="commercial">Commercial</option>
-              </select>
-            </div>
-            <div className="aw-field">
-              <label className="aw-label">Listing Type</label>
-              <select className="aw-select" disabled>
-                <option value="">Select</option>
-                <option value="sale">For Sale</option>
-                <option value="rent">For Rent</option>
-              </select>
-            </div>
-          </div>
-        </div>
+        <form onSubmit={handleSubmit} noValidate>
 
-        {/* LOCATION */}
-        <div className="aw-group">
-          <div className="aw-group-label">Location</div>
-          <div className="aw-row cols2">
-            <div className="aw-field">
-              <label className="aw-label">City / District</label>
-              <input className="aw-input" type="text" placeholder="e.g. Kohima" disabled />
+          {/* BASIC INFO */}
+          <div className="aw-group">
+            <div className="aw-group-label">Basic Info</div>
+            <div className="aw-row">
+              <div className="aw-field">
+                <label className="aw-label">Listing Title *</label>
+                <input {...inp('title')} type="text" placeholder="e.g. 3BHK House for Sale in Kohima" />
+                {errors.title && <div className="aw-err">{errors.title}</div>}
+              </div>
             </div>
-            <div className="aw-field">
-              <label className="aw-label">Locality / Area</label>
-              <input className="aw-input" type="text" placeholder="e.g. Midland" disabled />
+            <div className="aw-row cols2">
+              <div className="aw-field">
+                <label className="aw-label">Property Type *</label>
+                <select {...sel('property_type')}>
+                  <option value="">Select type</option>
+                  <option value="land">Land</option>
+                  <option value="house">House</option>
+                  <option value="apartment">Apartment</option>
+                  <option value="commercial">Commercial</option>
+                </select>
+                {errors.property_type && <div className="aw-err">{errors.property_type}</div>}
+              </div>
+              <div className="aw-field">
+                <label className="aw-label">Listing Type *</label>
+                <select {...sel('listing_type')}>
+                  <option value="">Select</option>
+                  <option value="sale">For Sale</option>
+                  <option value="rent">For Rent</option>
+                </select>
+                {errors.listing_type && <div className="aw-err">{errors.listing_type}</div>}
+              </div>
             </div>
           </div>
-          <div className="aw-row">
-            <div className="aw-field">
-              <label className="aw-label">Landmark (optional)</label>
-              <input className="aw-input" type="text" placeholder="e.g. Near DC Office" disabled />
-            </div>
-          </div>
-        </div>
 
-        {/* PRICING & SIZE */}
-        <div className="aw-group">
-          <div className="aw-group-label">Pricing & Size</div>
-          <div className="aw-row cols2">
-            <div className="aw-field">
-              <label className="aw-label">Price (₹)</label>
-              <input className="aw-input" type="number" placeholder="e.g. 2800000" disabled />
+          {/* LOCATION */}
+          <div className="aw-group">
+            <div className="aw-group-label">Location</div>
+            <div className="aw-row cols2">
+              <div className="aw-field">
+                <label className="aw-label">City / District *</label>
+                <input {...inp('city')} type="text" placeholder="e.g. Kohima" />
+                {errors.city && <div className="aw-err">{errors.city}</div>}
+              </div>
+              <div className="aw-field">
+                <label className="aw-label">Locality / Area</label>
+                <input {...inp('locality')} type="text" placeholder="e.g. Midland" />
+              </div>
             </div>
-            <div className="aw-field">
-              <label className="aw-label">Price Unit</label>
-              <select className="aw-select" disabled>
-                <option value="">Select</option>
-                <option value="total">Total</option>
-                <option value="per month">Per Month</option>
-                <option value="per sqft">Per Sqft</option>
-              </select>
-            </div>
-          </div>
-          <div className="aw-row cols2">
-            <div className="aw-field">
-              <label className="aw-label">Area</label>
-              <input className="aw-input" type="number" placeholder="e.g. 1200" disabled />
-            </div>
-            <div className="aw-field">
-              <label className="aw-label">Area Unit</label>
-              <select className="aw-select" disabled>
-                <option value="">Select</option>
-                <option value="sqft">Sqft</option>
-                <option value="bigha">Bigha</option>
-                <option value="acre">Acre</option>
-                <option value="gaj">Gaj</option>
-              </select>
+            <div className="aw-row">
+              <div className="aw-field">
+                <label className="aw-label">Landmark <span style={{fontWeight:400,opacity:0.5}}>(optional)</span></label>
+                <input {...inp('landmark')} type="text" placeholder="e.g. Near DC Office" />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* DESCRIPTION */}
-        <div className="aw-group">
-          <div className="aw-group-label">Description</div>
-          <div className="aw-row">
-            <div className="aw-field">
-              <label className="aw-label">About this property</label>
-              <textarea className="aw-textarea" placeholder="Describe the property — location highlights, condition, access, etc." disabled />
+          {/* PRICING & SIZE */}
+          <div className="aw-group">
+            <div className="aw-group-label">Pricing & Size</div>
+            <div className="aw-row cols2">
+              <div className="aw-field">
+                <label className="aw-label">Price (₹) *</label>
+                <input {...inp('price')} type="number" placeholder="e.g. 2800000" min="0" />
+                <div className="aw-hint">Enter total amount in rupees</div>
+                {errors.price && <div className="aw-err">{errors.price}</div>}
+              </div>
+              <div className="aw-field">
+                <label className="aw-label">Price Unit</label>
+                <select {...sel('price_unit')}>
+                  <option value="">Select</option>
+                  <option value="total">Total</option>
+                  <option value="per month">Per Month</option>
+                  <option value="per sqft">Per Sqft</option>
+                </select>
+              </div>
+            </div>
+            <div className="aw-row cols2">
+              <div className="aw-field">
+                <label className="aw-label">Area</label>
+                <input {...inp('area')} type="number" placeholder="e.g. 1200" min="0" />
+                <div className="aw-hint">Leave blank if not applicable</div>
+              </div>
+              <div className="aw-field">
+                <label className="aw-label">Area Unit</label>
+                <select {...sel('area_unit')}>
+                  <option value="">Select</option>
+                  <option value="sqft">Sqft</option>
+                  <option value="bigha">Bigha</option>
+                  <option value="acre">Acre</option>
+                  <option value="gaj">Gaj</option>
+                </select>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* PHOTOS */}
-        <div className="aw-group">
-          <div className="aw-group-label">Photos</div>
-          <div className="aw-photo-area">
-            <div className="aw-photo-icon">📷</div>
-            <div className="aw-photo-label">Upload photos</div>
-            <div className="aw-photo-sub">Up to 10 images · JPG, PNG · Max 5MB each</div>
-            <div className="aw-photo-badge">Photo upload coming soon</div>
+          {/* DESCRIPTION */}
+          <div className="aw-group">
+            <div className="aw-group-label">Description</div>
+            <div className="aw-row">
+              <div className="aw-field">
+                <label className="aw-label">About this property</label>
+                <textarea
+                  className="aw-textarea"
+                  placeholder="Describe the property — location highlights, condition, road access, etc."
+                  value={form.description}
+                  onChange={e => set('description', e.target.value)}
+                />
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* CONTACT */}
-        <div className="aw-group">
-          <div className="aw-group-label">Contact Details</div>
-          <div className="aw-row">
-            <div className="aw-field">
-              <label className="aw-label">Your Name</label>
-              <input className="aw-input" type="text" placeholder="e.g. Vizolie Angami" disabled />
+          {/* PHOTOS */}
+          <div className="aw-group">
+            <div className="aw-group-label">Photos</div>
+            <div className="aw-photo-area">
+              <div className="aw-photo-icon">📷</div>
+              <div className="aw-photo-label">Upload photos</div>
+              <div className="aw-photo-sub">Up to 10 images · JPG, PNG · Max 5MB each</div>
+              <div className="aw-photo-badge">Photo upload coming soon</div>
             </div>
           </div>
-          <div className="aw-row cols2">
-            <div className="aw-field">
-              <label className="aw-label">Phone</label>
-              <input className="aw-input" type="tel" placeholder="e.g. 9862000000" disabled />
-            </div>
-            <div className="aw-field">
-              <label className="aw-label">WhatsApp (optional)</label>
-              <input className="aw-input" type="tel" placeholder="e.g. 9862000000" disabled />
-            </div>
-          </div>
-        </div>
 
-        {/* FOOTER */}
-        <div className="aw-footer">
-          <div className="aw-footer-note">Submission flow coming next.<br />No data is saved when you click Submit.</div>
-          <button className="aw-submit" disabled>Submit Listing</button>
-        </div>
+          {/* CONTACT */}
+          <div className="aw-group">
+            <div className="aw-group-label">Contact Details</div>
+            <div className="aw-row">
+              <div className="aw-field">
+                <label className="aw-label">Your Name</label>
+                <input {...inp('posted_by_name')} type="text" placeholder="e.g. Vizolie Angami" />
+              </div>
+            </div>
+            <div className="aw-row cols2">
+              <div className="aw-field">
+                <label className="aw-label">Phone</label>
+                <input {...inp('phone')} type="tel" placeholder="e.g. 9862000000" />
+              </div>
+              <div className="aw-field">
+                <label className="aw-label">WhatsApp <span style={{fontWeight:400,opacity:0.5}}>(optional)</span></label>
+                <input {...inp('whatsapp')} type="tel" placeholder="e.g. 9862000000" />
+              </div>
+            </div>
+          </div>
+
+          <div className="aw-footer">
+            <div className="aw-footer-note">No data is saved yet.<br />Submission flow is coming next.</div>
+            <button type="submit" className="aw-submit">Submit Listing</button>
+          </div>
+
+          {submitted && (
+            <div className="aw-notice">
+              <span>⚡</span>
+              <div className="aw-notice-text">
+                <strong style={{color:'rgba(232,169,8,0.95)'}}>Form looks good!</strong> Submission backend is coming next — nothing was saved. Your inputs are ready to wire up.
+              </div>
+            </div>
+          )}
+
+        </form>
       </div>
     </div>
   )
