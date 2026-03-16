@@ -66,7 +66,7 @@ export default function RealEstatePage() {
         .re-nav-tag{font-size:12px;font-weight:600;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);padding:3px 10px;border-radius:999px;}
         .re-nav-back{font-size:13px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:5px;transition:color 0.15s;}
         .re-nav-back:hover{color:var(--off);}
-        .re-hero{position:relative;z-index:1;text-align:center;padding:96px 24px 68px;}
+        .re-hero{position:relative;z-index:1;text-align:center;padding:60px 24px 44px;}
         .re-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.2);padding:6px 16px;border-radius:999px;margin-bottom:32px;}
         .re-hero h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(38px,6.8vw,66px);font-weight:700;line-height:1.1;letter-spacing:-0.015em;margin-bottom:26px;color:var(--white);}
         .re-hero h1 span{color:var(--red);}
@@ -76,7 +76,7 @@ export default function RealEstatePage() {
         .re-btn-primary:hover{background:var(--red2);}
         .re-btn-ghost{background:transparent;color:rgba(255,255,255,0.7);font-size:13.5px;font-weight:500;letter-spacing:0.01em;padding:12px 24px;border-radius:10px;text-decoration:none;border:1px solid var(--border2);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
         .re-btn-ghost:hover{border-color:rgba(255,255,255,0.25);color:var(--white);}
-        .re-cats{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:0 24px 48px;}
+        .re-cats{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:0 24px 36px;}
         .re-cat-card{display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px 28px;cursor:pointer;text-decoration:none;transition:all 0.15s;min-width:110px;}
         .re-cat-card:hover{border-color:rgba(192,57,43,0.3);background:rgba(192,57,43,0.05);}
         .re-cat-icon{font-size:24px;}
@@ -91,20 +91,27 @@ export default function RealEstatePage() {
         .re-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;}
         .re-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color 0.15s,transform 0.15s;}
         .re-card:hover{border-color:rgba(192,57,43,0.3);transform:translateY(-2px);}
-        .re-card-img{width:100%;height:180px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:36px;color:var(--muted);}
+        .re-card-img{position:relative;width:100%;height:180px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+        .re-no-photo{display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0.55;}
+        .re-no-photo-icon{font-size:32px;}
+        .re-no-photo-label{font-size:10.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);}
         .re-card-body{padding:16px 18px 18px;}
-        .re-card-type{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--red);margin-bottom:6px;}
+        .re-card-type-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+        .re-card-type{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--red);}
+        .re-card-featured{font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#e8a908;background:rgba(232,169,8,0.1);border:1px solid rgba(232,169,8,0.25);padding:2px 8px;border-radius:999px;}
         .re-card-title{font-size:15px;font-weight:600;color:var(--white);margin-bottom:5px;line-height:1.45;letter-spacing:-0.01em;}
         .re-card-loc{font-size:12.5px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:4px;}
         .re-card-price{font-size:17px;font-weight:700;color:var(--white);letter-spacing:-0.02em;}
-        .re-card-meta{display:flex;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
-        .re-card-meta span{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:4px;}
+        .re-card-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+        .re-card-meta-area{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:4px;}
+        .re-badge-sale{font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.2);padding:2px 9px;border-radius:999px;}
+        .re-badge-rent{font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:#3ba88f;background:rgba(59,168,143,0.08);border:1px solid rgba(59,168,143,0.2);padding:2px 9px;border-radius:999px;}
         .re-empty{text-align:center;padding:80px 24px;}
         .re-empty-icon{font-size:48px;margin-bottom:16px;opacity:0.4;}
         .re-empty-title{font-size:19px;font-weight:600;color:var(--off);margin-bottom:8px;letter-spacing:-0.02em;}
         .re-empty-sub{font-size:14px;color:var(--muted);max-width:380px;margin:0 auto 28px;}
         .re-divider{height:1px;background:var(--border);margin:0 0 60px;}
-        @media(max-width:600px){.re-hero{padding:60px 20px 44px;}.re-section{padding:0 16px 60px;}.re-cats{padding:0 16px 40px;}.re-cat-card{min-width:90px;padding:16px 18px;}}
+        @media(max-width:600px){.re-hero{padding:44px 20px 32px;}.re-section{padding:0 16px 60px;}.re-cats{padding:0 16px 28px;}.re-cat-card{min-width:90px;padding:16px 18px;}}
       `}</style>
 
       {/* NAV */}
@@ -200,19 +207,27 @@ export default function RealEstatePage() {
                 <div className="re-card-img">
                   {p.photos && p.photos.length > 0
                     ? <img src={p.photos[0]} alt={p.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : '🏡'}
+                    : (
+                      <div className="re-no-photo">
+                        <span className="re-no-photo-icon">
+                          {p.property_type === 'land' ? '🌿' : p.property_type === 'apartment' ? '🏢' : p.property_type === 'commercial' ? '🏪' : '🏠'}
+                        </span>
+                        <span className="re-no-photo-label">No photo</span>
+                      </div>
+                    )}
                 </div>
                 <div className="re-card-body">
-                  <div className="re-card-type">{p.property_type || 'Property'}</div>
+                  <div className="re-card-type-row">
+                    <span className="re-card-type">{p.property_type || 'Property'}</span>
+                    {p.is_featured && <span className="re-card-featured">★ Featured</span>}
+                  </div>
                   <div className="re-card-title">{p.title}</div>
                   <div className="re-card-loc">📍 {p.city}{p.locality ? `, ${p.locality}` : ''}</div>
                   <div className="re-card-price">₹{Number(p.price).toLocaleString('en-IN')}{p.price_unit ? <span style={{fontSize:'12px',fontWeight:400,color:'var(--muted)',marginLeft:5}}>{p.price_unit}</span> : null}</div>
-                  {(p.area) && (
-                    <div className="re-card-meta">
-                      <span>📐 {p.area} {p.area_unit || 'sqft'}</span>
-                      {p.listing_type && <span>{p.listing_type === 'rent' ? '🔑 For Rent' : '🏷 For Sale'}</span>}
-                    </div>
-                  )}
+                  <div className="re-card-meta">
+                    {p.area && <span className="re-card-meta-area">📐 {p.area} {p.area_unit || 'sqft'}</span>}
+                    {p.listing_type && <span className={p.listing_type === 'rent' ? 're-badge-rent' : 're-badge-sale'}>{p.listing_type === 'rent' ? 'For Rent' : 'For Sale'}</span>}
+                  </div>
                 </div>
               </div>
             ))}
