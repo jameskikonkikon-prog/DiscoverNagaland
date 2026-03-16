@@ -700,10 +700,10 @@ const pageStyles = `
   .nl:hover{color:var(--white);background:rgba(255,255,255,0.05);}
   .nl-re{padding:7px 14px;font-size:12px;color:rgba(255,255,255,0.65);border-radius:20px;font-weight:600;cursor:pointer;transition:all 0.15s;background:none;border:1px solid rgba(192,57,43,0.28);font-family:'Sora',sans-serif;text-decoration:none;}
   .nl-re:hover{color:var(--white);border-color:rgba(192,57,43,0.55);background:var(--red-bg);}
-  .re-pointer{text-align:center;padding:0 28px 40px;font-size:14.5px;}
-  .re-pointer-text{color:var(--off);}
-  .re-pointer-link{color:var(--red);font-size:14.5px;font-weight:600;text-decoration:none;margin-left:10px;transition:opacity 0.15s;}
-  .re-pointer-link:hover{opacity:0.75;}
+  .re-pointer{display:flex;align-items:center;gap:14px;width:fit-content;margin:0 auto;margin-bottom:40px;padding:10px 22px;background:rgba(192,57,43,0.06);border:1px solid rgba(192,57,43,0.18);border-radius:999px;font-size:13.5px;}
+  .re-pointer-text{color:var(--off);font-weight:400;}
+  .re-pointer-link{color:var(--red);font-weight:600;text-decoration:none;padding-left:14px;border-left:1px solid rgba(192,57,43,0.2);transition:opacity 0.15s;white-space:nowrap;}
+  .re-pointer-link:hover{opacity:0.7;}
   .nav-cta-btn{
     padding:9px 20px;
     background:var(--red);
