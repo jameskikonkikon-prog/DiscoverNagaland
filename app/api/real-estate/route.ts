@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from('properties')
       .select('*')
+      .eq('is_available', true)
       .order('created_at', { ascending: false });
 
     if (error) {
