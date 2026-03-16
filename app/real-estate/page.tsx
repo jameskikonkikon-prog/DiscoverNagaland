@@ -6,16 +6,22 @@ import { useEffect, useState } from 'react'
 interface Property {
   id: string
   title: string
-  type: string
+  property_type: string
+  listing_type: string
+  city: string
+  locality: string | null
+  landmark: string | null
   price: string
-  location: string
-  area: string | null
-  bedrooms: number | null
-  bathrooms: number | null
-  size_sqft: number | null
+  price_unit: string | null
+  area: number | null
+  area_unit: string | null
   description: string | null
   photos: string[] | null
-  status: string
+  posted_by_name: string | null
+  phone: string | null
+  whatsapp: string | null
+  is_available: boolean
+  is_featured: boolean
   created_at: string
 }
 
@@ -41,7 +47,10 @@ export default function RealEstatePage() {
   }, [])
 
   const filtered = filter
-    ? properties.filter(p => p.type?.toLowerCase() === filter)
+    ? properties.filter(p => {
+        if (filter === 'rental') return p.listing_type === 'rent'
+        return p.property_type?.toLowerCase() === filter
+      })
     : properties
 
   return (
@@ -194,15 +203,14 @@ export default function RealEstatePage() {
                     : '🏡'}
                 </div>
                 <div className="re-card-body">
-                  <div className="re-card-type">{p.type || 'Property'}</div>
+                  <div className="re-card-type">{p.property_type || 'Property'}</div>
                   <div className="re-card-title">{p.title}</div>
-                  <div className="re-card-loc">📍 {p.location}{p.area ? `, ${p.area}` : ''}</div>
-                  <div className="re-card-price">{p.price}</div>
-                  {(p.bedrooms || p.bathrooms || p.size_sqft) && (
+                  <div className="re-card-loc">📍 {p.city}{p.locality ? `, ${p.locality}` : ''}</div>
+                  <div className="re-card-price">{p.price}{p.price_unit ? <span style={{fontSize:'12px',fontWeight:400,color:'var(--muted)',marginLeft:5}}>{p.price_unit}</span> : null}</div>
+                  {(p.area) && (
                     <div className="re-card-meta">
-                      {p.bedrooms && <span>🛏 {p.bedrooms} bed</span>}
-                      {p.bathrooms && <span>🚿 {p.bathrooms} bath</span>}
-                      {p.size_sqft && <span>📐 {p.size_sqft} sqft</span>}
+                      <span>📐 {p.area} {p.area_unit || 'sqft'}</span>
+                      {p.listing_type && <span>{p.listing_type === 'rent' ? '🔑 For Rent' : '🏷 For Sale'}</span>}
                     </div>
                   )}
                 </div>
