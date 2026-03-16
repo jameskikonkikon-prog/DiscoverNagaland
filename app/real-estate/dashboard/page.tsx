@@ -29,7 +29,7 @@ export default function RealEstateDashboard() {
         .dw-stat-val{font-size:26px;font-weight:800;letter-spacing:-0.04em;color:var(--white);margin-bottom:4px;}
         .dw-stat-label{font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);}
         .dw-stat-note{font-size:10.5px;color:rgba(255,255,255,0.2);margin-top:6px;}
-        .dw-add{background:var(--bg2);border:1px solid rgba(192,57,43,0.3);border-radius:16px;padding:28px 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:28px;cursor:not-allowed;transition:border-color 0.15s;}
+        .dw-add{background:var(--bg2);border:1px solid rgba(192,57,43,0.3);border-radius:16px;padding:28px 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:28px;cursor:pointer;text-decoration:none;transition:border-color 0.15s;}
         .dw-add:hover{border-color:rgba(192,57,43,0.5);background:rgba(192,57,43,0.04);}
         .dw-add-left{display:flex;align-items:center;gap:16px;}
         .dw-add-icon{width:44px;height:44px;background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
@@ -111,7 +111,7 @@ export default function RealEstateDashboard() {
         </div>
 
         {/* ADD NEW PROPERTY — primary CTA */}
-        <div className="dw-add">
+        <a href="/real-estate/dashboard/add-property" className="dw-add">
           <div className="dw-add-left">
             <div className="dw-add-icon">➕</div>
             <div>
@@ -119,8 +119,8 @@ export default function RealEstateDashboard() {
               <div className="dw-add-desc">Post land, a house, apartment, or commercial space.</div>
             </div>
           </div>
-          <div className="dw-add-cta">Coming Soon</div>
-        </div>
+          <div className="dw-add-cta" style={{color:'var(--red)',background:'var(--red-bg)',borderColor:'rgba(192,57,43,0.3)'}}>Add Property →</div>
+        </a>
 
         {/* MANAGEMENT CARDS */}
         <div className="dw-section-label">Manage Listings</div>
