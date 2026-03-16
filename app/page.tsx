@@ -31,6 +31,13 @@ const SEARCH_CHIPS = [
   { emoji: '🏡', label: 'Rental house 2BHK', query: '2BHK rental house Dimapur under Rs.8000' },
 ];
 
+const RE_SAMPLE = [
+  { id: 1, title: '3BHK House for Sale', property_type: 'House', listing_type: 'For Sale', city: 'Dimapur', locality: 'NST Colony', price: '₹45L', area: '1,800 sq ft' },
+  { id: 2, title: 'Land Plot — Phesama', property_type: 'Land',  listing_type: 'For Sale', city: 'Kohima',  locality: 'Phesama Village', price: '₹18L', area: '4,000 sq ft' },
+  { id: 3, title: '2BHK Apartment Rental', property_type: 'Apartment', listing_type: 'For Rent', city: 'Dimapur', locality: 'Duncan Basti',    price: '₹7,500/mo', area: '950 sq ft' },
+  { id: 4, title: '4BHK House for Rent',  property_type: 'House', listing_type: 'For Rent', city: 'Kohima',  locality: 'Tsiminyu Colony', price: '₹12,000/mo', area: '2,200 sq ft' },
+];
+
 const NAV_QUICK = [
   { label: 'PG & Rentals', query: 'PG rooms and hostels Dimapur' },
   { label: 'Food', query: 'Best restaurants and cafés Dimapur Kohima' },
@@ -423,6 +430,30 @@ export default function HomePage() {
             </div>
           </div>
           <a href="/real-estate" className="re-cta">Browse Properties →</a>
+        </div>
+      </div>
+
+      {/* REAL ESTATE PREVIEW */}
+      <div className="re-preview">
+        <div className="re-preview-head">
+          <span className="sec-title">Latest Properties</span>
+          <a href="/real-estate" className="sec-more">View all properties →</a>
+        </div>
+        <div className="re-preview-grid">
+          {RE_SAMPLE.map((p) => (
+            <a key={p.id} href="/real-estate" className="re-card">
+              <div className="re-card-top">
+                <span className="re-card-type">{p.property_type}</span>
+                <span className={`re-card-badge ${p.listing_type === 'For Sale' ? 're-sale' : 're-rent'}`}>{p.listing_type}</span>
+              </div>
+              <div className="re-card-title">{p.title}</div>
+              <div className="re-card-loc">📍 {p.locality}, {p.city}</div>
+              <div className="re-card-foot">
+                <span className="re-card-price">{p.price}</span>
+                <span className="re-card-area">{p.area}</span>
+              </div>
+            </a>
+          ))}
         </div>
       </div>
 
@@ -1271,10 +1302,47 @@ const pageStyles = `
   }
   .re-cta:hover{background:var(--red2);transform:translateY(-1px);box-shadow:0 6px 24px rgba(192,57,43,0.4);}
 
+  /* ── REAL ESTATE PREVIEW ── */
+  .re-preview{
+    position:relative;z-index:1;
+    padding:0 28px 40px;
+    max-width:1100px;margin:0 auto;
+  }
+  .re-preview-head{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .re-preview-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+  }
+  .re-card{
+    background:var(--bg2);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px;
+    text-decoration:none;color:inherit;
+    display:flex;flex-direction:column;gap:8px;
+    transition:all 0.15s;
+  }
+  .re-card:hover{background:var(--bg3);border-color:var(--border2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3);}
+  .re-card-top{display:flex;align-items:center;justify-content:space-between;}
+  .re-card-type{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;}
+  .re-card-badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;}
+  .re-sale{background:var(--gold-bg);color:var(--gold);}
+  .re-rent{background:var(--red-bg);color:var(--red);}
+  .re-card-title{font-size:13px;font-weight:700;color:var(--white);line-height:1.3;}
+  .re-card-loc{font-size:11.5px;color:var(--muted);font-weight:300;}
+  .re-card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:4px;}
+  .re-card-price{font-size:14px;font-weight:700;color:var(--red);font-family:'Playfair Display',serif;}
+  .re-card-area{font-size:11px;color:var(--muted2);}
+
   /* Responsive */
   @media(max-width:860px){
     .main-grid{grid-template-columns:1fr;}
     .sidebar{display:none;}
+    .re-preview-grid{grid-template-columns:repeat(2,1fr);}
   }
   @media(max-width:520px){
     .yana-nav{padding:0 16px;}
@@ -1283,6 +1351,8 @@ const pageStyles = `
     .re-banner{padding:0 16px 28px;}
     .re-inner{flex-direction:column;align-items:flex-start;padding:20px 20px;}
     .re-cta{width:100%;text-align:center;}
+    .re-preview{padding:0 16px 32px;}
+    .re-preview-grid{grid-template-columns:repeat(2,1fr);}
     .main-grid{padding:0 16px 40px;}
     .featured-grid{grid-template-columns:1fr;}
     .ai-chat{width:calc(100vw - 32px);right:16px;bottom:72px;}
