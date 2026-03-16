@@ -45,7 +45,11 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { title, property_type, listing_type, city, price, ...rest } = body;
+    const {
+      title, property_type, listing_type, city, locality, landmark,
+      price, price_unit, area, area_unit, description, photos,
+      posted_by_name, phone, whatsapp,
+    } = body;
 
     // Validate required fields
     if (!title?.trim()) return NextResponse.json({ error: 'title is required' }, { status: 400 });
@@ -58,14 +62,26 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from('properties')
       .insert({
-        ...rest,
+        // explicit allowlist — no ...rest
         title: title.trim(),
         property_type: property_type.trim(),
         listing_type: listing_type.trim(),
         city: city.trim(),
         price: Number(price),
+        ...(locality    && { locality: String(locality).trim() }),
+        ...(landmark    && { landmark: String(landmark).trim() }),
+        ...(price_unit  && { price_unit: String(price_unit).trim() }),
+        ...(area        && { area: String(area).trim() }),
+        ...(area_unit   && { area_unit: String(area_unit).trim() }),
+        ...(description && { description: String(description).trim() }),
+        ...(photos      && { photos }),
+        ...(posted_by_name && { posted_by_name: String(posted_by_name).trim() }),
+        ...(phone       && { phone: String(phone).trim() }),
+        ...(whatsapp    && { whatsapp: String(whatsapp).trim() }),
+        // server-controlled — never from client
         owner_id: user.id,
         is_available: true,
+        is_featured: false,
         last_verified_at: new Date().toISOString(),
       })
       .select()
