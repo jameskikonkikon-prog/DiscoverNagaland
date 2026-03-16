@@ -31,13 +31,6 @@ const SEARCH_CHIPS = [
   { emoji: '🏡', label: 'Rental house 2BHK', query: '2BHK rental house Dimapur under Rs.8000' },
 ];
 
-const RE_SAMPLE = [
-  { id: 1, title: '3BHK House for Sale', property_type: 'House', listing_type: 'For Sale', city: 'Dimapur', locality: 'NST Colony', price: '₹45L', area: '1,800 sq ft' },
-  { id: 2, title: 'Land Plot — Phesama', property_type: 'Land',  listing_type: 'For Sale', city: 'Kohima',  locality: 'Phesama Village', price: '₹18L', area: '4,000 sq ft' },
-  { id: 3, title: '2BHK Apartment Rental', property_type: 'Apartment', listing_type: 'For Rent', city: 'Dimapur', locality: 'Duncan Basti',    price: '₹7,500/mo', area: '950 sq ft' },
-  { id: 4, title: '4BHK House for Rent',  property_type: 'House', listing_type: 'For Rent', city: 'Kohima',  locality: 'Tsiminyu Colony', price: '₹12,000/mo', area: '2,200 sq ft' },
-];
-
 const NAV_QUICK = [
   { label: 'PG & Rentals', query: 'PG rooms and hostels Dimapur' },
   { label: 'Food', query: 'Best restaurants and cafés Dimapur Kohima' },
@@ -413,47 +406,6 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* REAL ESTATE BANNER */}
-      <div className="re-banner">
-        <div className="re-inner">
-          <div className="re-left">
-            <div className="re-eyebrow">Real Estate in Nagaland</div>
-            <div className="re-headline">Buy, sell or rent<br/>property — Kohima &amp; Dimapur</div>
-            <div className="re-pills">
-              <span className="re-pill">Land for sale</span>
-              <span className="re-pill">Houses for sale</span>
-              <span className="re-pill">Apartments for rent</span>
-              <span className="re-pill">Houses for rent</span>
-            </div>
-          </div>
-          <a href="/real-estate" className="re-cta">Browse Properties →</a>
-        </div>
-      </div>
-
-      {/* REAL ESTATE PREVIEW */}
-      <div className="re-preview">
-        <div className="re-preview-head">
-          <span className="sec-title">Latest Properties</span>
-          <a href="/real-estate" className="sec-more">View all properties →</a>
-        </div>
-        <div className="re-preview-grid">
-          {RE_SAMPLE.map((p) => (
-            <a key={p.id} href="/real-estate" className="re-card">
-              <div className="re-card-top">
-                <span className="re-card-type">{p.property_type}</span>
-                <span className={`re-card-badge ${p.listing_type === 'For Sale' ? 're-sale' : 're-rent'}`}>{p.listing_type}</span>
-              </div>
-              <div className="re-card-title">{p.title}</div>
-              <div className="re-card-loc">📍 {p.locality}, {p.city}</div>
-              <div className="re-card-foot">
-                <span className="re-card-price">{p.price}</span>
-                <span className="re-card-area">{p.area}</span>
-              </div>
-            </a>
-          ))}
         </div>
       </div>
 
@@ -1256,103 +1208,15 @@ const pageStyles = `
     30%{transform:translateY(-5px);}
   }
 
-  /* ── REAL ESTATE BANNER ── */
-  .re-banner{
-    position:relative;z-index:1;
-    padding:0 28px 36px;
-    max-width:1100px;margin:0 auto;
-  }
-  .re-inner{
-    display:flex;align-items:center;justify-content:space-between;gap:24px;
-    background:linear-gradient(120deg,#130a08 0%,#0f0f0f 60%,#0a0a0a 100%);
-    border:1px solid rgba(192,57,43,0.22);
-    border-left:3px solid var(--red);
-    border-radius:14px;
-    padding:28px 32px;
-    box-shadow:0 8px 40px rgba(192,57,43,0.07);
-  }
-  .re-left{flex:1;}
-  .re-eyebrow{
-    font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;
-    color:var(--red);margin-bottom:10px;
-  }
-  .re-headline{
-    font-family:'Playfair Display',serif;
-    font-size:clamp(18px,2.4vw,26px);
-    font-weight:700;line-height:1.2;
-    color:var(--white);margin-bottom:16px;
-  }
-  .re-pills{display:flex;flex-wrap:wrap;gap:8px;}
-  .re-pill{
-    padding:5px 13px;
-    background:rgba(255,255,255,0.04);
-    border:1px solid rgba(255,255,255,0.08);
-    border-radius:20px;
-    font-size:11.5px;color:var(--off);font-weight:400;
-  }
-  .re-cta{
-    flex-shrink:0;
-    padding:14px 28px;
-    background:var(--red);
-    border-radius:10px;
-    font-size:13px;font-weight:700;color:white;
-    text-decoration:none;white-space:nowrap;
-    box-shadow:0 4px 20px rgba(192,57,43,0.3);
-    transition:all 0.15s;
-  }
-  .re-cta:hover{background:var(--red2);transform:translateY(-1px);box-shadow:0 6px 24px rgba(192,57,43,0.4);}
-
-  /* ── REAL ESTATE PREVIEW ── */
-  .re-preview{
-    position:relative;z-index:1;
-    padding:0 28px 40px;
-    max-width:1100px;margin:0 auto;
-  }
-  .re-preview-head{
-    display:flex;align-items:center;justify-content:space-between;
-    margin-bottom:14px;
-  }
-  .re-preview-grid{
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:12px;
-  }
-  .re-card{
-    background:var(--bg2);
-    border:1px solid var(--border);
-    border-radius:12px;
-    padding:16px;
-    text-decoration:none;color:inherit;
-    display:flex;flex-direction:column;gap:8px;
-    transition:all 0.15s;
-  }
-  .re-card:hover{background:var(--bg3);border-color:var(--border2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3);}
-  .re-card-top{display:flex;align-items:center;justify-content:space-between;}
-  .re-card-type{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;}
-  .re-card-badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;}
-  .re-sale{background:var(--gold-bg);color:var(--gold);}
-  .re-rent{background:var(--red-bg);color:var(--red);}
-  .re-card-title{font-size:13px;font-weight:700;color:var(--white);line-height:1.3;}
-  .re-card-loc{font-size:11.5px;color:var(--muted);font-weight:300;}
-  .re-card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:4px;}
-  .re-card-price{font-size:14px;font-weight:700;color:var(--red);font-family:'Playfair Display',serif;}
-  .re-card-area{font-size:11px;color:var(--muted2);}
-
   /* Responsive */
   @media(max-width:860px){
     .main-grid{grid-template-columns:1fr;}
     .sidebar{display:none;}
-    .re-preview-grid{grid-template-columns:repeat(2,1fr);}
   }
   @media(max-width:520px){
     .yana-nav{padding:0 16px;}
     .nav-links{display:none;}
     .hero{padding:48px 16px 36px;}
-    .re-banner{padding:0 16px 28px;}
-    .re-inner{flex-direction:column;align-items:flex-start;padding:20px 20px;}
-    .re-cta{width:100%;text-align:center;}
-    .re-preview{padding:0 16px 32px;}
-    .re-preview-grid{grid-template-columns:repeat(2,1fr);}
     .main-grid{padding:0 16px 40px;}
     .featured-grid{grid-template-columns:1fr;}
     .ai-chat{width:calc(100vw - 32px);right:16px;bottom:72px;}
