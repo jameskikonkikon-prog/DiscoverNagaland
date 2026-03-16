@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
       .from('properties')
       .select('*')
       .eq('is_available', true)
+      .gte('last_verified_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false });
 
     if (error) {
