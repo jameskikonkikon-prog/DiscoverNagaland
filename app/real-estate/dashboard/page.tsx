@@ -146,15 +146,15 @@ export default function RealEstateDashboard() {
           <div className="dw-pricing-head">
             <div>
               <div className="dw-pricing-title">Real Estate Pricing</div>
-              <div className="dw-pricing-sub">Separate from the main business directory. List properties at their own rates.</div>
+              <div className="dw-pricing-sub">Separate from the main business directory. Plans are being finalised — early listings are free.</div>
             </div>
-            <div className="dw-pricing-badge">Separate Plans</div>
+            <div className="dw-pricing-badge">Coming Soon</div>
           </div>
           <div className="dw-plans">
             <div className="dw-plan">
               <div className="dw-plan-name">Free</div>
               <div className="dw-plan-price">₹0</div>
-              <div className="dw-plan-cycle">1 listing · forever</div>
+              <div className="dw-plan-cycle">during early access</div>
               <div className="dw-plan-features">
                 <div className="dw-plan-feature">1 active listing</div>
                 <div className="dw-plan-feature">Basic detail page</div>
@@ -163,8 +163,8 @@ export default function RealEstateDashboard() {
             </div>
             <div className="dw-plan featured">
               <div className="dw-plan-name">Pro Listing</div>
-              <div className="dw-plan-price">₹199</div>
-              <div className="dw-plan-cycle">per listing · one-time</div>
+              <div className="dw-plan-price">TBD</div>
+              <div className="dw-plan-cycle">pricing being decided</div>
               <div className="dw-plan-features">
                 <div className="dw-plan-feature">Up to 10 photos</div>
                 <div className="dw-plan-feature">Featured badge</div>
@@ -173,8 +173,8 @@ export default function RealEstateDashboard() {
             </div>
             <div className="dw-plan">
               <div className="dw-plan-name">Agent / Broker</div>
-              <div className="dw-plan-price">₹499</div>
-              <div className="dw-plan-cycle">per month · unlimited</div>
+              <div className="dw-plan-price">TBD</div>
+              <div className="dw-plan-cycle">pricing being decided</div>
               <div className="dw-plan-features">
                 <div className="dw-plan-feature">Unlimited listings</div>
                 <div className="dw-plan-feature">Lead notifications</div>
