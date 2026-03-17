@@ -24,6 +24,7 @@ export default function EditPropertyPage() {
   const [uploadError, setUploadError] = useState('')
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [brokenThumbs, setBrokenThumbs] = useState<Set<number>>(new Set())
   const [submitting, setSubmitting] = useState(false)
   const [apiError, setApiError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -340,8 +341,16 @@ export default function EditPropertyPage() {
                 <div className="aw-photo-grid">
                   {photos.map((url, i) => (
                     <div key={url} className="aw-thumb">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt={`Photo ${i + 1}`} />
+                      {brokenThumbs.has(i) ? (
+                        <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,opacity:0.35}}>🖼️</div>
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={url}
+                          alt={`Photo ${i + 1}`}
+                          onError={() => setBrokenThumbs(prev => new Set(prev).add(i))}
+                        />
+                      )}
                       <button
                         type="button"
                         className="aw-thumb-rm"
