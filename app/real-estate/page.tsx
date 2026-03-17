@@ -38,6 +38,7 @@ export default function RealEstatePage() {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
+  const [brokenImgs, setBrokenImgs] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch('/api/real-estate')
@@ -208,8 +209,13 @@ export default function RealEstatePage() {
             {filtered.map(p => (
               <div key={p.id} className="re-card">
                 <div className="re-card-img">
-                  {p.photos && p.photos.length > 0
-                    ? <img src={p.photos[0]} alt={p.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {p.photos && p.photos.length > 0 && !brokenImgs.has(p.id)
+                    ? <img
+                        src={p.photos[0]}
+                        alt={p.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={() => setBrokenImgs(prev => new Set(prev).add(p.id))}
+                      />
                     : (
                       <div className="re-no-photo">
                         <span className="re-no-photo-icon">
