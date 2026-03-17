@@ -10,6 +10,8 @@ const EMPTY = {
   description: '', posted_by_name: '', phone: '', whatsapp: '',
 }
 
+const MAX_PHOTOS = 10
+
 const REQUIRED = ['title', 'property_type', 'listing_type', 'city', 'price'] as const
 
 export default function AddPropertyPage() {
@@ -19,6 +21,9 @@ export default function AddPropertyPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [apiError, setApiError] = useState('')
+  const [photos, setPhotos] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -29,6 +34,37 @@ export default function AddPropertyPage() {
       if (!session) router.push('/login')
     })
   }, [router])
+
+  async function handlePhotoFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (!files.length) return
+    if (photos.length + files.length > MAX_PHOTOS) {
+      setUploadError(`Max ${MAX_PHOTOS} photos allowed`)
+      return
+    }
+    setUploading(true)
+    setUploadError('')
+    try {
+      const fd = new FormData()
+      files.forEach(f => fd.append('files', f))
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const json = await res.json()
+      if (!res.ok) {
+        setUploadError(json.error ?? 'Upload failed. Please try again.')
+      } else {
+        setPhotos(prev => [...prev, ...json.urls])
+      }
+    } catch {
+      setUploadError('Network error during upload. Please try again.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function removePhoto(idx: number) {
+    setPhotos(prev => prev.filter((_, i) => i !== idx))
+  }
 
   function set(field: keyof typeof EMPTY, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -72,6 +108,7 @@ export default function AddPropertyPage() {
           posted_by_name: form.posted_by_name,
           phone: form.phone,
           whatsapp: form.whatsapp,
+          photos: photos.length ? photos : undefined,
         }),
       })
 
@@ -145,11 +182,21 @@ export default function AddPropertyPage() {
         .aw-textarea{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:14px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;resize:vertical;min-height:96px;line-height:1.6;}
         .aw-textarea::placeholder{color:var(--muted);}
         .aw-textarea:focus{border-color:rgba(192,57,43,0.4);}
-        .aw-photo-area{background:var(--bg3);border:1.5px dashed var(--border2);border-radius:12px;padding:28px 20px;text-align:center;}
-        .aw-photo-icon{font-size:26px;margin-bottom:8px;}
+        .aw-photo-area{background:var(--bg3);border:1.5px dashed var(--border2);border-radius:12px;padding:22px 20px;text-align:center;transition:border-color 0.15s;cursor:pointer;}
+        .aw-photo-area:hover{border-color:rgba(192,57,43,0.35);}
+        .aw-photo-icon{font-size:24px;margin-bottom:8px;}
         .aw-photo-label{font-size:13px;font-weight:600;color:var(--off);margin-bottom:4px;}
         .aw-photo-sub{font-size:11.5px;color:var(--muted);}
-        .aw-photo-badge{display:inline-block;margin-top:10px;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);background:var(--bg4);border:1px solid var(--border);padding:3px 10px;border-radius:999px;}
+        .aw-photo-btn{display:inline-block;margin-top:12px;font-size:12px;font-weight:600;color:#fff;background:var(--red);border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-family:'Sora',sans-serif;transition:background 0.15s;}
+        .aw-photo-btn:hover{background:var(--red2);}
+        .aw-photo-btn:disabled{opacity:0.5;cursor:default;}
+        .aw-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;margin-bottom:12px;}
+        .aw-thumb{position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:var(--bg4);border:1px solid var(--border);}
+        .aw-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+        .aw-thumb-rm{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:999px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.12s;}
+        .aw-thumb-rm:hover{background:rgba(192,57,43,0.85);}
+        .aw-upload-err{font-size:11.5px;color:#e05a4a;margin-top:8px;}
+        .aw-upload-spin{font-size:12px;color:var(--muted);margin-top:8px;}
         .aw-footer{margin-top:28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
         .aw-footer-note{font-size:12px;color:rgba(255,255,255,0.2);line-height:1.5;}
         .aw-submit{background:var(--red);color:#fff;font-size:14px;font-weight:700;letter-spacing:0.02em;padding:12px 32px;border-radius:10px;border:none;cursor:pointer;font-family:'Sora',sans-serif;transition:background 0.15s;}
@@ -292,13 +339,43 @@ export default function AddPropertyPage() {
 
           {/* PHOTOS */}
           <div className="aw-group">
-            <div className="aw-group-label">Photos</div>
-            <div className="aw-photo-area">
-              <div className="aw-photo-icon">📷</div>
-              <div className="aw-photo-label">Upload photos</div>
-              <div className="aw-photo-sub">Up to 10 images · JPG, PNG · Max 5MB each</div>
-              <div className="aw-photo-badge">Photo upload coming soon</div>
-            </div>
+            <div className="aw-group-label">Photos <span style={{fontWeight:400,opacity:0.4}}>({photos.length}/{MAX_PHOTOS})</span></div>
+            {photos.length > 0 && (
+              <div className="aw-photo-grid" style={{marginBottom:12}}>
+                {photos.map((url, i) => (
+                  <div key={url} className="aw-thumb">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Photo ${i + 1}`} />
+                    <button
+                      type="button"
+                      className="aw-thumb-rm"
+                      onClick={() => removePhoto(i)}
+                      aria-label="Remove photo"
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {photos.length < MAX_PHOTOS && (
+              <label className="aw-photo-area" style={{display:'block'}}>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  style={{display:'none'}}
+                  onChange={handlePhotoFiles}
+                  disabled={uploading}
+                />
+                <div className="aw-photo-icon">📷</div>
+                <div className="aw-photo-label">{photos.length === 0 ? 'Add photos' : 'Add more photos'}</div>
+                <div className="aw-photo-sub">JPG, PNG, WebP · Max 5 MB each · Up to {MAX_PHOTOS} total</div>
+                <div className="aw-photo-btn" style={{pointerEvents:'none'}}>
+                  {uploading ? 'Uploading…' : 'Choose Files'}
+                </div>
+              </label>
+            )}
+            {uploading && <div className="aw-upload-spin">Uploading photos…</div>}
+            {uploadError && <div className="aw-upload-err">{uploadError}</div>}
           </div>
 
           {/* CONTACT */}
