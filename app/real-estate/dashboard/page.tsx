@@ -43,8 +43,30 @@ export default function RealEstateDashboard() {
   const [loading,      setLoading]      = useState(true)
   const [properties,   setProperties]   = useState<Property[]>([])
   const [activeCount,  setActiveCount]  = useState(0)
-  const [refreshing,   setRefreshing]   = useState<string | null>(null)
-  const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [refreshing,    setRefreshing]    = useState<string | null>(null)
+  const [refreshError,  setRefreshError]  = useState<string | null>(null)
+  const [disabling,     setDisabling]     = useState<string | null>(null)
+  const [disableError,  setDisableError]  = useState<string | null>(null)
+
+  async function handleDisable(id: string) {
+    setDisabling(id)
+    setDisableError(null)
+    try {
+      const res = await fetch('/api/real-estate', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setDisableError(json.error ?? 'Failed to update listing'); return }
+      setProperties(prev => prev.map(p => p.id === id ? { ...p, is_available: false } : p))
+      setActiveCount(prev => Math.max(0, prev - 1))
+    } catch {
+      setDisableError('Network error. Please try again.')
+    } finally {
+      setDisabling(null)
+    }
+  }
 
   async function handleRefresh(id: string) {
     setRefreshing(id)
@@ -166,11 +188,15 @@ export default function RealEstateDashboard() {
         .ml-empty-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
         .ml-empty-btn{display:inline-block;background:var(--red);color:#fff;font-size:13px;font-weight:600;padding:11px 24px;border-radius:10px;text-decoration:none;transition:background 0.15s;}
         .ml-empty-btn:hover{background:var(--red2);}
-        .ml-refresh{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;margin-top:8px;display:block;width:100%;}
+        .ml-actions{display:flex;flex-direction:column;gap:5px;margin-top:8px;}
+        .ml-refresh{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
         .ml-refresh:hover:not(:disabled){border-color:rgba(59,168,143,0.4);color:var(--teal);}
         .ml-refresh.urgent{border-color:rgba(232,169,8,0.35);color:var(--gold);}
         .ml-refresh.urgent:hover:not(:disabled){border-color:rgba(232,169,8,0.6);background:rgba(232,169,8,0.06);}
         .ml-refresh:disabled{opacity:0.45;cursor:default;}
+        .ml-disable{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid rgba(192,57,43,0.2);background:transparent;color:rgba(192,57,43,0.6);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
+        .ml-disable:hover:not(:disabled){border-color:rgba(192,57,43,0.45);color:var(--red);background:var(--red-bg);}
+        .ml-disable:disabled{opacity:0.4;cursor:default;}
         .ml-err{font-size:11px;color:#e05a4a;margin-top:6px;text-align:right;}
         .skeleton{background:var(--bg3);border-radius:14px;animation:pulse 1.4s ease-in-out infinite;}
         @keyframes pulse{0%,100%{opacity:0.35;}50%{opacity:0.7;}}
@@ -280,19 +306,32 @@ export default function RealEstateDashboard() {
                         ? `Verified ${new Date(p.last_verified_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`
                         : 'Not verified'}
                     </div>
-                    <button
-                      className={`ml-refresh${needsRefresh ? ' urgent' : ''}`}
-                      onClick={() => handleRefresh(p.id)}
-                      disabled={isRefreshing || !!refreshing}
-                    >
-                      {isRefreshing ? 'Refreshing…' : needsRefresh ? '⚡ Refresh Now' : '↻ Refresh'}
-                    </button>
+                    <div className="ml-actions">
+                      <button
+                        className={`ml-refresh${needsRefresh ? ' urgent' : ''}`}
+                        onClick={() => handleRefresh(p.id)}
+                        disabled={isRefreshing || !!refreshing || !!disabling}
+                      >
+                        {isRefreshing ? 'Refreshing…' : needsRefresh ? '⚡ Refresh Now' : '↻ Refresh'}
+                      </button>
+                      {p.is_available && (
+                        <button
+                          className="ml-disable"
+                          onClick={() => handleDisable(p.id)}
+                          disabled={!!disabling || !!refreshing}
+                        >
+                          {disabling === p.id ? 'Updating…' : '✕ Mark as Sold / Rented'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )
             })}
-            {refreshError && !refreshing && (
-              <div style={{fontSize:12,color:'#e05a4a',textAlign:'right',marginTop:-6}}>{refreshError}</div>
+            {(refreshError || disableError) && (
+              <div style={{fontSize:12,color:'#e05a4a',textAlign:'right',marginTop:-6}}>
+                {disableError || refreshError}
+              </div>
             )}
           </div>
         )}
