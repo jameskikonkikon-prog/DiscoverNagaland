@@ -156,6 +156,7 @@ export async function PUT(req: NextRequest) {
 }
 
 
+export async function PATCH(req: NextRequest) {
   try {
     const cookieStore = await cookies();
     const authClient = createServerClient(
