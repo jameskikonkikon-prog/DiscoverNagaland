@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
+import { useRouter } from 'next/navigation'
 
 const EMPTY = {
   title: '', property_type: '', listing_type: '', city: '', locality: '',
@@ -11,9 +13,22 @@ const EMPTY = {
 const REQUIRED = ['title', 'property_type', 'listing_type', 'city', 'price'] as const
 
 export default function AddPropertyPage() {
+  const router = useRouter()
   const [form, setForm] = useState(EMPTY)
   const [errors, setErrors] = useState<Partial<typeof EMPTY>>({})
-  const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [apiError, setApiError] = useState('')
+
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) router.push('/login')
+    })
+  }, [router])
 
   function set(field: keyof typeof EMPTY, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -30,11 +45,53 @@ export default function AddPropertyPage() {
     return next
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
-    setSubmitted(true)
+
+    setSubmitting(true)
+    setApiError('')
+
+    try {
+      const res = await fetch('/api/real-estate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: form.title,
+          property_type: form.property_type,
+          listing_type: form.listing_type,
+          city: form.city,
+          locality: form.locality,
+          landmark: form.landmark,
+          price: form.price,
+          price_unit: form.price_unit,
+          area: form.area,
+          area_unit: form.area_unit,
+          description: form.description,
+          posted_by_name: form.posted_by_name,
+          phone: form.phone,
+          whatsapp: form.whatsapp,
+        }),
+      })
+
+      const json = await res.json()
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          router.push('/login')
+          return
+        }
+        setApiError(json.error ?? 'Something went wrong. Please try again.')
+      } else {
+        setSuccess(true)
+        setForm(EMPTY)
+      }
+    } catch {
+      setApiError('Network error. Please check your connection and try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const inp = (field: keyof typeof EMPTY, extra?: React.InputHTMLAttributes<HTMLInputElement>) => ({
@@ -118,7 +175,7 @@ export default function AddPropertyPage() {
       <div className="aw">
         <div className="aw-eyebrow"><span>➕</span><span>New Listing</span></div>
         <h1 className="aw-title">Add a Property</h1>
-        <p className="aw-sub">Fill in the details below. No data is saved yet — submission flow is coming next.</p>
+        <p className="aw-sub">Fill in the details below and submit to list your property.</p>
 
         <form onSubmit={handleSubmit} noValidate>
 
@@ -266,15 +323,27 @@ export default function AddPropertyPage() {
           </div>
 
           <div className="aw-footer">
-            <div className="aw-footer-note">No data is saved yet.<br />Submission flow is coming next.</div>
-            <button type="submit" className="aw-submit">Submit Listing</button>
+            <div className="aw-footer-note">Your listing will be visible after review.</div>
+            <button type="submit" className="aw-submit" disabled={submitting}>
+              {submitting ? 'Submitting…' : 'Submit Listing'}
+            </button>
           </div>
 
-          {submitted && (
-            <div className="aw-notice">
-              <span>⚡</span>
-              <div className="aw-notice-text">
-                <strong style={{color:'rgba(232,169,8,0.95)'}}>Form looks good!</strong> Submission backend is coming next — nothing was saved. Your inputs are ready to wire up.
+          {apiError && (
+            <div className="aw-notice" style={{background:'rgba(192,57,43,0.07)',borderColor:'rgba(192,57,43,0.25)',marginTop:20}}>
+              <span>⚠️</span>
+              <div className="aw-notice-text" style={{color:'rgba(220,80,70,0.9)'}}>
+                {apiError}
+              </div>
+            </div>
+          )}
+
+          {success && (
+            <div className="aw-notice" style={{background:'rgba(59,168,143,0.07)',borderColor:'rgba(59,168,143,0.25)',marginTop:20}}>
+              <span>✅</span>
+              <div className="aw-notice-text" style={{color:'rgba(59,168,143,0.9)'}}>
+                <strong>Property listed!</strong> Your listing has been submitted and is now live.
+                {' '}<a href="/real-estate/dashboard" style={{color:'inherit',textDecoration:'underline'}}>Back to dashboard →</a>
               </div>
             </div>
           )}
