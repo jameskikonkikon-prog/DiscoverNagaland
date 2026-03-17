@@ -1,21 +1,71 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 
+interface Property {
+  id: string
+  title: string
+  property_type: string
+  listing_type: string
+  city: string
+  locality: string | null
+  price: number
+  price_unit: string | null
+  is_available: boolean
+  last_verified_at: string | null
+  created_at: string
+}
+
+function freshness(last_verified_at: string | null): { label: string; color: string } {
+  if (!last_verified_at) return { label: 'Unverified', color: 'rgba(255,255,255,0.25)' }
+  const days = (Date.now() - new Date(last_verified_at).getTime()) / 86400000
+  if (days <= 23) return { label: 'Active', color: '#3ba88f' }
+  if (days <= 30) return { label: 'Expiring Soon', color: '#e8a908' }
+  return { label: 'Expired', color: '#c0392b' }
+}
+
+function fmt(price: number) {
+  if (price >= 10000000) return `₹${(price / 10000000).toFixed(1)}Cr`
+  if (price >= 100000)   return `₹${(price / 100000).toFixed(1)}L`
+  return `₹${price.toLocaleString('en-IN')}`
+}
+
 export default function RealEstateDashboard() {
   const router = useRouter()
-
-  useEffect(() => {
-    const supabase = createBrowserClient(
+  const [supabase] = useState(() =>
+    createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.push('/login')
-    })
-  }, [router])
+  )
+  const [loading,     setLoading]     = useState(true)
+  const [properties,  setProperties]  = useState<Property[]>([])
+  const [activeCount, setActiveCount] = useState(0)
+
+  useEffect(() => {
+    async function load() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/login'); return }
+
+      const { data } = await supabase
+        .from('properties')
+        .select('id,title,property_type,listing_type,city,locality,price,price_unit,is_available,last_verified_at,created_at')
+        .eq('owner_id', session.user.id)
+        .order('created_at', { ascending: false })
+
+      const rows = data ?? []
+      setProperties(rows)
+      setActiveCount(rows.filter(p => {
+        if (!p.is_available) return false
+        if (!p.last_verified_at) return false
+        return (Date.now() - new Date(p.last_verified_at).getTime()) / 86400000 <= 30
+      }).length)
+      setLoading(false)
+    }
+    load()
+  }, [supabase, router])
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', fontFamily: "'Sora', sans-serif", color: 'var(--white)' }}>
@@ -45,14 +95,14 @@ export default function RealEstateDashboard() {
         .dw-stat-val{font-size:26px;font-weight:800;letter-spacing:-0.04em;color:var(--white);margin-bottom:4px;}
         .dw-stat-label{font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);}
         .dw-stat-note{font-size:10.5px;color:rgba(255,255,255,0.2);margin-top:6px;}
-        .dw-add{background:var(--bg2);border:1px solid rgba(192,57,43,0.3);border-radius:16px;padding:28px 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:28px;cursor:pointer;text-decoration:none;transition:border-color 0.15s;}
+        .dw-add{background:var(--bg2);border:1px solid rgba(192,57,43,0.3);border-radius:16px;padding:28px 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:36px;cursor:pointer;text-decoration:none;transition:border-color 0.15s;}
         .dw-add:hover{border-color:rgba(192,57,43,0.5);background:rgba(192,57,43,0.04);}
         .dw-add-left{display:flex;align-items:center;gap:16px;}
         .dw-add-icon{width:44px;height:44px;background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
         .dw-add-title{font-size:16px;font-weight:700;color:var(--white);margin-bottom:3px;}
         .dw-add-desc{font-size:13px;color:var(--muted);}
         .dw-add-cta{font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);padding:8px 18px;border-radius:8px;white-space:nowrap;flex-shrink:0;}
-        .dw-section-label{font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;padding-left:2px;}
+        .dw-section-label{font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;padding-left:2px;}
         .dw-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:36px;}
         .dw-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:22px 20px;display:flex;flex-direction:column;gap:10px;cursor:not-allowed;transition:all 0.15s;position:relative;}
         .dw-card:hover{border-color:var(--border2);background:var(--bg3);}
@@ -75,7 +125,24 @@ export default function RealEstateDashboard() {
         .dw-plan-features{margin-top:12px;display:flex;flex-direction:column;gap:5px;}
         .dw-plan-feature{font-size:11.5px;color:rgba(255,255,255,0.45);display:flex;align-items:center;gap:6px;}
         .dw-plan-feature::before{content:'·';color:var(--muted);}
-        @media(max-width:640px){.dw{padding:36px 16px 60px;}.dw-stats{grid-template-columns:1fr 1fr;}.dw-plans{grid-template-columns:1fr;}.dw-add{flex-direction:column;align-items:flex-start;}.dw-cards{grid-template-columns:1fr 1fr;}}
+        /* MY LISTINGS */
+        .ml-list{display:flex;flex-direction:column;gap:12px;margin-bottom:36px;}
+        .ml-row{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;}
+        .ml-title{font-size:15px;font-weight:700;color:var(--white);margin-bottom:4px;letter-spacing:-0.01em;}
+        .ml-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;}
+        .ml-chip{font-size:10.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid var(--border);color:var(--muted);background:var(--bg3);}
+        .ml-price{font-size:15px;font-weight:700;color:var(--white);text-align:right;white-space:nowrap;}
+        .ml-freshness{font-size:11px;font-weight:600;text-align:right;margin-top:4px;}
+        .ml-verified{font-size:10.5px;color:rgba(255,255,255,0.2);text-align:right;margin-top:3px;}
+        .ml-empty{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:48px 24px;text-align:center;margin-bottom:36px;}
+        .ml-empty-icon{font-size:36px;margin-bottom:12px;opacity:0.4;}
+        .ml-empty-title{font-size:16px;font-weight:700;color:var(--off);margin-bottom:6px;}
+        .ml-empty-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
+        .ml-empty-btn{display:inline-block;background:var(--red);color:#fff;font-size:13px;font-weight:600;padding:11px 24px;border-radius:10px;text-decoration:none;transition:background 0.15s;}
+        .ml-empty-btn:hover{background:var(--red2);}
+        .skeleton{background:var(--bg3);border-radius:14px;animation:pulse 1.4s ease-in-out infinite;}
+        @keyframes pulse{0%,100%{opacity:0.35;}50%{opacity:0.7;}}
+        @media(max-width:640px){.dw{padding:36px 16px 60px;}.dw-stats{grid-template-columns:1fr 1fr;}.dw-plans{grid-template-columns:1fr;}.dw-add{flex-direction:column;align-items:flex-start;}.dw-cards{grid-template-columns:1fr 1fr;}.ml-row{grid-template-columns:1fr;}}
       `}</style>
 
       {/* NAV */}
@@ -106,14 +173,14 @@ export default function RealEstateDashboard() {
         <div className="dw-earlybar">
           <div className="dw-earlybar-dot" />
           <div className="dw-earlybar-text">
-            <strong style={{ color: 'var(--gold)' }}>Early access open.</strong> Owner accounts and listing management are being set up. Full dashboard activates soon.
+            <strong style={{ color: 'var(--gold)' }}>Early access open.</strong> Listings are live and free. Pricing plans are being finalised.
           </div>
         </div>
 
         {/* STATS */}
         <div className="dw-stats">
           <div className="dw-stat">
-            <div className="dw-stat-val">—</div>
+            <div className="dw-stat-val">{loading ? '—' : activeCount}</div>
             <div className="dw-stat-label">My Listings</div>
             <div className="dw-stat-note">Active properties</div>
           </div>
@@ -129,7 +196,7 @@ export default function RealEstateDashboard() {
           </div>
         </div>
 
-        {/* ADD NEW PROPERTY — primary CTA */}
+        {/* ADD NEW PROPERTY */}
         <a href="/real-estate/dashboard/add-property" className="dw-add">
           <div className="dw-add-left">
             <div className="dw-add-icon">➕</div>
@@ -138,17 +205,61 @@ export default function RealEstateDashboard() {
               <div className="dw-add-desc">Post land, a house, apartment, or commercial space.</div>
             </div>
           </div>
-          <div className="dw-add-cta" style={{color:'var(--red)',background:'var(--red-bg)',borderColor:'rgba(192,57,43,0.3)'}}>Add Property →</div>
+          <div className="dw-add-cta">Add Property →</div>
         </a>
 
-        {/* MANAGEMENT CARDS */}
-        <div className="dw-section-label">Manage Listings</div>
+        {/* MY LISTINGS */}
+        <div className="dw-section-label">My Listings</div>
+
+        {loading ? (
+          <div className="ml-list">
+            {[1,2].map(i => <div key={i} className="skeleton" style={{height:90}} />)}
+          </div>
+        ) : properties.length === 0 ? (
+          <div className="ml-empty">
+            <div className="ml-empty-icon">🏘</div>
+            <div className="ml-empty-title">No listings yet</div>
+            <div className="ml-empty-sub">Your submitted properties will appear here.</div>
+            <a href="/real-estate/dashboard/add-property" className="ml-empty-btn">Add Your First Property</a>
+          </div>
+        ) : (
+          <div className="ml-list">
+            {properties.map(p => {
+              const { label, color } = freshness(p.last_verified_at)
+              const loc = [p.locality, p.city].filter(Boolean).join(', ')
+              return (
+                <div key={p.id} className="ml-row">
+                  <div>
+                    <div className="ml-title">{p.title}</div>
+                    <div style={{fontSize:12.5,color:'var(--muted)',marginTop:2}}>{loc}</div>
+                    <div className="ml-meta">
+                      <span className="ml-chip">{p.property_type}</span>
+                      <span className="ml-chip">{p.listing_type === 'rent' ? 'For Rent' : 'For Sale'}</span>
+                      {!p.is_available && <span className="ml-chip" style={{color:'rgba(192,57,43,0.7)',borderColor:'rgba(192,57,43,0.2)'}}>Unavailable</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="ml-price">{fmt(p.price)}{p.price_unit ? ` / ${p.price_unit}` : ''}</div>
+                    <div className="ml-freshness" style={{color}}>{label}</div>
+                    <div className="ml-verified">
+                      {p.last_verified_at
+                        ? `Verified ${new Date(p.last_verified_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`
+                        : 'Not verified'}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* COMING SOON CARDS */}
+        <div className="dw-section-label">Coming Soon</div>
         <div className="dw-cards">
           {[
-            { icon: '🏘', title: 'My Listings', desc: 'View all your active and past property listings.' },
-            { icon: '✏️', title: 'Edit Property', desc: 'Update photos, price, and details anytime.' },
-            { icon: '✅', title: 'Mark Sold / Rented', desc: 'Close a listing once your property is taken.' },
-            { icon: '📊', title: 'Listing Analytics', desc: 'Track views and enquiries per property.' },
+            { icon: '✏️', title: 'Edit Property',        desc: 'Update photos, price, and details anytime.' },
+            { icon: '✅', title: 'Mark Sold / Rented',   desc: 'Close a listing once your property is taken.' },
+            { icon: '📊', title: 'Listing Analytics',    desc: 'Track views and enquiries per property.' },
           ].map(c => (
             <div key={c.title} className="dw-card">
               <span className="dw-card-badge">Soon</span>
