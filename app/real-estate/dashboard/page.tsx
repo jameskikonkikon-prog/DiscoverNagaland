@@ -197,6 +197,8 @@ export default function RealEstateDashboard() {
         .ml-disable{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid rgba(192,57,43,0.2);background:transparent;color:rgba(192,57,43,0.6);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
         .ml-disable:hover:not(:disabled){border-color:rgba(192,57,43,0.45);color:var(--red);background:var(--red-bg);}
         .ml-disable:disabled{opacity:0.4;cursor:default;}
+        .ml-edit{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:rgba(255,255,255,0.45);cursor:pointer;font-family:'Sora',sans-serif;text-decoration:none;transition:all 0.15s;display:inline-block;}
+        .ml-edit:hover{border-color:rgba(255,255,255,0.2);color:var(--off);}
         .ml-err{font-size:11px;color:#e05a4a;margin-top:6px;text-align:right;}
         .skeleton{background:var(--bg3);border-radius:14px;animation:pulse 1.4s ease-in-out infinite;}
         @keyframes pulse{0%,100%{opacity:0.35;}50%{opacity:0.7;}}
@@ -307,6 +309,10 @@ export default function RealEstateDashboard() {
                         : 'Not verified'}
                     </div>
                     <div className="ml-actions">
+                      <a
+                        href={`/real-estate/dashboard/edit/${p.id}`}
+                        className="ml-edit"
+                      >✏️ Edit</a>
                       <button
                         className={`ml-refresh${needsRefresh ? ' urgent' : ''}`}
                         onClick={() => handleRefresh(p.id)}
