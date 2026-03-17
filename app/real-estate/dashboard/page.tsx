@@ -87,7 +87,10 @@ export default function RealEstateDashboard() {
           <span className="dn-sep">/</span>
           <span className="dn-tag">Owner Dashboard</span>
         </div>
-        <a href="/real-estate" className="dn-back">← Listings</a>
+        <div style={{display:'flex',alignItems:'center',gap:16}}>
+          <a href="/account" className="dn-back">👤 My Account</a>
+          <a href="/real-estate" className="dn-back">← Listings</a>
+        </div>
       </nav>
 
       <div className="dw">

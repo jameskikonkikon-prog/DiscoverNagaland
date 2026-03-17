@@ -121,7 +121,10 @@ export default function RealEstatePage() {
           <span className="re-nav-sep">/</span>
           <span className="re-nav-tag">Real Estate</span>
         </div>
-        <a href="/" className="re-nav-back">← Back to directory</a>
+        <div style={{display:'flex',alignItems:'center',gap:16}}>
+          <a href="/real-estate/dashboard" className="re-nav-back" style={{color:'var(--red)',fontWeight:600}}>Owner Dashboard →</a>
+          <a href="/" className="re-nav-back">← Directory</a>
+        </div>
       </nav>
 
       {/* HERO */}
