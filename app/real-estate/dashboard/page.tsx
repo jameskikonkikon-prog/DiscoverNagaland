@@ -40,9 +40,35 @@ export default function RealEstateDashboard() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
   )
-  const [loading,     setLoading]     = useState(true)
-  const [properties,  setProperties]  = useState<Property[]>([])
-  const [activeCount, setActiveCount] = useState(0)
+  const [loading,      setLoading]      = useState(true)
+  const [properties,   setProperties]   = useState<Property[]>([])
+  const [activeCount,  setActiveCount]  = useState(0)
+  const [refreshing,   setRefreshing]   = useState<string | null>(null)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
+
+  async function handleRefresh(id: string) {
+    setRefreshing(id)
+    setRefreshError(null)
+    try {
+      const res = await fetch('/api/real-estate/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setRefreshError(json.error ?? 'Refresh failed'); return }
+      const now = json.last_verified_at as string
+      setProperties(prev => prev.map(p => p.id === id ? { ...p, last_verified_at: now } : p))
+      setActiveCount(prev => {
+        // recalculate after update
+        return prev // will re-derive on next render via freshness
+      })
+    } catch {
+      setRefreshError('Network error. Please try again.')
+    } finally {
+      setRefreshing(null)
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -140,6 +166,12 @@ export default function RealEstateDashboard() {
         .ml-empty-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
         .ml-empty-btn{display:inline-block;background:var(--red);color:#fff;font-size:13px;font-weight:600;padding:11px 24px;border-radius:10px;text-decoration:none;transition:background 0.15s;}
         .ml-empty-btn:hover{background:var(--red2);}
+        .ml-refresh{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;margin-top:8px;display:block;width:100%;}
+        .ml-refresh:hover:not(:disabled){border-color:rgba(59,168,143,0.4);color:var(--teal);}
+        .ml-refresh.urgent{border-color:rgba(232,169,8,0.35);color:var(--gold);}
+        .ml-refresh.urgent:hover:not(:disabled){border-color:rgba(232,169,8,0.6);background:rgba(232,169,8,0.06);}
+        .ml-refresh:disabled{opacity:0.45;cursor:default;}
+        .ml-err{font-size:11px;color:#e05a4a;margin-top:6px;text-align:right;}
         .skeleton{background:var(--bg3);border-radius:14px;animation:pulse 1.4s ease-in-out infinite;}
         @keyframes pulse{0%,100%{opacity:0.35;}50%{opacity:0.7;}}
         @media(max-width:640px){.dw{padding:36px 16px 60px;}.dw-stats{grid-template-columns:1fr 1fr;}.dw-plans{grid-template-columns:1fr;}.dw-add{flex-direction:column;align-items:flex-start;}.dw-cards{grid-template-columns:1fr 1fr;}.ml-row{grid-template-columns:1fr;}}
@@ -227,6 +259,8 @@ export default function RealEstateDashboard() {
             {properties.map(p => {
               const { label, color } = freshness(p.last_verified_at)
               const loc = [p.locality, p.city].filter(Boolean).join(', ')
+              const needsRefresh = label === 'Expiring Soon' || label === 'Expired' || label === 'Unverified'
+              const isRefreshing = refreshing === p.id
               return (
                 <div key={p.id} className="ml-row">
                   <div>
@@ -246,10 +280,20 @@ export default function RealEstateDashboard() {
                         ? `Verified ${new Date(p.last_verified_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`
                         : 'Not verified'}
                     </div>
+                    <button
+                      className={`ml-refresh${needsRefresh ? ' urgent' : ''}`}
+                      onClick={() => handleRefresh(p.id)}
+                      disabled={isRefreshing || !!refreshing}
+                    >
+                      {isRefreshing ? 'Refreshing…' : needsRefresh ? '⚡ Refresh Now' : '↻ Refresh'}
+                    </button>
                   </div>
                 </div>
               )
             })}
+            {refreshError && !refreshing && (
+              <div style={{fontSize:12,color:'#e05a4a',textAlign:'right',marginTop:-6}}>{refreshError}</div>
+            )}
           </div>
         )}
 
