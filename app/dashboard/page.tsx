@@ -380,6 +380,9 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+            <a href="/account" className="nav-item" style={{textDecoration:'none',display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+              <span className="icon">👤</span>My Account
+            </a>
             <button className="nav-item sign-out" onClick={signOut}>
               <span className="icon">🚪</span>Sign Out
             </button>
