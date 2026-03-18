@@ -207,7 +207,7 @@ export default function RealEstatePage() {
         ) : (
           <div className="re-grid">
             {filtered.map(p => (
-              <div key={p.id} className="re-card">
+              <a key={p.id} className="re-card" href={`/real-estate/${p.id}`} style={{textDecoration:'none',display:'block'}}>
                 <div className="re-card-img">
                   {p.photos && p.photos.length > 0 && !brokenImgs.has(p.id)
                     ? <img
@@ -238,7 +238,7 @@ export default function RealEstatePage() {
                     {p.listing_type && <span className={p.listing_type === 'rent' ? 're-badge-rent' : 're-badge-sale'}>{p.listing_type === 'rent' ? 'For Rent' : 'For Sale'}</span>}
                   </div>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         )}

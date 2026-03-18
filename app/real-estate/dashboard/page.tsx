@@ -16,6 +16,7 @@ interface Property {
   is_available: boolean
   last_verified_at: string | null
   created_at: string
+  photos: string[] | null
 }
 
 function freshness(last_verified_at: string | null): { label: string; color: string } {
@@ -99,7 +100,7 @@ export default function RealEstateDashboard() {
 
       const { data } = await supabase
         .from('properties')
-        .select('id,title,property_type,listing_type,city,locality,price,price_unit,is_available,last_verified_at,created_at')
+        .select('id,title,property_type,listing_type,city,locality,price,price_unit,is_available,last_verified_at,created_at,photos')
         .eq('owner_id', session.user.id)
         .order('created_at', { ascending: false })
 
@@ -289,9 +290,16 @@ export default function RealEstateDashboard() {
               const loc = [p.locality, p.city].filter(Boolean).join(', ')
               const needsRefresh = label === 'Expiring Soon' || label === 'Expired' || label === 'Unverified'
               const isRefreshing = refreshing === p.id
+              const thumb = Array.isArray(p.photos) && p.photos.length > 0 ? p.photos[0] : null
               return (
                 <div key={p.id} className="ml-row">
-                  <div>
+                  <div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
+                    <div style={{width:62,height:52,borderRadius:8,overflow:'hidden',background:'var(--bg3)',border:'1px solid var(--border)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,opacity:0.5}}>
+                      {thumb
+                        ? <img src={thumb} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} onError={e => { (e.currentTarget as HTMLImageElement).style.display='none'; (e.currentTarget.parentElement as HTMLElement).textContent = p.property_type === 'land' ? '🌿' : '🏠' }} />
+                        : (p.property_type === 'land' ? '🌿' : p.property_type === 'apartment' ? '🏢' : p.property_type === 'commercial' ? '🏪' : '🏠')}
+                    </div>
+                    <div>
                     <div className="ml-title">{p.title}</div>
                     <div style={{fontSize:12.5,color:'var(--muted)',marginTop:2}}>{loc}</div>
                     <div className="ml-meta">
@@ -299,7 +307,7 @@ export default function RealEstateDashboard() {
                       <span className="ml-chip">{p.listing_type === 'rent' ? 'For Rent' : 'For Sale'}</span>
                       {!p.is_available && <span className="ml-chip" style={{color:'rgba(192,57,43,0.7)',borderColor:'rgba(192,57,43,0.2)'}}>Unavailable</span>}
                     </div>
-                  </div>
+                  </div></div>
                   <div>
                     <div className="ml-price">{fmt(p.price)}{p.price_unit ? ` / ${p.price_unit}` : ''}</div>
                     <div className="ml-freshness" style={{color}}>{label}</div>
