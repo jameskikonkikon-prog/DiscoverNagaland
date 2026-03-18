@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
@@ -94,7 +94,6 @@ type Props = {
 
 export default function BusinessPageClient({ biz, initialReviews, isOwner, isLoggedIn }: Props) {
   const [reviews, setReviews] = useState<Review[]>(initialReviews);
-  const [activePhoto, setActivePhoto] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
   const [reviewForm, setReviewForm] = useState({ name: '', rating: 5, comment: '' });
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -102,8 +101,9 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
   const [navScrolled, setNavScrolled] = useState(false);
+  const [failedPhotos, setFailedPhotos] = useState<Set<number>>(new Set());
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
 
-  // Claim modal state
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimForm, setClaimForm] = useState({ name: '', phone: '', email: '', designation: '' });
   const [claimLoading, setClaimLoading] = useState(false);
@@ -116,6 +116,10 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
       window.addEventListener('scroll', onScroll);
       return () => window.removeEventListener('scroll', onScroll);
     }
+  }, []);
+
+  const handlePhotoError = useCallback((index: number) => {
+    setFailedPhotos(prev => new Set(prev).add(index));
   }, []);
 
   const submitReview = async () => {
@@ -163,10 +167,11 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
 
   const avgRating = reviews.length > 0 ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : null;
   const openStatus = isOpenNow(biz.opening_hours || '');
-  const amenitiesList = biz.amenities?.split(',').map(a => a.trim()).filter(Boolean) || [];
   const tagsList = biz.tags?.split(',').map(t => t.trim()).filter(Boolean) || [];
   const vibeTags = tagsList.length > 0 ? tagsList : (biz.tags ? [biz.tags] : []);
   const photos = biz.photos?.length ? biz.photos : [];
+  const validPhotos = photos.filter((_, i) => !failedPhotos.has(i));
+  const allPhotosFailed = photos.length > 0 && validPhotos.length === 0;
   const locationLine = [biz.area, biz.landmark, biz.city].filter(Boolean).join(' · ') || `${biz.address ? biz.address + ' · ' : ''}${biz.city}, Nagaland`;
   const FEATURE_KEYS = [
     { key: 'parking', label: '🅿️ Parking' },
@@ -197,10 +202,112 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
   const waUrl = biz.whatsapp ? `https://wa.me/${biz.whatsapp.replace(/\D/g, '')}?text=Hi!%20I%20found%20you%20on%20Yana%20Nagaland` : '';
   const shareWaUrl = typeof window !== 'undefined' ? `https://wa.me/?text=Check out ${biz.name} on Yana Nagaland: ${window.location.href}` : '';
 
+  // Gallery renderer
+  const renderGallery = () => {
+    if (photos.length === 0 || allPhotosFailed) {
+      return (
+        <div className="gallery-placeholder">
+          <span>🏔️</span>
+          <p>No photos yet</p>
+        </div>
+      );
+    }
+
+    // Find first valid photo indices
+    const validIndices = photos.map((_, i) => i).filter(i => !failedPhotos.has(i));
+    if (validIndices.length === 0) {
+      return (
+        <div className="gallery-placeholder">
+          <span>🏔️</span>
+          <p>No photos yet</p>
+        </div>
+      );
+    }
+
+    if (validIndices.length === 1) {
+      return (
+        <div className="gallery-single">
+          <img
+            src={photos[validIndices[0]]}
+            alt={biz.name}
+            className="gallery-img-single"
+            onError={() => handlePhotoError(validIndices[0])}
+          />
+          <div className="gallery-grad" />
+        </div>
+      );
+    }
+
+    if (validIndices.length === 2) {
+      return (
+        <div className="gallery-duo">
+          {validIndices.map(idx => (
+            <div key={idx} className="gallery-duo-item">
+              <img
+                src={photos[idx]}
+                alt={biz.name}
+                className="gallery-img-fill"
+                onError={() => handlePhotoError(idx)}
+              />
+            </div>
+          ))}
+          <div className="gallery-grad" />
+        </div>
+      );
+    }
+
+    // 3+ photos: 1 large left + 2 stacked right
+    const mainIdx = validIndices[0];
+    const rightIdx1 = validIndices[1];
+    const rightIdx2 = validIndices[2];
+
+    return (
+      <div className="gallery-grid">
+        <div className="gallery-main">
+          <img
+            src={photos[mainIdx]}
+            alt={biz.name}
+            className="gallery-img-fill"
+            onError={() => handlePhotoError(mainIdx)}
+          />
+        </div>
+        <div className="gallery-side">
+          <div className="gallery-side-item">
+            <img
+              src={photos[rightIdx1]}
+              alt={`${biz.name} photo`}
+              className="gallery-img-fill"
+              onError={() => handlePhotoError(rightIdx1)}
+            />
+          </div>
+          <div className="gallery-side-item">
+            <img
+              src={photos[rightIdx2]}
+              alt={`${biz.name} photo`}
+              className="gallery-img-fill"
+              onError={() => handlePhotoError(rightIdx2)}
+            />
+          </div>
+        </div>
+        <div className="gallery-grad" />
+        {validIndices.length >= 4 && (
+          <button
+            type="button"
+            className="view-all-photos-btn"
+            onClick={() => setShowAllPhotos(true)}
+          >
+            View all {validIndices.length} photos
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       <style>{styles}</style>
       <main className="biz-page">
+        {/* Nav — unchanged */}
         <nav className={`nav ${navScrolled ? 'scrolled' : ''}`}>
           <Link href="/" className="nav-logo">Yana<span>Nagaland</span></Link>
           <div className="nav-center">{biz.name} · {biz.city}</div>
@@ -219,40 +326,17 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
           </div>
         </nav>
 
+        {/* Photo Gallery */}
         <div className="gallery" id="gallery">
-          {photos.length > 0 ? (
-            <>
-              <img src={photos[activePhoto]} alt={biz.name} className="gallery-img" />
-              <div className="gallery-grad" />
-              {photos.length > 1 && (
-                <div className="thumb-strip">
-                  {photos.map((p, i) => (
-                    <img
-                      key={i}
-                      src={p}
-                      alt=""
-                      className={`thumb ${i === activePhoto ? 'active' : ''}`}
-                      onClick={() => setActivePhoto(i)}
-                    />
-                  ))}
-                </div>
-              )}
-              <div className="photo-count">📷 {photos.length} photo{photos.length !== 1 ? 's' : ''}</div>
-            </>
-          ) : (
-            <div className="gallery-placeholder">
-              <span>🏔️</span>
-              <p>No photos yet</p>
-            </div>
-          )}
+          {renderGallery()}
         </div>
 
         <div className="content">
           <div className="left">
+            {/* Business Header */}
             <div className="hero-text fade-up">
-              <div className="category-tag">{biz.plan === 'plus' ? '⭐ ' : ''}{biz.category}</div>
-              <div className="biz-name">{biz.name}</div>
-              <div className="meta-row">
+              <div className="header-pills">
+                <span className="category-tag">{biz.plan === 'plus' ? '⭐ ' : ''}{biz.category}</span>
                 {openStatus !== null && (
                   <span className={`meta-chip ${openStatus ? 'open' : ''}`}>
                     <span className="dot" /> {openStatus ? 'Open now' : 'Closed'}
@@ -268,12 +352,22 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
                   <span className="meta-chip">✓ Verified</span>
                 )}
               </div>
+              <div className="biz-name">{biz.name}</div>
+              {/* Rating right below name */}
+              <div className="header-rating">
+                <span className="header-rating-stars">
+                  {'⭐'.repeat(avgRating ? Math.round(parseFloat(avgRating)) : 0)}{'☆'.repeat(5 - (avgRating ? Math.round(parseFloat(avgRating)) : 0))}
+                </span>
+                <span className="header-rating-num">{avgRating ?? '—'}</span>
+                <span className="header-rating-count">({reviews.length} review{reviews.length !== 1 ? 's' : ''})</span>
+              </div>
               <div className="location-line">
                 <span>📍</span>
                 <span>{locationLine}</span>
               </div>
             </div>
 
+            {/* Mobile CTA */}
             <div className="mobile-cta fade-up-2">
               <a href={`tel:${biz.phone}`} className="m-call">📞 Call Now</a>
               {biz.whatsapp && (
@@ -281,6 +375,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               )}
             </div>
 
+            {/* Vibe tags */}
             {vibeTags.length > 0 && (
               <div className="vibe-row fade-up-2">
                 {vibeTags.map((t) => (
@@ -289,43 +384,44 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               </div>
             )}
 
-            <div className="info-blocks fade-up-3">
-              {biz.opening_hours && (
-                <div className="info-block">
-                  <div className="ib-label">Hours</div>
-                  <div className="ib-value">{biz.opening_hours}</div>
-                  {openStatus !== null && (
-                    <div className={`open-tag ${openStatus ? '' : 'closed'}`}>
-                      <span className="dot" style={{ background: openStatus ? '#27ae60' : '#999', width: 6, height: 6, borderRadius: '50%', display: 'inline-block' }} />
-                      {openStatus ? ' Open right now' : ' Currently closed'}
-                    </div>
-                  )}
-                </div>
-              )}
-              {biz.phone && (
-                <div className="info-block">
-                  <div className="ib-label">Phone</div>
-                  <div className="ib-value">{biz.phone}</div>
-                  <div className="ib-sub">Tap to call</div>
-                </div>
-              )}
-              <div className="info-block full">
-                <div className="ib-label">Address</div>
-                <div className="ib-value">{biz.address}{biz.landmark ? `, near ${biz.landmark}` : ''}</div>
-                <div className="ib-sub">{biz.city}, Nagaland</div>
-                <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="ib-link">Open in Google Maps →</a>
-              </div>
-            </div>
-
+            {/* About card */}
             {biz.description && (
-              <div className="section fade-up-4">
-                <div className="section-head">About</div>
+              <div className="card fade-up-3">
+                <div className="card-head">About</div>
                 <p className="about-text">{biz.description}</p>
               </div>
             )}
 
-            <div className="section fade-up-4">
-              <div className="section-head">Features</div>
+            {/* Hours & Info card */}
+            <div className="card fade-up-3">
+              <div className="card-head">Hours & Info</div>
+              {biz.opening_hours && (
+                <div className="hi-row">
+                  <div className="hi-icon">🕐</div>
+                  <div className="hi-content">
+                    <div className="hi-value">{biz.opening_hours}</div>
+                    {openStatus !== null && (
+                      <div className={`hi-status ${openStatus ? 'open' : 'closed'}`}>
+                        <span className="dot" style={{ background: openStatus ? '#27ae60' : '#999', width: 6, height: 6, borderRadius: '50%', display: 'inline-block' }} />
+                        {openStatus ? ' Open right now' : ' Currently closed'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="hi-row">
+                <div className="hi-icon">📍</div>
+                <div className="hi-content">
+                  <div className="hi-value">{biz.address}{biz.landmark ? `, near ${biz.landmark}` : ''}</div>
+                  <div className="hi-sub">{biz.city}, Nagaland</div>
+                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="hi-link">Open in Google Maps →</a>
+                </div>
+              </div>
+            </div>
+
+            {/* Features card */}
+            <div className="card fade-up-4">
+              <div className="card-head">Features</div>
               <div className="features">
                 {featuresList.map((f) => (
                   <span key={f.label} className={`feature ${f.yes ? 'yes' : 'no'}`}>{f.label}</span>
@@ -333,8 +429,9 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               </div>
             </div>
 
-            <div className="section fade-up-4">
-              <div className="section-head">Reviews</div>
+            {/* Reviews card */}
+            <div className="card fade-up-4">
+              <div className="card-head">Reviews</div>
               <div className="reviews-top">
                 <div className="rating-display">
                   <div className="rating-num">{avgRating ?? '—'}</div>
@@ -387,14 +484,21 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               )}
             </div>
 
+            {/* Menu section */}
             {biz.menu_url && (
-              <div className="section fade-up-4">
-                <div className="section-head">{biz.category?.toLowerCase() === 'restaurant' || biz.category?.toLowerCase() === 'cafe' ? 'Menu' : 'Price List'}</div>
+              <div className="card fade-up-4">
+                <div className="card-head">{biz.category?.toLowerCase() === 'restaurant' || biz.category?.toLowerCase() === 'cafe' ? 'Menu' : 'Price List'}</div>
                 {biz.menu_url.endsWith('.pdf') ? (
-                  <a href={biz.menu_url} target="_blank" rel="noopener noreferrer" className="ib-link">📄 View PDF</a>
+                  <a href={biz.menu_url} target="_blank" rel="noopener noreferrer" className="hi-link">📄 View PDF</a>
                 ) : (
                   <div className="menu-img-wrap">
-                    <img src={biz.menu_url} alt="Menu" className={`menu-img ${showMenu ? 'expanded' : ''}`} onClick={() => setShowMenu(!showMenu)} />
+                    <img
+                      src={biz.menu_url}
+                      alt="Menu"
+                      className={`menu-img ${showMenu ? 'expanded' : ''}`}
+                      onClick={() => setShowMenu(!showMenu)}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
                     <button type="button" className="menu-expand-btn" onClick={() => setShowMenu(!showMenu)}>{showMenu ? '↑ Collapse' : '↓ View Full'}</button>
                   </div>
                 )}
@@ -402,7 +506,9 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
             )}
           </div>
 
+          {/* Sidebar */}
           <div className="sidebar">
+            {/* Contact card — no duplicate phone listing */}
             <div className="sidebar-card">
               <div className="sc-label">Contact</div>
               <a href={`tel:${biz.phone}`} className="btn-primary">📞 Call {biz.phone}</a>
@@ -412,19 +518,9 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               {biz.email && (
                 <a href={`mailto:${biz.email}`} className="btn-ghost">✉️ Send Email</a>
               )}
-              <div className="sc-divider" />
-              <div className="sc-row">
-                <div className="sc-icon">📞</div>
-                <div className="sc-val"><a href={`tel:${biz.phone}`}>{biz.phone}</a></div>
-              </div>
-              {biz.email && (
-                <div className="sc-row">
-                  <div className="sc-icon">✉️</div>
-                  <div className="sc-val" style={{ fontSize: '11px' }}><a href={`mailto:${biz.email}`}>{biz.email}</a></div>
-                </div>
-              )}
             </div>
 
+            {/* Location card */}
             <div className="sidebar-card">
               <div className="sc-label">Location</div>
               <div className="map-box" onClick={() => window.open(mapsUrl, '_blank')} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && window.open(mapsUrl, '_blank')}>
@@ -436,6 +532,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="btn-ghost">🗺️ Open in Google Maps</a>
             </div>
 
+            {/* Share card */}
             <div className="sidebar-card">
               <div className="sc-label">Share</div>
               <div className="share-row">
@@ -444,11 +541,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               </div>
             </div>
 
-            {/* Claim card:
-                - isOwner            → hidden entirely
-                - !isOwner + claimed → "already claimed" notice
-                - !isOwner + !claimed → full claim button/modal
-            */}
+            {/* Claim card — exactly as before */}
             {!isOwner && (
               biz.claimed ? (
                 <div className="claim-card">
@@ -471,6 +564,30 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
         </div>
       </main>
 
+      {/* All photos lightbox */}
+      {showAllPhotos && (
+        <div className="photos-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowAllPhotos(false); }}>
+          <div className="photos-modal">
+            <div className="photos-modal-header">
+              <div className="photos-modal-title">All Photos</div>
+              <button className="cm-close" onClick={() => setShowAllPhotos(false)} aria-label="Close">✕</button>
+            </div>
+            <div className="photos-modal-grid">
+              {photos.map((p, i) => !failedPhotos.has(i) && (
+                <img
+                  key={i}
+                  src={p}
+                  alt={`${biz.name} photo ${i + 1}`}
+                  className="photos-modal-img"
+                  onError={() => handlePhotoError(i)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Claim modal — exactly as before */}
       {showClaimModal && (
         <div className="claim-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowClaimModal(false); }}>
           <div className="claim-modal">
@@ -543,6 +660,7 @@ const styles = `
 
   .biz-page { min-height: 100vh; }
 
+  /* Nav — unchanged */
   .nav {
     position: fixed; top: 0; left: 0; right: 0; z-index: 200;
     height: 56px;
@@ -569,41 +687,65 @@ const styles = `
   .nav-avatar { width: 32px; height: 32px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; text-decoration: none; color: var(--text2); font-size: 14px; }
   .nav-avatar:hover { color: var(--red); }
 
+  /* Gallery */
   .gallery {
     margin-top: 56px; position: relative;
-    height: 70vh; max-height: 560px; min-height: 340px;
-    background: var(--surface2); overflow: hidden; cursor: pointer;
+    height: 420px; max-height: 480px; min-height: 300px;
+    background: var(--surface2); overflow: hidden;
   }
-  .gallery-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.8s cubic-bezier(0.22,1,0.36,1); }
-  .gallery:hover .gallery-img { transform: scale(1.03); }
   .gallery-grad {
     position: absolute; inset: 0;
-    background: linear-gradient(to bottom, rgba(10,10,10,0) 0%, rgba(10,10,10,0) 50%, rgba(10,10,10,0.7) 80%, rgba(10,10,10,1) 100%);
-    pointer-events: none;
-  }
-  .thumb-strip { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
-  .thumb { width: 48px; height: 36px; border-radius: 6px; object-fit: cover; cursor: pointer; border: 2px solid transparent; opacity: 0.5; transition: all 0.25s; }
-  .thumb:hover { opacity: 0.8; }
-  .thumb.active { border-color: #fff; opacity: 1; }
-  .photo-count {
-    position: absolute; top: 20px; right: 20px;
-    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.1);
-    backdrop-filter: blur(8px); padding: 5px 12px; border-radius: 20px;
-    font-size: 11px; color: rgba(255,255,255,0.6); letter-spacing: 0.5px;
+    background: linear-gradient(to bottom, rgba(10,10,10,0) 0%, rgba(10,10,10,0) 60%, rgba(10,10,10,0.6) 85%, rgba(10,10,10,1) 100%);
+    pointer-events: none; z-index: 2;
   }
   .gallery-placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; color: var(--text3); font-size: 3rem; }
   .gallery-placeholder p { font-size: 0.9rem; }
 
+  /* Single photo */
+  .gallery-single { width: 100%; height: 100%; position: relative; }
+  .gallery-img-single { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* Two photos side by side */
+  .gallery-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; height: 100%; position: relative; }
+  .gallery-duo-item { overflow: hidden; }
+  .gallery-img-fill { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s cubic-bezier(0.22,1,0.36,1); }
+  .gallery-duo-item:hover .gallery-img-fill { transform: scale(1.03); }
+
+  /* 3+ photos grid */
+  .gallery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; height: 100%; position: relative; }
+  .gallery-main { overflow: hidden; grid-row: 1 / 2; }
+  .gallery-main .gallery-img-fill { cursor: pointer; }
+  .gallery-main:hover .gallery-img-fill { transform: scale(1.03); }
+  .gallery-side { display: grid; grid-template-rows: 1fr 1fr; gap: 3px; overflow: hidden; }
+  .gallery-side-item { overflow: hidden; }
+  .gallery-side-item:hover .gallery-img-fill { transform: scale(1.03); }
+
+  .view-all-photos-btn {
+    position: absolute; bottom: 20px; right: 20px; z-index: 3;
+    padding: 8px 18px; border-radius: 8px;
+    background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15);
+    backdrop-filter: blur(8px); color: #fff; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s;
+  }
+  .view-all-photos-btn:hover { background: rgba(0,0,0,0.85); border-color: rgba(255,255,255,0.3); }
+
+  /* Content layout */
   .content {
     max-width: 1100px; margin: 0 auto;
     padding: 0 40px 100px;
-    display: grid; grid-template-columns: 1fr 300px; gap: 40px;
+    display: grid; grid-template-columns: 1fr 320px; gap: 32px;
     align-items: start;
   }
 
-  .hero-text { padding: 40px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
-  .category-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--red); margin-bottom: 14px; }
-  .biz-name { font-size: 42px; font-weight: 800; letter-spacing: -1.5px; line-height: 1; margin-bottom: 16px; }
+  /* Header */
+  .hero-text { padding: 32px 0 28px; margin-bottom: 24px; }
+  .header-pills { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .category-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--bg); background: var(--red); padding: 4px 12px; border-radius: 20px; }
+  .biz-name { font-size: 38px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.1; margin-bottom: 10px; }
+  .header-rating { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .header-rating-stars { font-size: 14px; letter-spacing: 1px; }
+  .header-rating-num { font-size: 14px; font-weight: 700; color: var(--text); }
+  .header-rating-count { font-size: 13px; color: var(--text2); }
   .meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
   .meta-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; background: var(--surface2); border: 1px solid var(--border2); color: var(--text2); }
   .meta-chip.open { color: #27ae60; background: rgba(39,174,96,0.08); border-color: rgba(39,174,96,0.2); }
@@ -612,53 +754,66 @@ const styles = `
   .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
   .location-line { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
 
-  .mobile-cta { display: none; gap: 10px; margin-bottom: 32px; }
+  /* Mobile CTA */
+  .mobile-cta { display: none; gap: 10px; margin-bottom: 24px; }
   .m-call, .m-wa { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 12px; font-size: 13px; font-weight: 700; text-decoration: none; border: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: opacity 0.2s; }
   .m-call { background: var(--red); color: #fff; }
   .m-wa { background: var(--green); color: #fff; }
   .m-call:hover, .m-wa:hover { opacity: 0.85; }
 
-  .vibe-row { display: flex; flex-wrap: wrap; gap: 7px; padding: 28px 0; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
+  /* Vibe tags */
+  .vibe-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 24px; }
   .vibe { padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: 500; background: transparent; border: 1px solid var(--border2); color: var(--text2); cursor: default; transition: all 0.2s; }
   .vibe:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
 
-  .info-blocks { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 36px; }
-  .info-block { background: var(--surface); padding: 22px 24px; transition: background 0.2s; }
-  .info-block:hover { background: var(--surface2); }
-  .info-block.full { grid-column: 1 / -1; }
-  .ib-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 8px; }
-  .ib-value { font-size: 15px; font-weight: 600; color: var(--text); }
-  .ib-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
-  .ib-link { font-size: 12px; color: var(--red); text-decoration: none; font-weight: 600; margin-top: 6px; display: inline-block; transition: opacity 0.2s; }
-  .ib-link:hover { opacity: 0.7; }
-  .open-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #27ae60; margin-top: 6px; }
-  .open-tag.closed { color: var(--text2); }
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); margin-bottom: 16px; }
 
-  .section { margin-bottom: 40px; }
-  .section-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); margin-bottom: 16px; }
   .about-text { font-size: 15px; line-height: 1.85; color: var(--text2); font-weight: 300; }
 
+  /* Hours & Info card */
+  .hi-row { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .hi-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .hi-row:first-of-type { padding-top: 0; }
+  .hi-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .hi-content { flex: 1; }
+  .hi-value { font-size: 14px; font-weight: 600; color: var(--text); }
+  .hi-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
+  .hi-link { font-size: 12px; color: var(--red); text-decoration: none; font-weight: 600; margin-top: 6px; display: inline-block; transition: opacity 0.2s; }
+  .hi-link:hover { opacity: 0.7; }
+  .hi-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #27ae60; margin-top: 4px; }
+  .hi-status.closed { color: var(--text2); }
+
+  /* Features */
   .features { display: flex; flex-wrap: wrap; gap: 8px; }
-  .feature { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: 10px; font-size: 12px; font-weight: 500; background: var(--surface); border: 1px solid var(--border); color: var(--text2); }
-  .feature.yes { color: var(--text); }
+  .feature { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: 10px; font-size: 12px; font-weight: 500; background: var(--surface2); border: 1px solid var(--border); color: var(--text2); }
+  .feature.yes { color: var(--text); border-color: var(--border2); }
   .feature.no { opacity: 0.3; text-decoration: line-through; }
 
+  /* Reviews */
   .reviews-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
   .rating-display { display: flex; align-items: baseline; gap: 10px; }
-  .rating-num { font-size: 48px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+  .rating-num { font-size: 42px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
   .rating-stars { font-size: 14px; letter-spacing: 2px; margin-bottom: 3px; }
   .rating-count { font-size: 11px; color: var(--text3); }
   .write-review-btn { font-size: 12px; font-weight: 600; padding: 8px 18px; border-radius: 8px; background: transparent; color: var(--text2); border: 1px solid var(--border2); cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; }
   .write-review-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
 
-  .review-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; display: none; }
+  .review-form { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; display: none; }
   .review-form.show { display: block; animation: fadeUp 0.3s ease both; }
   .rf-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 12px; }
   .star-row { display: flex; gap: 8px; margin-bottom: 18px; }
   .star-pick { font-size: 28px; cursor: pointer; transition: transform 0.15s; background: none; border: none; line-height: 1; }
   .star-pick:hover { transform: scale(1.15); }
   .rf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-  .rf-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; outline: none; transition: border-color 0.2s; }
+  .rf-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; outline: none; transition: border-color 0.2s; }
   .rf-input:focus { border-color: rgba(255,255,255,0.2); }
   .rf-textarea { resize: none; height: 90px; }
   .rf-submit { width: 100%; padding: 13px; background: var(--red); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: 'Sora', sans-serif; margin-top: 4px; transition: opacity 0.2s; }
@@ -666,7 +821,7 @@ const styles = `
   .rf-submit:disabled { opacity: 0.5; cursor: not-allowed; }
   .review-success { background: rgba(39,174,96,0.1); border: 1px solid rgba(39,174,96,0.2); color: #27ae60; padding: 12px; border-radius: 10px; margin-bottom: 16px; }
 
-  .review-card { padding: 20px 0; border-bottom: 1px solid var(--border); }
+  .review-card { padding: 18px 0; border-bottom: 1px solid var(--border); }
   .review-card:last-child { border-bottom: none; }
   .rc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .rc-name { font-size: 13px; font-weight: 600; }
@@ -675,13 +830,15 @@ const styles = `
   .rc-text { font-size: 13px; color: var(--text2); line-height: 1.7; font-weight: 300; }
   .no-reviews { padding: 40px 0; text-align: center; color: var(--text3); font-size: 13px; }
 
+  /* Menu */
   .menu-img-wrap { margin-top: 8px; }
   .menu-img { width: 100%; border-radius: 12px; cursor: pointer; max-height: 300px; object-fit: cover; transition: max-height 0.4s ease; }
   .menu-img.expanded { max-height: none; }
   .menu-expand-btn { width: 100%; margin-top: 8px; padding: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text2); font-family: 'Sora', sans-serif; font-size: 12px; cursor: pointer; }
 
+  /* Sidebar */
   .sidebar { position: sticky; top: 76px; }
-  .sidebar-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 14px; overflow: hidden; }
+  .sidebar-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 14px; overflow: hidden; }
   .sc-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); margin-bottom: 16px; }
   .btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border-radius: 12px; background: var(--red); color: #fff; font-size: 13px; font-weight: 700; text-decoration: none; border: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: opacity 0.2s; margin-bottom: 8px; letter-spacing: 0.2px; }
   .btn-primary:hover { opacity: 0.85; }
@@ -689,11 +846,6 @@ const styles = `
   .btn-wa:hover { background: #1f4a2c; }
   .btn-ghost { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border-radius: 12px; background: transparent; color: var(--text2); border: 1px solid var(--border); font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; }
   .btn-ghost:hover { border-color: var(--border2); color: var(--text); }
-  .sc-divider { height: 1px; background: var(--border); margin: 16px 0; }
-  .sc-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 12px; color: var(--text2); }
-  .sc-icon { width: 28px; height: 28px; border-radius: 8px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
-  .sc-val a { color: var(--text2); text-decoration: none; transition: color 0.2s; }
-  .sc-val a:hover { color: var(--red); }
 
   .map-box { background: var(--surface2); border-radius: 10px; height: 110px; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 14px; border: 1px solid var(--border); cursor: pointer; transition: border-color 0.2s; overflow: hidden; position: relative; }
   .map-box:hover { border-color: var(--border2); }
@@ -706,7 +858,8 @@ const styles = `
   .share-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border-radius: 10px; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; text-decoration: none; }
   .share-btn:hover { border-color: var(--border2); color: var(--text); }
 
-  .claim-card { background: var(--surface); border: 1px solid var(--border); border-left: 2px solid var(--red); border-radius: 16px; padding: 20px; margin-bottom: 14px; }
+  /* Claim card */
+  .claim-card { background: var(--surface); border: 1px solid var(--border); border-left: 2px solid var(--red); border-radius: 12px; padding: 20px; margin-bottom: 14px; }
   .claim-title { font-size: 13px; font-weight: 700; margin-bottom: 5px; }
   .claim-sub { font-size: 11px; color: var(--text2); line-height: 1.6; margin-bottom: 14px; }
   .claim-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 10px; border-radius: 10px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-border); font-size: 12px; font-weight: 700; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; text-decoration: none; }
@@ -714,6 +867,7 @@ const styles = `
   .claim-success-msg { font-size: 12px; color: #27ae60; background: rgba(39,174,96,0.1); border: 1px solid rgba(39,174,96,0.2); border-radius: 10px; padding: 10px 12px; line-height: 1.5; }
   .claim-already { font-size: 12px; color: var(--text2); line-height: 1.5; }
 
+  /* Claim modal */
   .claim-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.15s ease; }
   .claim-modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px; width: 100%; max-width: 420px; animation: fadeUp 0.2s cubic-bezier(0.22,1,0.36,1) both; }
   .cm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -721,8 +875,6 @@ const styles = `
   .cm-close { background: none; border: none; color: var(--text2); font-size: 16px; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1; transition: color 0.15s; font-family: 'Sora', sans-serif; }
   .cm-close:hover { color: var(--text); }
   .cm-sub { font-size: 12px; color: var(--text2); line-height: 1.6; margin-bottom: 20px; }
-  .cm-divider { height: 1px; background: var(--border); margin: 16px 0 12px; }
-  .cm-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 12px; }
   .cm-field { margin-bottom: 12px; }
   .cm-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); margin-bottom: 6px; }
   .cm-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; outline: none; transition: border-color 0.2s; }
@@ -733,15 +885,28 @@ const styles = `
   .cm-submit:hover:not(:disabled) { opacity: 0.85; }
   .cm-submit:disabled { opacity: 0.45; cursor: not-allowed; }
 
+  /* Photos lightbox */
+  .photos-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.15s ease; overflow-y: auto; }
+  .photos-modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px; width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; animation: fadeUp 0.2s cubic-bezier(0.22,1,0.36,1) both; }
+  .photos-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .photos-modal-title { font-size: 15px; font-weight: 800; }
+  .photos-modal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .photos-modal-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; }
+
+  /* Mobile */
   @media (max-width: 900px) {
     .content { grid-template-columns: 1fr; padding: 0 20px 80px; }
     .sidebar { display: none; }
     .mobile-cta { display: flex; }
-    .biz-name { font-size: 30px; }
+    .biz-name { font-size: 28px; }
     .gallery { height: 50vw; min-height: 220px; }
-    .info-blocks { grid-template-columns: 1fr; }
+    .gallery-grid { grid-template-columns: 1fr; }
+    .gallery-side { display: none; }
+    .gallery-duo { grid-template-columns: 1fr; }
+    .gallery-duo-item:nth-child(2) { display: none; }
     .rf-grid { grid-template-columns: 1fr; }
     .nav { padding: 0 20px; }
     .nav-center { display: none; }
+    .photos-modal-grid { grid-template-columns: 1fr 1fr; }
   }
 `;
