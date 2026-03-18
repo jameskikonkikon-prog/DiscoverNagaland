@@ -6,7 +6,10 @@ import { cookies } from 'next/headers'
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_SIZE = 5 * 1024 * 1024   // 5 MB
 const MAX_FILES = 10
-const BUCKET = 'property-photos'
+const BUCKETS: Record<string, string> = {
+  business: 'business-media',
+  property: 'property-photos',
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,6 +21,9 @@ export async function POST(req: NextRequest) {
     )
     const { data: { user } } = await authClient.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const type = req.nextUrl.searchParams.get('type') ?? 'property'
+    const BUCKET = BUCKETS[type] ?? 'property-photos'
 
     const formData = await req.formData()
     const files = formData.getAll('files') as File[]

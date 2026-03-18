@@ -47,6 +47,12 @@ export default function MyListingPage() {
   const [openingHours, setOpeningHours] = useState('');
   const [website, setWebsite] = useState('');
 
+  // Photo management
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [brokenThumbs, setBrokenThumbs] = useState<Set<number>>(new Set());
+
   useEffect(() => {
     let mounted = true;
     async function load() {
@@ -71,6 +77,7 @@ export default function MyListingPage() {
         setPriceRange(b.price_range ?? '');
         setOpeningHours(b.opening_hours ?? '');
         setWebsite(b.website ?? '');
+        setPhotos(Array.isArray(b.photos) ? b.photos : []);
       }
       setLoading(false);
     }
@@ -78,30 +85,57 @@ export default function MyListingPage() {
     return () => { mounted = false; };
   }, [supabase, router]);
 
+  async function handlePhotoFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!files.length) return;
+    if (photos.length + files.length > 10) { setUploadError('Max 10 photos allowed'); return; }
+    setUploading(true);
+    setUploadError('');
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+      const res = await fetch('/api/upload?type=business', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) setUploadError(json.error ?? 'Upload failed. Please try again.');
+      else setPhotos(prev => [...prev, ...json.urls]);
+    } catch { setUploadError('Network error during upload. Please try again.'); }
+    finally { setUploading(false); }
+  }
+
   async function handleSave() {
     if (!business) return;
     setSaving(true);
     setError(null);
     setSaved(false);
 
-    const { error: updErr } = await supabase
-      .from('businesses')
-      .update({
-        phone: phone.trim() || null,
-        whatsapp: whatsapp.trim() || null,
-        email: email.trim() || null,
-        price_range: priceRange.trim() || null,
-        opening_hours: openingHours.trim() || null,
-        website: website.trim() || null,
-      })
-      .eq('id', business.id);
-
-    setSaving(false);
-    if (updErr) {
-      setError(updErr.message);
-    } else {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+    try {
+      const res = await fetch(`/api/businesses/${business.id}/business`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: phone.trim() || null,
+          whatsapp: whatsapp.trim() || null,
+          email: email.trim() || null,
+          price_range: priceRange.trim() || null,
+          opening_hours: openingHours.trim() || null,
+          website: website.trim() || null,
+          photos: photos.length ? photos : null,
+        }),
+      });
+      const json = await res.json();
+      setSaving(false);
+      if (!res.ok) {
+        setError(json.error ?? 'Failed to save. Please try again.');
+      } else {
+        setSaved(true);
+        // Reflect server-enforced photo array (plan limits may slice it)
+        if (Array.isArray(json.business?.photos)) setPhotos(json.business.photos);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch {
+      setSaving(false);
+      setError('Network error. Please try again.');
     }
   }
 
@@ -136,7 +170,6 @@ export default function MyListingPage() {
   const location = [business.area, business.city].filter(Boolean).join(', ');
 
   const readonlyFields = [
-    { label: 'Photos', value: business.photos?.length ? `${business.photos.length} photo(s)` : null },
     { label: 'Description', value: business.description },
     { label: 'Tags', value: business.tags },
     { label: 'Vibe Tags', value: business.vibe_tags?.join(', ') || null },
@@ -144,7 +177,7 @@ export default function MyListingPage() {
 
   return (
     <div style={s.page}>
-      <style>{`.listing-field-input:focus{border-bottom-color:#c0392b !important;color:#fff !important;}`}</style>
+      <style>{`.listing-field-input:focus{border-bottom-color:#c0392b !important;color:#fff !important;}.biz-photo-zone:hover{border-color:#3a1a1a !important;}`}</style>
       <div style={s.container}>
         <div style={s.card}>
           <div style={s.titleRow}>
@@ -156,6 +189,47 @@ export default function MyListingPage() {
           </div>
 
           <div style={s.bizName}>{business.name}</div>
+
+          {/* PHOTOS */}
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:11,color:'#666',fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>
+              Photos <span style={{fontWeight:400,opacity:0.5}}>({photos.length}/10)</span>
+            </div>
+            {photos.length > 0 && (
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(80px,1fr))',gap:8,marginBottom:10}}>
+                {photos.map((url, i) => (
+                  <div key={url} style={{position:'relative',borderRadius:8,overflow:'hidden',aspectRatio:'1',background:'#1a1a1a',border:'1px solid #222'}}>
+                    {brokenThumbs.has(i) ? (
+                      <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,opacity:0.3}}>🖼️</div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={url}
+                        alt={`Photo ${i + 1}`}
+                        style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}
+                        onError={() => setBrokenThumbs(prev => new Set(prev).add(i))}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))}
+                      style={{position:'absolute',top:3,right:3,width:18,height:18,borderRadius:'50%',background:'rgba(0,0,0,0.75)',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',fontSize:10,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}
+                      aria-label="Remove photo"
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {photos.length < 10 && (
+              <label style={{display:'block',background:'#161616',border:'1.5px dashed #2a2a2a',borderRadius:10,padding:'14px 16px',textAlign:'center',cursor:uploading?'default':'pointer',transition:'border-color 0.15s'}}>
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple style={{display:'none'}} onChange={handlePhotoFiles} disabled={uploading} />
+                <div style={{fontSize:18,marginBottom:4}}>📷</div>
+                <div style={{fontSize:12,color:'#ccc',fontWeight:600,marginBottom:2}}>{uploading ? 'Uploading…' : photos.length === 0 ? 'Add photos' : 'Add more'}</div>
+                <div style={{fontSize:11,color:'#555'}}>JPG, PNG, WebP · Max 5 MB each</div>
+              </label>
+            )}
+            {uploadError && <div style={{fontSize:11,color:'#c0392b',marginTop:6}}>{uploadError}</div>}
+          </div>
 
           <div style={s.fields}>
             <div style={s.fieldRow}>
