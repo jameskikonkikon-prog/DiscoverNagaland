@@ -7,7 +7,7 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/g
 const MAX_SIZE = 5 * 1024 * 1024   // 5 MB
 const MAX_FILES = 10
 const BUCKETS: Record<string, string> = {
-  business: 'business-media',
+  business: 'business-photos',
   property: 'property-photos',
 }
 
