@@ -44,8 +44,6 @@ export async function GET(request: NextRequest) {
       if (hasBiz && !hasProp) destination = '/dashboard';
       else if (hasProp && !hasBiz) destination = '/real-estate/dashboard';
 
-      console.log('[auth/callback]', { userId, bizCount, propCount, hasBiz, hasProp, destination });
-
       return NextResponse.redirect(`${origin}${destination}`);
     }
   }
