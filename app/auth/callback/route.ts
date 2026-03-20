@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { getServiceClient } from "@/lib/supabase";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -26,9 +27,26 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+    const { error, data } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user) {
+      const userId = data.user.id;
+
+      const serviceClient = getServiceClient();
+      const [{ count: bizCount }, { count: propCount }] = await Promise.all([
+        serviceClient.from('businesses').select('id', { count: 'exact', head: true }).eq('owner_id', userId),
+        serviceClient.from('properties').select('id', { count: 'exact', head: true }).eq('owner_id', userId),
+      ]);
+
+      const hasBiz = (bizCount ?? 0) > 0;
+      const hasProp = (propCount ?? 0) > 0;
+
+      let destination = '/account';
+      if (hasBiz && !hasProp) destination = '/dashboard';
+      else if (hasProp && !hasBiz) destination = '/real-estate/dashboard';
+
+      console.log('[auth/callback]', { userId, bizCount, propCount, hasBiz, hasProp, destination });
+
+      return NextResponse.redirect(`${origin}${destination}`);
     }
   }
 
