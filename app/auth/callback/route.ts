@@ -37,6 +37,9 @@ export async function GET(request: NextRequest) {
         serviceClient.from('properties').select('id', { count: 'exact', head: true }).eq('owner_id', userId),
       ]);
 
+      // TEMP DEBUG — remove after confirming counts
+      return NextResponse.redirect(`${origin}/account?debug=1&biz=${bizCount}&prop=${propCount}&uid=${userId.slice(0, 8)}`);
+
       const hasBiz = (bizCount ?? 0) > 0;
       const hasProp = (propCount ?? 0) > 0;
 
