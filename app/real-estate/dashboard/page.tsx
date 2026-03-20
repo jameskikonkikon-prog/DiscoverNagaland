@@ -350,21 +350,13 @@ export default function RealEstateDashboard() {
           </div>
         )}
 
-        {/* COMING SOON CARDS */}
-        <div className="dw-section-label">Coming Soon</div>
-        <div className="dw-cards">
-          {[
-            { icon: '✏️', title: 'Edit Property',        desc: 'Update photos, price, and details anytime.' },
-            { icon: '✅', title: 'Mark Sold / Rented',   desc: 'Close a listing once your property is taken.' },
-            { icon: '📊', title: 'Listing Analytics',    desc: 'Track views and enquiries per property.' },
-          ].map(c => (
-            <div key={c.title} className="dw-card">
-              <span className="dw-card-badge">Soon</span>
-              <div className="dw-card-icon">{c.icon}</div>
-              <div className="dw-card-title">{c.title}</div>
-              <div className="dw-card-desc">{c.desc}</div>
-            </div>
-          ))}
+        {/* COMING SOON BANNER */}
+        <div style={{display:'flex',alignItems:'center',gap:14,background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:14,padding:'18px 20px',marginBottom:36}}>
+          <div style={{fontSize:22,lineHeight:1,flexShrink:0}}>📊</div>
+          <div>
+            <div style={{fontSize:14,fontWeight:600,color:'var(--off)',marginBottom:3}}>Listing Analytics <span style={{fontSize:9,fontWeight:700,letterSpacing:'0.07em',textTransform:'uppercase',color:'rgba(255,255,255,0.2)',background:'var(--bg3)',border:'1px solid var(--border)',padding:'2px 7px',borderRadius:999,verticalAlign:'middle',marginLeft:6}}>Soon</span></div>
+            <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.55}}>Track views and enquiries per property.</div>
+          </div>
         </div>
 
         {/* PRICING */}
