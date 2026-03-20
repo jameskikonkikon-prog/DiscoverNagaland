@@ -21,26 +21,34 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const getRedirect = () => {
+  const getSmartDestination = async (userId: string): Promise<string> => {
     const params = new URLSearchParams(window.location.search);
-    // If there's a pending plan in localStorage, redirect to pricing to complete payment
-    if (typeof window !== 'undefined' && localStorage.getItem('yana_pending_plan')) {
-      return '/pricing';
-    }
-    return params.get('redirect') || '/dashboard';
+    if (localStorage.getItem('yana_pending_plan')) return '/pricing';
+    const explicit = params.get('redirect');
+    if (explicit) return explicit;
+
+    const [bizRes, propRes] = await Promise.all([
+      supabase.from('businesses').select('id', { count: 'exact', head: true }).eq('owner_id', userId),
+      supabase.from('properties').select('id', { count: 'exact', head: true }).eq('owner_id', userId),
+    ]);
+    const hasBiz = (bizRes.count ?? 0) > 0;
+    const hasProp = (propRes.count ?? 0) > 0;
+    if (hasBiz && !hasProp) return '/dashboard';
+    if (hasProp && !hasBiz) return '/real-estate/dashboard';
+    return '/account';
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error, data } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError('Wrong email or password. Please try again.');
       setLoading(false);
       return;
     }
-    router.push(getRedirect());
+    router.push(await getSmartDestination(data.user.id));
   };
 
   const handleSendOtp = async () => {
@@ -68,13 +76,13 @@ export default function LoginPage() {
     setError('');
     const cleaned = phone.replace(/\D/g, '');
     const fullPhone = cleaned.length === 10 ? `+91${cleaned}` : `+${cleaned}`;
-    const { error } = await supabase.auth.verifyOtp({ phone: fullPhone, token: otp, type: 'sms' });
+    const { error, data } = await supabase.auth.verifyOtp({ phone: fullPhone, token: otp, type: 'sms' });
     if (error) {
       setError('Invalid OTP. Please try again.');
       setLoading(false);
       return;
     }
-    router.push(getRedirect());
+    router.push(await getSmartDestination(data.user.id));
   };
 
   return (
