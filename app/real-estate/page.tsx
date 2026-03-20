@@ -93,9 +93,9 @@ export default function RealEstatePage() {
         .re-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color 0.15s,transform 0.15s;}
         .re-card:hover{border-color:rgba(192,57,43,0.3);transform:translateY(-2px);}
         .re-card-img{position:relative;width:100%;height:180px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;}
-        .re-no-photo{display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0.55;}
-        .re-no-photo-icon{font-size:32px;}
-        .re-no-photo-label{font-size:10.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);}
+        .re-no-photo{display:flex;flex-direction:column;align-items:center;gap:6px;}
+        .re-no-photo-icon{opacity:0.2;}
+        .re-no-photo-label{font-size:10px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.2);}
         .re-card-body{padding:16px 18px 18px;}
         .re-card-type-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
         .re-card-type{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--red);}
@@ -218,9 +218,7 @@ export default function RealEstatePage() {
                       />
                     : (
                       <div className="re-no-photo">
-                        <span className="re-no-photo-icon">
-                          {p.property_type === 'land' ? '🌿' : p.property_type === 'apartment' ? '🏢' : p.property_type === 'commercial' ? '🏪' : '🏠'}
-                        </span>
+                        <svg className="re-no-photo-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                         <span className="re-no-photo-label">No photo</span>
                       </div>
                     )}
