@@ -26,9 +26,23 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+    const { error, data } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user) {
+      const userId = data.user.id;
+
+      const [{ count: bizCount }, { count: propCount }] = await Promise.all([
+        supabase.from('businesses').select('id', { count: 'exact', head: true }).eq('owner_id', userId),
+        supabase.from('properties').select('id', { count: 'exact', head: true }).eq('owner_id', userId),
+      ]);
+
+      const hasBiz = (bizCount ?? 0) > 0;
+      const hasProp = (propCount ?? 0) > 0;
+
+      let destination = '/account';
+      if (hasBiz && !hasProp) destination = '/dashboard';
+      else if (hasProp && !hasBiz) destination = '/real-estate/dashboard';
+
+      return NextResponse.redirect(`${origin}${destination}`);
     }
   }
 
