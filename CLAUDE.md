@@ -100,15 +100,18 @@ for Real Estate unless explicitly asked later.
 ---
 ## Current expected live Real Estate state
 ### Public routes
-- `/real-estate` exists
-- `/real-estate/[id]` exists
-- Public browse should only show:
-  - `is_available = true`
-  - `last_verified_at` within 30 days
+- `/real-estate` — public browse (live)
+- `/real-estate/[id]` — property detail page (live)
+- Public browse only shows `is_available = true` and `last_verified_at` within 30 days
 ### Owner routes
-- `/real-estate/dashboard`
-- `/real-estate/dashboard/add-property`
-- `/real-estate/dashboard/edit/[id]`
+- `/real-estate/dashboard` — my listings (live)
+- `/real-estate/dashboard/add-property` (live)
+- `/real-estate/dashboard/edit/[id]` (live)
+### API routes
+- `/api/real-estate` — GET (public browse), POST (create), PUT (edit), PATCH (verify/status)
+- `/api/real-estate/[id]` — GET single property
+- `/api/real-estate/verify` — POST refresh/verify listing
+All routes merged to main.
 ### Real Estate owner capabilities already expected
 - add property
 - edit property
@@ -127,6 +130,8 @@ Current freshness model:
   - Expired
 ### Real Estate detail page
 Public property cards should link to `/real-estate/[id]`.
+Detail page uses two-column layout with photo grid and sidebar (contact, location, share).
+Broken image fallback is in place on all photos.
 ---
 ## Business rules
 ### Business dashboard
@@ -138,6 +143,11 @@ Do not reuse claim flow language or structure for Real Estate.
 ### Business media
 Business photos use the existing `business-photos` bucket.
 Do NOT create duplicate business media buckets unless explicitly approved.
+### Business detail page
+Detail page uses two-column layout with photo grid (1 large + 2 small) and sidebar (contact, location, share).
+Clean card-based sections: about, hours, features, reviews.
+Broken image fallback on all photos.
+Phone and hours appear only in their dedicated sections — no duplication.
 ---
 ## Shared account / owner hub
 ### Shared account
@@ -150,8 +160,12 @@ Expected behavior:
 - if owns businesses → show Business Dashboard link
 - if owns properties → show Real Estate Dashboard link
 - if owns neither → show CTA to register business or list property
-Do NOT change login redirect to `/account` unless explicitly asked.
-Current login redirect should remain unchanged unless I approve changing it.
+### Smart login redirect (done)
+Smart redirect is implemented in two places:
+- `app/auth/callback/route.ts` — OAuth / magic link (uses service client)
+- `app/login/page.tsx` — email/password and WhatsApp OTP (uses authenticated client)
+Logic: biz only → `/dashboard`, prop only → `/real-estate/dashboard`, both or neither → `/account`.
+Pending plan in localStorage still overrides to `/pricing`. Explicit `?redirect=` param still respected.
 ---
 ## Database / Supabase caution
 ### Critical note
@@ -290,11 +304,10 @@ Always fall back cleanly to the no-photo placeholder.
 ---
 ## What still likely needs work
 These are likely next steps unless I say otherwise:
-1. Business photo/dashboard polish
-2. Video support planning
-3. Video implementation later
-4. Further owner dashboard polish
-5. Login redirect to `/account` only if explicitly approved
+1. Real Estate dashboard polish (not done yet)
+2. Real Estate pricing / payments (not built yet)
+3. Video support — planned but waiting on Supabase Pro upgrade decision
+4. Video implementation — do not start until explicitly asked
 ---
 ## When uncertain
 If something seems inconsistent between:
