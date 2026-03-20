@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 
 export default function ResetPasswordPage() {
@@ -14,6 +14,35 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+  const [checking, setChecking] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionError, setSessionError] = useState('');
+
+  useEffect(() => {
+    async function init() {
+      // PKCE flow: Supabase sends ?code= as a query param
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (code) {
+        const { error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchErr) { setSessionError('Invalid or expired reset link. Please request a new one.'); setChecking(false); return; }
+        setSessionReady(true); setChecking(false); return;
+      }
+
+      // Implicit flow: Supabase sends #access_token=...&type=recovery in the hash
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        // createBrowserClient processes the hash automatically; give it a tick
+        await new Promise(r => setTimeout(r, 150));
+        const { data } = await supabase.auth.getSession();
+        if (data.session) { setSessionReady(true); setChecking(false); return; }
+      }
+
+      setSessionError('Invalid or expired reset link. Please request a new one.');
+      setChecking(false);
+    }
+    init();
+  }, [supabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +67,24 @@ export default function ResetPasswordPage() {
             <span className="brand-sub">NAGALAND</span>
           </a>
 
-          {done ? (
+          {checking ? (
+            <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem', opacity: 0.5 }}>⏳</div>
+              <p className="rp-sub" style={{ marginBottom: 0 }}>Verifying reset link…</p>
+            </div>
+          ) : sessionError ? (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔗</div>
+              <h1 className="rp-title">Link invalid or expired</h1>
+              <p className="rp-sub" style={{ marginBottom: '2rem' }}>{sessionError}</p>
+              <a href="/forgot-password" className="rp-btn" style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}>
+                Request a new link
+              </a>
+              <div className="rp-footer" style={{ marginTop: '1rem' }}>
+                <a href="/login">← Back to login</a>
+              </div>
+            </div>
+          ) : done ? (
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>✅</div>
               <h1 className="rp-title">Password updated!</h1>
@@ -49,7 +95,7 @@ export default function ResetPasswordPage() {
                 Go to Login →
               </a>
             </div>
-          ) : (
+          ) : sessionReady ? (
             <>
               <h1 className="rp-title">Set new password</h1>
               <p className="rp-sub">Choose a new password for your account.</p>
@@ -74,7 +120,7 @@ export default function ResetPasswordPage() {
                 <a href="/login">← Back to login</a>
               </div>
             </>
-          )}
+          ) : null}
         </div>
       </main>
     </>
