@@ -19,29 +19,11 @@ export default function ResetPasswordPage() {
   const [sessionError, setSessionError] = useState('');
 
   useEffect(() => {
-    async function init() {
-      // PKCE flow: Supabase sends ?code= as a query param
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      if (code) {
-        const { error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchErr) { setSessionError('Invalid or expired reset link. Please request a new one.'); setChecking(false); return; }
-        setSessionReady(true); setChecking(false); return;
-      }
-
-      // Implicit flow: Supabase sends #access_token=...&type=recovery in the hash
-      const hash = window.location.hash;
-      if (hash && hash.includes('access_token')) {
-        // createBrowserClient processes the hash automatically; give it a tick
-        await new Promise(r => setTimeout(r, 150));
-        const { data } = await supabase.auth.getSession();
-        if (data.session) { setSessionReady(true); setChecking(false); return; }
-      }
-
-      setSessionError('Invalid or expired reset link. Please request a new one.');
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) { setSessionReady(true); }
+      else { setSessionError('Invalid or expired reset link. Please request a new one.'); }
       setChecking(false);
-    }
-    init();
+    });
   }, [supabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
