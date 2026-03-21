@@ -153,6 +153,13 @@ export default function LoginPage() {
               <button type="submit" className="login-btn email-btn" disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign In'}
               </button>
+              <div style={{ textAlign: 'right', marginTop: '10px' }}>
+                <a href="/forgot-password" style={{ fontSize: '0.78rem', color: '#666', textDecoration: 'none' }}
+                  onMouseOver={e => (e.currentTarget.style.color = '#c0392b')}
+                  onMouseOut={e => (e.currentTarget.style.color = '#666')}>
+                  Forgot password?
+                </a>
+              </div>
             </form>
           )}
 

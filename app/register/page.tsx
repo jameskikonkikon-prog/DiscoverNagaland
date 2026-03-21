@@ -390,6 +390,8 @@ export default function RegisterPage() {
   const [menuFile, setMenuFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isFoundingMember, setIsFoundingMember] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
   const [foundingSpots, setFoundingSpots] = useState<number | null>(null);
   const [earlyAccessFull, setEarlyAccessFull] = useState(false);
 
@@ -489,22 +491,41 @@ export default function RegisterPage() {
     !!(account.email && account.password && account.confirm),
   ];
 
+  const handleResend = async () => {
+    setResending(true);
+    await supabase.auth.resend({ type: 'signup', email: account.email });
+    setResending(false);
+    setResent(true);
+  };
+
   if (submitted) return (
     <>
       <style>{styles}</style>
       <main className="reg-page">
         <div className="reg-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
-          <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🎉</div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: 'var(--red)', marginBottom: '0.75rem' }}>You&apos;re Listed!</h1>
-          {isFoundingMember && (
-            <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '10px', padding: '12px 16px', marginBottom: '1rem', color: '#4ade80', fontSize: '0.9rem' }}>
-              <strong>Founding Member!</strong> You got the Pro plan free — forever. No credit card, no expiry.
-            </div>
-          )}
-          <p style={{ color: 'var(--muted)', marginBottom: '2rem', lineHeight: '1.6' }}>
-            Your business is now live on Yana Nagaland{isFoundingMember ? ' with Pro features' : ''}. Use your email and password to log in and manage your listing anytime.
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📧</div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: 'var(--white)', marginBottom: '0.75rem' }}>Check your email</h1>
+          <p style={{ color: 'var(--muted)', marginBottom: '0.5rem', lineHeight: '1.6' }}>
+            We sent a verification link to
           </p>
-          <a href="/login" className="btn-next" style={{ display: 'inline-block', textDecoration: 'none', padding: '0.85rem 2rem' }}>Go to Login →</a>
+          <p style={{ color: 'var(--white)', fontWeight: 600, marginBottom: '1.5rem' }}>{account.email}</p>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginBottom: '2rem', lineHeight: '1.6' }}>
+            Click the link in the email to activate your account. Check your spam folder if you don&apos;t see it.
+          </p>
+          {resent ? (
+            <p style={{ color: '#4ade80', fontSize: '0.88rem', marginBottom: '1.5rem' }}>✓ Verification email resent.</p>
+          ) : (
+            <button
+              onClick={handleResend}
+              disabled={resending}
+              style={{ background: 'transparent', border: '1.5px solid var(--border2)', borderRadius: '10px', color: 'var(--muted)', fontFamily: "'Sora', sans-serif", fontSize: '0.88rem', padding: '0.7rem 1.4rem', cursor: resending ? 'default' : 'pointer', marginBottom: '1.5rem', opacity: resending ? 0.5 : 1 }}
+            >
+              {resending ? 'Sending…' : 'Resend verification email'}
+            </button>
+          )}
+          <div>
+            <a href="/login" style={{ color: 'var(--red)', fontSize: '0.88rem', textDecoration: 'none' }}>← Back to login</a>
+          </div>
         </div>
       </main>
     </>
