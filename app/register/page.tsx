@@ -385,6 +385,7 @@ export default function RegisterPage() {
   const [customFields, setCustomFields] = useState<Record<string, string | string[]>>({});
   const [vibeTags, setVibeTags] = useState<string[]>([]);
   const [account, setAccount] = useState({ email: '', password: '', confirm: '' });
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const MAX_PHOTOS_NEW = 2;
   const [photos, setPhotos] = useState<File[]>([]);
   const [menuFile, setMenuFile] = useState<File | null>(null);
@@ -737,6 +738,20 @@ export default function RegisterPage() {
                   <p className="form-note" style={{ color: '#f87171', marginTop: '0.4rem' }}>Passwords don&apos;t match</p>
                 )}
               </div>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', marginTop: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={e => setTermsAccepted(e.target.checked)}
+                  style={{ marginTop: '2px', accentColor: 'var(--red)', flexShrink: 0 }}
+                />
+                <span style={{ fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.55 }}>
+                  I agree to the{' '}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--red)', textDecoration: 'none' }}>Terms of Service</a>
+                  {' '}and{' '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--red)', textDecoration: 'none' }}>Privacy Policy</a>
+                </span>
+              </label>
             </div>
           )}
 
@@ -747,7 +762,7 @@ export default function RegisterPage() {
             {step < 5 ? (
               <button className="btn-next" onClick={() => setStep(step + 1)} disabled={!canNext[step]}>Continue →</button>
             ) : (
-              <button className="btn-next" onClick={handleSubmit} disabled={loading || !canNext[5] || account.password !== account.confirm}>
+              <button className="btn-next" onClick={handleSubmit} disabled={loading || !canNext[5] || account.password !== account.confirm || !termsAccepted}>
                 {loading ? 'Creating listing…' : 'Create Listing'}
               </button>
             )}
