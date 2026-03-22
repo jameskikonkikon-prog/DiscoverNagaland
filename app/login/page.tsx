@@ -1,6 +1,6 @@
 'use client';
 export const dynamic = 'force-dynamic';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 
@@ -20,6 +20,11 @@ export default function LoginPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [verified, setVerified] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('verified') === 'true') setVerified(true);
+  }, []);
 
   const getSmartDestination = async (userId: string): Promise<string> => {
     const params = new URLSearchParams(window.location.search);
@@ -92,6 +97,12 @@ export default function LoginPage() {
         <div className="login-card">
           {/* Top accent line */}
           <div className="card-accent" />
+
+          {verified && (
+            <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '8px', padding: '10px 14px', marginBottom: '1.25rem', fontSize: '0.84rem', color: '#4ade80', lineHeight: 1.5 }}>
+              ✓ Email verified! You can now sign in.
+            </div>
+          )}
 
           {/* Logo */}
           <a href="/" className="login-brand">

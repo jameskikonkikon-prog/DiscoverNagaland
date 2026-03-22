@@ -34,6 +34,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(`${origin}/reset-password`);
       }
 
+      if (type === 'signup' || type === 'email') {
+        return NextResponse.redirect(`${origin}/login?verified=true`);
+      }
+
       const userId = data.user.id;
 
       const serviceClient = getServiceClient();
