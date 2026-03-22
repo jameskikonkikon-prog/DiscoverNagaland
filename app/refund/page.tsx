@@ -1,3 +1,6 @@
+import type { Metadata } from 'next';
+export const metadata: Metadata = { title: 'Refund & Cancellation Policy' };
+
 export default function RefundPage() {
   return (
     <>
