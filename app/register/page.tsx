@@ -453,6 +453,14 @@ export default function RegisterPage() {
       const user = authData.user;
       if (!user) throw new Error('Account creation failed');
 
+      // Email confirmation is enabled — no session yet. Skip business creation
+      // and show the "Check your email" screen. The user will log in after confirming.
+      if (!authData.session) {
+        setSubmitted(true);
+        setLoading(false);
+        return;
+      }
+
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
       const res = await fetch('/api/businesses', {
         method: 'POST',
