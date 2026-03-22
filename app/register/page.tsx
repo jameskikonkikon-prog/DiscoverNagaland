@@ -453,23 +453,15 @@ export default function RegisterPage() {
       const user = authData.user;
       if (!user) throw new Error('Account creation failed');
 
-      // Email confirmation is enabled — no session yet. Skip business creation
-      // and show the "Check your email" screen. The user will log in after confirming.
-      if (!authData.session) {
-        setSubmitted(true);
-        setLoading(false);
-        return;
-      }
-
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
-      const res = await fetch('/api/businesses', {
+      const res = await fetch('/api/register-business', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          signup_user_id: user.id,
           ...form,
           slug,
           email: account.email,
-          owner_id: user.id,
           custom_fields: customFields,
           vibe_tags: vibeTags.join(','),
         }),
@@ -479,12 +471,17 @@ export default function RegisterPage() {
 
       const businessId = data.business.id;
       if (data.business.plan === 'pro') setIsFoundingMember(true);
-      const updates: Record<string, unknown> = {};
-      if (photos.length > 0) updates.photos = await uploadPhotos(businessId);
-      if (menuFile) updates.menu_url = await uploadMenu(businessId);
-      if (Object.keys(updates).length > 0) {
-        await fetch(`/api/businesses/${businessId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
+
+      // Photos require storage auth — only upload if session exists (no email confirmation pending)
+      if (authData.session) {
+        const updates: Record<string, unknown> = {};
+        if (photos.length > 0) updates.photos = await uploadPhotos(businessId);
+        if (menuFile) updates.menu_url = await uploadMenu(businessId);
+        if (Object.keys(updates).length > 0) {
+          await fetch(`/api/businesses/${businessId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
+        }
       }
+
       setSubmitted(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
