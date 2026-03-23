@@ -46,6 +46,8 @@ export default function RealEstateDashboard() {
   const [loading,      setLoading]      = useState(true)
   const [properties,   setProperties]   = useState<Property[]>([])
   const [activeCount,  setActiveCount]  = useState(0)
+  const [leadCalls,    setLeadCalls]    = useState(0)
+  const [leadWa,       setLeadWa]       = useState(0)
   const [refreshing,    setRefreshing]    = useState<string | null>(null)
   const [disabling,     setDisabling]     = useState<string | null>(null)
 
@@ -107,6 +109,21 @@ export default function RealEstateDashboard() {
         if (!p.last_verified_at) return false
         return (Date.now() - new Date(p.last_verified_at).getTime()) / 86400000 <= 30
       }).length)
+
+      // Lead events this month across all owned properties
+      if (rows.length > 0) {
+        const propIds = rows.map(p => p.id)
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+        const { data: leads } = await supabase
+          .from('lead_events')
+          .select('event_type')
+          .in('property_id', propIds)
+          .gte('created_at', monthStart)
+        const leadRows = leads ?? []
+        setLeadCalls(leadRows.filter((l: { event_type: string }) => l.event_type === 'call').length)
+        setLeadWa(leadRows.filter((l: { event_type: string }) => l.event_type === 'whatsapp').length)
+      }
+
       setLoading(false)
     }
     load()
@@ -247,9 +264,9 @@ export default function RealEstateDashboard() {
             <div className="dw-stat-note">Coming soon</div>
           </div>
           <div className="dw-stat">
-            <div className="dw-stat-val">—</div>
-            <div className="dw-stat-label">Leads</div>
-            <div className="dw-stat-note">Enquiries received</div>
+            <div className="dw-stat-val">{loading ? '—' : leadCalls + leadWa}</div>
+            <div className="dw-stat-label">Leads this month</div>
+            <div className="dw-stat-note">{loading ? 'Loading…' : `${leadCalls} calls · ${leadWa} WhatsApp`}</div>
           </div>
         </div>
 

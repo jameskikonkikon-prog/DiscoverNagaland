@@ -88,6 +88,8 @@ export default function DashboardPage() {
   const [loading,      setLoading]      = useState(true)
   const [upgrading,    setUpgrading]    = useState<string | null>(null)
   const [paymentMsg,   setPaymentMsg]   = useState<{ text: string; ok: boolean } | null>(null)
+  const [leadCalls,    setLeadCalls]    = useState(0)
+  const [leadWa,       setLeadWa]       = useState(0)
 
   // ── LOAD ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -156,6 +158,17 @@ export default function DashboardPage() {
           total_views:        totalViews,
           weekly_views:       weekly,
         })
+
+        // Lead events this month
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+        const { data: leads } = await supabase
+          .from('lead_events')
+          .select('event_type')
+          .eq('business_id', biz.id)
+          .gte('created_at', monthStart)
+        const leadRows = leads ?? []
+        setLeadCalls(leadRows.filter((l: { event_type: string }) => l.event_type === 'call').length)
+        setLeadWa(leadRows.filter((l: { event_type: string }) => l.event_type === 'whatsapp').length)
       }
 
       // Early Access spots from API (live from Supabase)
@@ -481,6 +494,26 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+
+            {/* LEAD STATS */}
+            {isPro ? (
+              <div className="stats-row" style={{ marginBottom: 24 }}>
+                <div className="stat-card">
+                  <div className="stat-icon">📞</div>
+                  <div className="stat-label">Calls this month</div>
+                  <div className="stat-value">{leadCalls}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">💬</div>
+                  <div className="stat-label">WhatsApp clicks this month</div>
+                  <div className="stat-value">{leadWa}</div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', marginBottom: 24, fontSize: 13, color: 'var(--muted)', cursor: 'pointer' }} onClick={() => setActiveTab('billing')}>
+                🔒 <strong style={{ color: 'var(--text)' }}>Upgrade to Pro</strong> to see who&apos;s contacting you — calls and WhatsApp clicks.
+              </div>
+            )}
 
             {/* TWO COL */}
             <div className="two-col">
