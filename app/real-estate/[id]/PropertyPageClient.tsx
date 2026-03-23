@@ -106,6 +106,15 @@ export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Pr
 
   const waText = encodeURIComponent(`Hi! I'm interested in your property listed on Yana Nagaland: ${property.title}`);
   const waUrl = property.whatsapp ? `https://wa.me/${property.whatsapp.replace(/\D/g, '')}?text=${waText}` : '';
+
+  const track = (type: 'call' | 'whatsapp') => {
+    const data = JSON.stringify({ property_id: property.id, event_type: type });
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon('/api/track', new Blob([data], { type: 'application/json' }));
+    } else {
+      fetch('/api/track', { method: 'POST', body: data, headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+    }
+  };
   const shareText = typeof window !== 'undefined' ? encodeURIComponent(`Check out this property on Yana Nagaland: ${window.location.href}`) : '';
   const shareWaUrl = `https://wa.me/?text=${shareText}`;
 
@@ -268,10 +277,10 @@ export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Pr
             {/* Mobile CTAs */}
             <div className="mobile-cta fade-up-2">
               {property.phone && (
-                <a href={`tel:${property.phone}`} className="m-call">📞 Call Owner</a>
+                <a href={`tel:${property.phone}`} className="m-call" onClick={() => track('call')}>📞 Call Owner</a>
               )}
               {property.whatsapp && (
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="m-wa">💬 WhatsApp</a>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="m-wa" onClick={() => track('whatsapp')}>💬 WhatsApp</a>
               )}
             </div>
 
@@ -358,10 +367,10 @@ export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Pr
                 </div>
               )}
               {property.phone && (
-                <a href={`tel:${property.phone}`} className="btn-primary">📞 Call {property.phone}</a>
+                <a href={`tel:${property.phone}`} className="btn-primary" onClick={() => track('call')}>📞 Call {property.phone}</a>
               )}
               {property.whatsapp && (
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn-wa">💬 Chat on WhatsApp</a>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn-wa" onClick={() => track('whatsapp')}>💬 Chat on WhatsApp</a>
               )}
             </div>
 

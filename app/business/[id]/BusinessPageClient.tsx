@@ -200,6 +200,15 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
 
   const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent([biz.name, biz.address, biz.city, 'Nagaland'].filter(Boolean).join(' '))}`;
   const waUrl = biz.whatsapp ? `https://wa.me/${biz.whatsapp.replace(/\D/g, '')}?text=Hi!%20I%20found%20you%20on%20Yana%20Nagaland` : '';
+
+  const track = (type: 'call' | 'whatsapp') => {
+    const data = JSON.stringify({ business_id: biz.id, event_type: type });
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon('/api/track', new Blob([data], { type: 'application/json' }));
+    } else {
+      fetch('/api/track', { method: 'POST', body: data, headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+    }
+  };
   const shareWaUrl = typeof window !== 'undefined' ? `https://wa.me/?text=Check out ${biz.name} on Yana Nagaland: ${window.location.href}` : '';
 
   // Gallery renderer
@@ -369,9 +378,9 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
 
             {/* Mobile CTA */}
             <div className="mobile-cta fade-up-2">
-              <a href={`tel:${biz.phone}`} className="m-call">📞 Call Now</a>
+              <a href={`tel:${biz.phone}`} className="m-call" onClick={() => track('call')}>📞 Call Now</a>
               {biz.whatsapp && (
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="m-wa">💬 WhatsApp</a>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="m-wa" onClick={() => track('whatsapp')}>💬 WhatsApp</a>
               )}
             </div>
 
@@ -511,9 +520,9 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
             {/* Contact card — no duplicate phone listing */}
             <div className="sidebar-card">
               <div className="sc-label">Contact</div>
-              <a href={`tel:${biz.phone}`} className="btn-primary">📞 Call {biz.phone}</a>
+              <a href={`tel:${biz.phone}`} className="btn-primary" onClick={() => track('call')}>📞 Call {biz.phone}</a>
               {biz.whatsapp && (
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn-wa">💬 Chat on WhatsApp</a>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn-wa" onClick={() => track('whatsapp')}>💬 Chat on WhatsApp</a>
               )}
               {biz.email && (
                 <a href={`mailto:${biz.email}`} className="btn-ghost">✉️ Send Email</a>
