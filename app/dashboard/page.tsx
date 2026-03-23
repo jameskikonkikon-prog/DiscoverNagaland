@@ -284,8 +284,20 @@ export default function DashboardPage() {
 
   // ── LOADING ───────────────────────────────────────────────────────────────
   if (loading) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#0a0a0a', color:'#555', fontFamily:'Sora,sans-serif', fontSize:14 }}>
-      Loading your dashboard…
+    <div style={{ display:'flex', minHeight:'100vh', background:'#0a0a0a', fontFamily:'Sora,sans-serif' }}>
+      <style>{`@keyframes skPulse{0%,100%{opacity:.22}50%{opacity:.5}}.sk{background:#1e1e1e;border-radius:10px;animation:skPulse 1.5s ease-in-out infinite}`}</style>
+      <div style={{ width:220, background:'#111', borderRight:'1px solid rgba(255,255,255,0.06)', padding:24, display:'flex', flexDirection:'column', gap:14, flexShrink:0 }}>
+        <div className="sk" style={{ height:30, width:110 }} />
+        {[1,2,3,4,5].map(i => <div key={i} className="sk" style={{ height:18, width:'75%' }} />)}
+      </div>
+      <div style={{ flex:1, padding:'36px 40px', display:'flex', flexDirection:'column', gap:20 }}>
+        <div className="sk" style={{ height:34, width:240 }} />
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
+          {[1,2,3].map(i => <div key={i} className="sk" style={{ height:96, borderRadius:14 }} />)}
+        </div>
+        <div className="sk" style={{ height:180, borderRadius:14 }} />
+        <div className="sk" style={{ height:120, borderRadius:14 }} />
+      </div>
     </div>
   )
 

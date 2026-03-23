@@ -31,7 +31,7 @@ export default function ConsentBanner() {
     <div style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 999,
       background: '#1a1a1a', borderTop: '1px solid rgba(255,255,255,0.08)',
-      padding: '14px 24px', display: 'flex', alignItems: 'center',
+      padding: '14px 24px 80px', display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
       fontFamily: "'Sora', sans-serif",
     }}>

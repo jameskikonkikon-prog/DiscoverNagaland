@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/Toast'
 
 const EMPTY = {
   title: '', property_type: '', listing_type: '', city: '', locality: '',
@@ -18,6 +19,7 @@ export default function AddPropertyPage() {
   const router = useRouter()
   const [form, setForm] = useState(EMPTY)
   const [errors, setErrors] = useState<Partial<typeof EMPTY>>({})
+  const { showToast } = useToast()
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [apiError, setApiError] = useState('')
@@ -119,13 +121,18 @@ export default function AddPropertyPage() {
           router.push('/login')
           return
         }
-        setApiError(json.error ?? 'Something went wrong. Please try again.')
+        const msg = json.error ?? 'Something went wrong. Please try again.'
+        setApiError(msg)
+        showToast(msg, 'error')
       } else {
         setSuccess(true)
         setForm(EMPTY)
+        showToast('Property listed!')
       }
     } catch {
-      setApiError('Network error. Please check your connection and try again.')
+      const msg = 'Network error. Please check your connection and try again.'
+      setApiError(msg)
+      showToast(msg, 'error')
     } finally {
       setSubmitting(false)
     }

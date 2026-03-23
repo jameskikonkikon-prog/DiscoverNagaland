@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
+import { useToast } from '@/components/Toast';
 
 type Business = {
   id: string;
@@ -33,9 +34,9 @@ export default function MyListingPage() {
     )
   );
 
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [business, setBusiness] = useState<Business | null>(null);
 
@@ -97,9 +98,9 @@ export default function MyListingPage() {
       files.forEach(f => fd.append('files', f));
       const res = await fetch('/api/upload?type=business', { method: 'POST', body: fd });
       const json = await res.json();
-      if (!res.ok) setUploadError(json.error ?? 'Upload failed. Please try again.');
-      else setPhotos(prev => [...prev, ...json.urls]);
-    } catch { setUploadError('Network error during upload. Please try again.'); }
+      if (!res.ok) { const msg = json.error ?? 'Upload failed. Please try again.'; setUploadError(msg); showToast(msg, 'error'); }
+      else { setPhotos(prev => [...prev, ...json.urls]); showToast('Photos uploaded!'); }
+    } catch { const msg = 'Network error during upload. Please try again.'; setUploadError(msg); showToast(msg, 'error'); }
     finally { setUploading(false); }
   }
 
@@ -126,16 +127,19 @@ export default function MyListingPage() {
       const json = await res.json();
       setSaving(false);
       if (!res.ok) {
-        setError(json.error ?? 'Failed to save. Please try again.');
+        const msg = json.error ?? 'Failed to save. Please try again.';
+        setError(msg);
+        showToast(msg, 'error');
       } else {
-        setSaved(true);
-        // Reflect server-enforced photo array (plan limits may slice it)
+        setError(null);
         if (Array.isArray(json.business?.photos)) setPhotos(json.business.photos);
-        setTimeout(() => setSaved(false), 2000);
+        showToast('Listing updated!');
       }
     } catch {
       setSaving(false);
-      setError('Network error. Please try again.');
+      const msg = 'Network error. Please try again.';
+      setError(msg);
+      showToast(msg, 'error');
     }
   }
 
@@ -313,7 +317,6 @@ export default function MyListingPage() {
             >
               {saving ? 'Saving…' : '💾 Save Changes'}
             </button>
-            {saved && <span style={s.savedMsg}>✓ Saved!</span>}
           </div>
 
           {error && <div style={s.error}>{error}</div>}

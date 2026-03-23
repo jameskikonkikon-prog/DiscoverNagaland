@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/Toast'
 
 interface Property {
   id: string
@@ -41,17 +42,15 @@ export default function RealEstateDashboard() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
   )
+  const { showToast } = useToast()
   const [loading,      setLoading]      = useState(true)
   const [properties,   setProperties]   = useState<Property[]>([])
   const [activeCount,  setActiveCount]  = useState(0)
   const [refreshing,    setRefreshing]    = useState<string | null>(null)
-  const [refreshError,  setRefreshError]  = useState<string | null>(null)
   const [disabling,     setDisabling]     = useState<string | null>(null)
-  const [disableError,  setDisableError]  = useState<string | null>(null)
 
   async function handleDisable(id: string) {
     setDisabling(id)
-    setDisableError(null)
     try {
       const res = await fetch('/api/real-estate', {
         method: 'PATCH',
@@ -59,11 +58,12 @@ export default function RealEstateDashboard() {
         body: JSON.stringify({ id }),
       })
       const json = await res.json()
-      if (!res.ok) { setDisableError(json.error ?? 'Failed to update listing'); return }
+      if (!res.ok) { showToast(json.error ?? 'Failed to update listing', 'error'); return }
       setProperties(prev => prev.map(p => p.id === id ? { ...p, is_available: false } : p))
       setActiveCount(prev => Math.max(0, prev - 1))
+      showToast('Listing marked as sold')
     } catch {
-      setDisableError('Network error. Please try again.')
+      showToast('Network error. Please try again.', 'error')
     } finally {
       setDisabling(null)
     }
@@ -71,7 +71,6 @@ export default function RealEstateDashboard() {
 
   async function handleRefresh(id: string) {
     setRefreshing(id)
-    setRefreshError(null)
     try {
       const res = await fetch('/api/real-estate/verify', {
         method: 'POST',
@@ -79,15 +78,12 @@ export default function RealEstateDashboard() {
         body: JSON.stringify({ id }),
       })
       const json = await res.json()
-      if (!res.ok) { setRefreshError(json.error ?? 'Refresh failed'); return }
+      if (!res.ok) { showToast(json.error ?? 'Refresh failed', 'error'); return }
       const now = json.last_verified_at as string
       setProperties(prev => prev.map(p => p.id === id ? { ...p, last_verified_at: now } : p))
-      setActiveCount(prev => {
-        // recalculate after update
-        return prev // will re-derive on next render via freshness
-      })
+      showToast('Listing refreshed!')
     } catch {
-      setRefreshError('Network error. Please try again.')
+      showToast('Network error. Please try again.', 'error')
     } finally {
       setRefreshing(null)
     }
@@ -342,11 +338,6 @@ export default function RealEstateDashboard() {
                 </div>
               )
             })}
-            {(refreshError || disableError) && (
-              <div style={{fontSize:12,color:'#e05a4a',textAlign:'right',marginTop:-6}}>
-                {disableError || refreshError}
-              </div>
-            )}
           </div>
         )}
 

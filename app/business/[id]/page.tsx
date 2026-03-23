@@ -1,7 +1,28 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import type { Metadata } from 'next';
 import BusinessPageClient from './BusinessPageClient';
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  );
+  const { data: biz } = await supabase.from('businesses').select('name,category,city,description,photos').eq('id', params.id).single();
+  if (!biz) return {};
+  const title = `${biz.name} | Yana Nagaland`;
+  const description = biz.description || `${biz.category} in ${biz.city} — listed on Yana Nagaland`;
+  const image = biz.photos?.[0] ?? 'https://yananagaland.com/og-image.png';
+  const url = `https://yananagaland.com/business/${params.id}`;
+  return {
+    title: biz.name,
+    openGraph: { title, description, url, siteName: 'Yana Nagaland', images: [{ url: image }] },
+    twitter: { card: 'summary_large_image', title, description, images: [image] },
+  };
+}
 
 export default async function BusinessPage({ params }: { params: { id: string } }) {
   const id = params.id;
