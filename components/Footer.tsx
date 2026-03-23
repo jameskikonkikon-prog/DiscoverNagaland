@@ -5,6 +5,7 @@ const LINKS = [
   { href: '/terms', label: 'Terms of Service' },
   { href: '/refund', label: 'Refund Policy' },
   { href: '/contact', label: 'Contact Us' },
+  { href: '/about', label: 'About' },
 ];
 
 export default function Footer() {
