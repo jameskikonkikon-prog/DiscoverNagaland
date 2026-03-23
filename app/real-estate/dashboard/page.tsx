@@ -18,6 +18,8 @@ interface Property {
   last_verified_at: string | null
   created_at: string
   photos: string[] | null
+  plan: string | null
+  trial_ends_at: string | null
 }
 
 function freshness(last_verified_at: string | null): { label: string; color: string } {
@@ -26,6 +28,17 @@ function freshness(last_verified_at: string | null): { label: string; color: str
   if (days <= 23) return { label: 'Active', color: '#3ba88f' }
   if (days <= 30) return { label: 'Expiring Soon', color: '#e8a908' }
   return { label: 'Expired', color: '#c0392b' }
+}
+
+function trialStatus(plan: string | null, trial_ends_at: string | null): { label: string; color: string; expired: boolean } {
+  if (!plan || plan === 'trial') {
+    if (!trial_ends_at) return { label: 'Trial expired — listing hidden', color: '#c0392b', expired: true }
+    const daysLeft = Math.ceil((new Date(trial_ends_at).getTime() - Date.now()) / 86400000)
+    if (daysLeft > 0) return { label: `Trial — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`, color: '#3ba88f', expired: false }
+    return { label: 'Trial expired — listing hidden', color: '#c0392b', expired: true }
+  }
+  const labels: Record<string, string> = { starter: 'Starter plan', pro: 'Pro plan', agent: 'Agent plan' }
+  return { label: labels[plan] ?? plan, color: '#3ba88f', expired: false }
 }
 
 function fmt(price: number) {
@@ -98,7 +111,7 @@ export default function RealEstateDashboard() {
 
       const { data } = await supabase
         .from('properties')
-        .select('id,title,property_type,listing_type,city,locality,price,price_unit,is_available,last_verified_at,created_at,photos')
+        .select('id,title,property_type,listing_type,city,locality,price,price_unit,is_available,last_verified_at,created_at,photos,plan,trial_ends_at')
         .eq('owner_id', session.user.id)
         .order('created_at', { ascending: false })
 
@@ -300,6 +313,7 @@ export default function RealEstateDashboard() {
           <div className="ml-list">
             {properties.map(p => {
               const { label, color } = freshness(p.last_verified_at)
+              const trial = trialStatus(p.plan, p.trial_ends_at)
               const loc = [p.locality, p.city].filter(Boolean).join(', ')
               const needsRefresh = label === 'Expiring Soon' || label === 'Expired' || label === 'Unverified'
               const isRefreshing = refreshing === p.id
@@ -329,6 +343,10 @@ export default function RealEstateDashboard() {
                         ? `Verified ${new Date(p.last_verified_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`
                         : 'Not verified'}
                     </div>
+                    <div style={{fontSize:11,fontWeight:600,color:trial.color,marginTop:4}}>{trial.label}</div>
+                    {trial.expired && (
+                      <a href="/real-estate/pricing" style={{display:'inline-block',fontSize:11,fontWeight:700,color:'#fff',background:'#c0392b',padding:'4px 10px',borderRadius:6,textDecoration:'none',marginTop:4}}>Choose a Plan →</a>
+                    )}
                     <div className="ml-actions">
                       <a
                         href={`/real-estate/dashboard/edit/${p.id}`}
@@ -369,46 +387,12 @@ export default function RealEstateDashboard() {
 
         {/* PRICING */}
         <div className="dw-section-label">Property Listing Plans</div>
-        <div className="dw-pricing">
-          <div className="dw-pricing-head">
-            <div>
-              <div className="dw-pricing-title">Real Estate Pricing</div>
-              <div className="dw-pricing-sub">Separate from the main business directory. Plans are being finalised — early listings are free.</div>
-            </div>
-            <div className="dw-pricing-badge">Coming Soon</div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,background:'var(--bg2)',border:'1px solid rgba(192,57,43,0.2)',borderRadius:16,padding:'22px 24px',marginBottom:28}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:'var(--white)',marginBottom:4}}>Real Estate Pricing Plans</div>
+            <div style={{fontSize:12.5,color:'var(--muted)',lineHeight:1.55}}>Starter from ₹499/month · Pro from ₹799/month · Agent from ₹1,499/month<br />7-day free trial included. No credit card needed to start.</div>
           </div>
-          <div className="dw-plans">
-            <div className="dw-plan">
-              <div className="dw-plan-name">Free</div>
-              <div className="dw-plan-price">₹0</div>
-              <div className="dw-plan-cycle">during early access</div>
-              <div className="dw-plan-features">
-                <div className="dw-plan-feature">1 active listing</div>
-                <div className="dw-plan-feature">Basic detail page</div>
-                <div className="dw-plan-feature">Public visibility</div>
-              </div>
-            </div>
-            <div className="dw-plan featured">
-              <div className="dw-plan-name">Pro Listing</div>
-              <div className="dw-plan-price">TBD</div>
-              <div className="dw-plan-cycle">pricing being decided</div>
-              <div className="dw-plan-features">
-                <div className="dw-plan-feature">Up to 10 photos</div>
-                <div className="dw-plan-feature">Featured badge</div>
-                <div className="dw-plan-feature">Priority placement</div>
-              </div>
-            </div>
-            <div className="dw-plan">
-              <div className="dw-plan-name">Agent / Broker</div>
-              <div className="dw-plan-price">TBD</div>
-              <div className="dw-plan-cycle">pricing being decided</div>
-              <div className="dw-plan-features">
-                <div className="dw-plan-feature">Unlimited listings</div>
-                <div className="dw-plan-feature">Lead notifications</div>
-                <div className="dw-plan-feature">Analytics dashboard</div>
-              </div>
-            </div>
-          </div>
+          <a href="/real-estate/pricing" style={{flexShrink:0,fontSize:12,fontWeight:700,letterSpacing:'0.06em',textTransform:'uppercase',color:'var(--red)',background:'var(--red-bg)',border:'1px solid rgba(192,57,43,0.25)',padding:'9px 18px',borderRadius:9,textDecoration:'none',whiteSpace:'nowrap'}}>View Plans →</a>
         </div>
 
       </div>
