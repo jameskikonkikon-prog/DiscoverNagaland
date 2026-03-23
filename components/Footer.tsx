@@ -15,18 +15,11 @@ export default function Footer() {
       padding: '28px 24px 110px',
       fontFamily: "'Sora', sans-serif",
     }}>
+      <style>{`.yna-footer-link{font-size:12.5px;color:rgba(255,255,255,0.32);text-decoration:none;transition:color 0.15s}.yna-footer-link:hover{color:rgba(255,255,255,0.65)}`}</style>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginBottom: 16 }}>
           {LINKS.map(l => (
-            <a
-              key={l.href}
-              href={l.href}
-              style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.32)', textDecoration: 'none', transition: 'color 0.15s' }}
-              onMouseOver={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
-              onMouseOut={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.32)')}
-            >
-              {l.label}
-            </a>
+            <a key={l.href} href={l.href} className="yna-footer-link">{l.label}</a>
           ))}
         </div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.18)', lineHeight: 1.6 }}>
