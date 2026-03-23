@@ -111,6 +111,16 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
   const [claimError, setClaimError] = useState('');
 
   useEffect(() => {
+    // Fire page view tracking (fire-and-forget)
+    fetch('/api/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_id: biz.id, event_type: 'view' }),
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     const onScroll = () => setNavScrolled(typeof window !== 'undefined' && window.scrollY > 100);
     if (typeof window !== 'undefined') {
       window.addEventListener('scroll', onScroll);

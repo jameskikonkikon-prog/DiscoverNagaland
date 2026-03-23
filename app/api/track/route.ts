@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase'
 
-const VALID_EVENTS = ['call', 'whatsapp', 'email'] as const
+const VALID_EVENTS = ['call', 'whatsapp', 'email', 'view'] as const
 type EventType = typeof VALID_EVENTS[number]
 
 export async function POST(req: NextRequest) {

@@ -90,6 +90,8 @@ export default function DashboardPage() {
   const [paymentMsg,   setPaymentMsg]   = useState<{ text: string; ok: boolean } | null>(null)
   const [leadCalls,    setLeadCalls]    = useState(0)
   const [leadWa,       setLeadWa]       = useState(0)
+  const [leadViews,    setLeadViews]    = useState(0)
+  const [leadMonth,    setLeadMonth]    = useState(0)
 
   // ── LOAD ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -159,16 +161,19 @@ export default function DashboardPage() {
           weekly_views:       weekly,
         })
 
-        // Lead events this month
-        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+        // Lead events — all time
         const { data: leads } = await supabase
           .from('lead_events')
-          .select('event_type')
+          .select('event_type, created_at')
           .eq('business_id', biz.id)
-          .gte('created_at', monthStart)
         const leadRows = leads ?? []
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
         setLeadCalls(leadRows.filter((l: { event_type: string }) => l.event_type === 'call').length)
         setLeadWa(leadRows.filter((l: { event_type: string }) => l.event_type === 'whatsapp').length)
+        setLeadViews(leadRows.filter((l: { event_type: string }) => l.event_type === 'view').length)
+        setLeadMonth(leadRows.filter((l: { event_type: string; created_at: string }) =>
+          (l.event_type === 'call' || l.event_type === 'whatsapp') && l.created_at >= monthStart
+        ).length)
       }
 
       // Early Access spots from API (live from Supabase)
@@ -479,39 +484,36 @@ export default function DashboardPage() {
             )}
 
             {/* STATS ROW */}
-            <div className="stats-row">
-              {[
-                { icon:'👁️', label:'Views today',      value: analytics?.views_today ?? 0,    ...delta(analytics?.views_today ?? 0, analytics?.views_yesterday ?? 0) },
-                { icon:'💬', label:'WhatsApp clicks',  value: analytics?.whatsapp_today ?? 0, ...delta(analytics?.whatsapp_today ?? 0, analytics?.whatsapp_yesterday ?? 0) },
-                { icon:'📞', label:'Call clicks',      value: analytics?.calls_today ?? 0,    ...delta(analytics?.calls_today ?? 0, analytics?.calls_yesterday ?? 0) },
-                { icon:'📅', label:'Total views',      value: analytics?.total_views ?? 0,    label2: 'Since you joined', color: 'var(--muted)' },
-              ].map((s, i) => (
-                <div key={i} className="stat-card">
-                  <div className="stat-icon">{s.icon}</div>
-                  <div className="stat-label">{s.label}</div>
-                  <div className="stat-value">{s.value.toLocaleString()}</div>
-                  <div className="stat-change" style={{ color: s.color }}>{(s as any).label2 ?? s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* LEAD STATS */}
             {isPro ? (
-              <div className="stats-row" style={{ marginBottom: 24 }}>
+              <div className="stats-row">
                 <div className="stat-card">
                   <div className="stat-icon">📞</div>
-                  <div className="stat-label">Calls this month</div>
-                  <div className="stat-value">{leadCalls}</div>
+                  <div className="stat-label">Total Calls</div>
+                  <div className="stat-value">{leadCalls.toLocaleString()}</div>
+                  <div className="stat-change" style={{ color: 'var(--muted)' }}>All time</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-icon">💬</div>
-                  <div className="stat-label">WhatsApp clicks this month</div>
-                  <div className="stat-value">{leadWa}</div>
+                  <div className="stat-label">WhatsApp Clicks</div>
+                  <div className="stat-value">{leadWa.toLocaleString()}</div>
+                  <div className="stat-change" style={{ color: 'var(--muted)' }}>All time</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">📊</div>
+                  <div className="stat-label">Leads This Month</div>
+                  <div className="stat-value">{leadMonth.toLocaleString()}</div>
+                  <div className="stat-change" style={{ color: 'var(--muted)' }}>Calls + WhatsApp</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">👁️</div>
+                  <div className="stat-label">Listing Views</div>
+                  <div className="stat-value">{leadViews.toLocaleString()}</div>
+                  <div className="stat-change" style={{ color: 'var(--muted)' }}>All time</div>
                 </div>
               </div>
             ) : (
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', marginBottom: 24, fontSize: 13, color: 'var(--muted)', cursor: 'pointer' }} onClick={() => setActiveTab('billing')}>
-                🔒 <strong style={{ color: 'var(--text)' }}>Upgrade to Pro</strong> to see who&apos;s contacting you — calls and WhatsApp clicks.
+                🔒 <strong style={{ color: 'var(--text)' }}>Upgrade to Pro</strong> to see who&apos;s contacting you — calls, WhatsApp clicks, and listing views.
               </div>
             )}
 
