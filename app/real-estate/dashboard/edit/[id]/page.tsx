@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter, useParams } from 'next/navigation'
+import { useToast } from '@/components/Toast'
 
 const FIELDS = {
   title: '', property_type: '', listing_type: '', city: '', locality: '',
@@ -25,9 +26,9 @@ export default function EditPropertyPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [brokenThumbs, setBrokenThumbs] = useState<Set<number>>(new Set())
+  const { showToast } = useToast()
   const [submitting, setSubmitting] = useState(false)
   const [apiError, setApiError] = useState('')
-  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -117,11 +118,14 @@ export default function EditPropertyPage() {
       const json = await res.json()
       if (!res.ok) {
         if (res.status === 401) { router.push('/login'); return }
-        setApiError(json.error ?? 'Something went wrong. Please try again.')
+        const msg = json.error ?? 'Something went wrong. Please try again.'
+        setApiError(msg)
+        showToast(msg, 'error')
       } else {
-        setSuccess(true)
+        setApiError('')
+        showToast('Property updated!')
       }
-    } catch { setApiError('Network error. Please check your connection and try again.') }
+    } catch { const msg = 'Network error. Please check your connection and try again.'; setApiError(msg); showToast(msg, 'error') }
     finally { setSubmitting(false) }
   }
 
