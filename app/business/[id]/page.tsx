@@ -13,13 +13,14 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   );
   const { data: biz } = await supabase.from('businesses').select('name,category,city,description,photos').eq('id', params.id).single();
   if (!biz) return {};
-  const title = biz.name;
+  const title = `${biz.name} | Yana Nagaland`;
   const description = biz.description || `${biz.category} in ${biz.city} — listed on Yana Nagaland`;
-  const image = biz.photos?.[0];
+  const image = biz.photos?.[0] ?? 'https://yananagaland.com/og-image.png';
+  const url = `https://yananagaland.com/business/${params.id}`;
   return {
-    title,
-    openGraph: { title, description, ...(image ? { images: [{ url: image }] } : {}) },
-    twitter: { card: 'summary_large_image', title, description },
+    title: biz.name,
+    openGraph: { title, description, url, siteName: 'Yana Nagaland', images: [{ url: image }] },
+    twitter: { card: 'summary_large_image', title, description, images: [image] },
   };
 }
 

@@ -16,13 +16,13 @@ export const metadata: Metadata = {
     type: 'website',
     url: 'https://yananagaland.com',
     siteName: 'Yana Nagaland',
-    images: [{ url: 'https://yananagaland.com/og-image.svg', width: 1200, height: 630 }],
+    images: [{ url: 'https://yananagaland.com/og-image.png', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: "Yana Nagaland — Nagaland's Business & Property Directory",
     description: 'Find and list businesses, restaurants, hotels, PGs, rentals, and real estate across Nagaland.',
-    images: ['https://yananagaland.com/og-image.svg'],
+    images: ['https://yananagaland.com/og-image.png'],
   },
 }
 

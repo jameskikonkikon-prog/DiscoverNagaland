@@ -11,16 +11,17 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
   );
-  const { data: p } = await supabase.from('properties').select('title,property_type,city,price,price_unit,photos').eq('id', params.id).single();
+  const { data: p } = await supabase.from('properties').select('title,property_type,listing_type,city,price,price_unit,photos').eq('id', params.id).single();
   if (!p) return {};
-  const title = p.title;
   const priceStr = p.price ? `₹${Number(p.price).toLocaleString('en-IN')}${p.price_unit ? `/${p.price_unit}` : ''}` : '';
-  const description = `${p.property_type} in ${p.city}${priceStr ? ` — ${priceStr}` : ''} · Listed on Yana Nagaland`;
-  const image = p.photos?.[0];
+  const ogTitle = `${p.title} | Yana Nagaland`;
+  const description = `${p.property_type} ${p.listing_type} in ${p.city}${priceStr ? ` — ${priceStr}` : ''} · Listed on Yana Nagaland`;
+  const image = p.photos?.[0] ?? 'https://yananagaland.com/og-image.png';
+  const url = `https://yananagaland.com/real-estate/${params.id}`;
   return {
-    title,
-    openGraph: { title, description, ...(image ? { images: [{ url: image }] } : {}) },
-    twitter: { card: 'summary_large_image', title, description },
+    title: p.title,
+    openGraph: { title: ogTitle, description, url, siteName: 'Yana Nagaland', images: [{ url: image }] },
+    twitter: { card: 'summary_large_image', title: ogTitle, description, images: [image] },
   };
 }
 
