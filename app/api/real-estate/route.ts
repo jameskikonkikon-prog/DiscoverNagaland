@@ -6,11 +6,14 @@ import { cookies } from 'next/headers';
 export async function GET(req: NextRequest) {
   try {
     const supabase = getServiceClient();
+    const now = new Date().toISOString();
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('properties')
       .select('*')
       .eq('is_available', true)
-      .gte('last_verified_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .gte('last_verified_at', thirtyDaysAgo)
+      .or(`plan.in.(starter,pro,agent),and(plan.eq.trial,trial_ends_at.gt.${now})`)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -83,6 +86,8 @@ export async function POST(req: NextRequest) {
         is_available: true,
         is_featured: false,
         last_verified_at: new Date().toISOString(),
+        plan: 'trial',
+        trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       })
       .select()
       .single();

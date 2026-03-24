@@ -79,7 +79,6 @@ export const PLANS = {
       'Always appears first in search',
       'Featured on homepage weekly',
       'Vacancy alerts to saved users',
-      'Festival promotion banners',
       'QR code for your listing',
       'Monthly performance report',
     ],
