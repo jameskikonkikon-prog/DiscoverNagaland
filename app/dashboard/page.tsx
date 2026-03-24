@@ -62,7 +62,7 @@ function calcHealth(biz: Business | null) {
     { text: 'Add opening hours',              done: !!biz.opening_hours },
     { text: 'Add a description',              done: !!biz.description },
     { text: 'WhatsApp number added',          done: !!biz.whatsapp },
-    { text: 'Add your website or social',     done: !!biz.website },
+    { text: 'Add website or social link',       done: !!biz.website },
   ]
   const done = checks.filter(c => c.done).length
   return { score: Math.round((done / checks.length) * 100), tips: checks }
@@ -542,7 +542,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="health-tips">
-                    <h4>Fix these to get more customers:</h4>
+                    <h4>Improve your listing:</h4>
                     {health.tips.map((tip, i) => (
                       <div key={i} className="tip-row" style={tip.done ? { color:'#27ae60' } : {}}>
                         <div className="tip-dot" style={tip.done ? { background:'#27ae60' } : {}}/>
@@ -608,7 +608,7 @@ export default function DashboardPage() {
                         { label:'Price',       value: business.price_range },
                         { label:'Hours',       value: business.opening_hours },
                         { label:'Photos',      value: business.photos?.length ? `${business.photos.length} / ${maxPhotos === Infinity ? '∞' : maxPhotos}` : `0 / ${maxPhotos === Infinity ? '∞' : maxPhotos}` },
-                        { label:'Description', value: business.description ? business.description.slice(0,48)+'…' : null },
+                        { label:'Description', value: business.description ? (business.description.length > 48 ? business.description.slice(0, 48).replace(/\s\S*$/, '') + '…' : business.description) : null },
                       ].map((f, i) => (
                         <div key={i} className="lf-row">
                           <span className="lf-label">{f.label}</span>
@@ -865,7 +865,7 @@ export default function DashboardPage() {
                     price: 'Free',
                     sub: 'Forever',
                     border: '1px solid var(--border)',
-                    features: ['Full listing', '2 photos', 'WhatsApp & Call', 'Your own stats', 'AI description once', 'AI growth advisor once'],
+                    features: ['Full listing', '2 photos', 'WhatsApp & Call', 'AI description once', 'AI growth advisor once'],
                   },
                   {
                     key: 'pro',
@@ -874,7 +874,7 @@ export default function DashboardPage() {
                     sub: earlyAccessFull ? '/month' : (foundingLeft > 0 ? 'founding members' : '/month'),
                     border: '1px solid var(--red)',
                     popular: true,
-                    features: ['Everything in Basic', '10 photos', 'Higher search ranking', 'Weekly analytics', 'AI description unlimited', 'AI menu / catalogue QR', 'AI growth advisor weekly', 'WhatsApp booking button'],
+                    features: ['Everything in Basic', '10 photos', 'Higher search ranking', 'Weekly analytics', 'AI description unlimited', 'AI menu / catalogue QR', 'AI growth advisor weekly'],
                   },
                   {
                     key: 'plus',
@@ -882,15 +882,18 @@ export default function DashboardPage() {
                     price: '₹499',
                     sub: '/month',
                     border: '1px solid var(--gold)',
-                    features: ['Everything in Pro', 'Unlimited photos', 'Always first in search', 'Gold verified badge', 'Featured on homepage weekly', 'AI competitor intel', 'AI full business report', 'Weekly WhatsApp analytics'],
+                    features: ['Everything in Pro', 'Unlimited photos', 'Always first in search', 'Gold verified badge', 'Featured on homepage', 'AI competitor intel', 'AI business report'],
                   },
                 ] as const).map(p => (
                   <div key={p.key} className="card" style={{ border: p.key === 'pro' ? '1px solid var(--red)' : p.key === 'plus' ? '1px solid var(--gold)' : '1px solid var(--border)', background: plan === p.key ? 'var(--surface2)' : undefined }}>
                     {p.popular && <div style={{ fontSize:10, fontWeight:800, letterSpacing:1, color: 'var(--red)', marginBottom:8 }}>MOST POPULAR</div>}
                     <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>{p.name}</div>
-                    <div style={{ fontSize:26, fontWeight:800, marginBottom:6, color: p.key === 'basic' ? '#888' : p.key === 'pro' ? 'var(--red)' : 'var(--gold)' }}>
+                    <div style={{ fontSize:26, fontWeight:800, marginBottom: p.key === 'pro' ? 2 : 6, color: p.key === 'basic' ? '#888' : p.key === 'pro' ? 'var(--red)' : 'var(--gold)' }}>
                       {p.price} <span style={{ fontSize:12, fontWeight:400, color: 'var(--muted)' }}>{p.sub}</span>
                     </div>
+                    {p.key === 'pro' && (
+                      <div style={{ fontSize:11, color: 'var(--muted)', marginBottom:6 }}>₹199/mo after early access</div>
+                    )}
                     {p.key === 'pro' && !earlyAccessFull && (
                       <div style={{ marginBottom:12, fontSize:11, color: foundingLeft < 20 ? 'var(--red)' : 'var(--muted)', fontWeight:600 }}>
                         🔥 Only {foundingLeft} Early Access spots left — Get Pro free for your first month
@@ -908,9 +911,7 @@ export default function DashboardPage() {
                     <div style={{ marginTop: 16 }}>
                       {plan === p.key ? (
                         <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--green)', fontWeight: 700 }}>✓ Current Plan</div>
-                      ) : p.key === 'basic' ? (
-                        <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>—</div>
-                      ) : (
+                      ) : p.key === 'basic' ? null : (
                         <button
                           className="red-btn"
                           style={{ width: '100%', padding: '10px', fontSize: 13 }}

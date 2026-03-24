@@ -152,14 +152,39 @@ export default function RealEstatePricingPage() {
   }, [loadRazorpay, router])
 
   return (
-    <main style={{ background: '#0a0a0a', minHeight: '100vh', fontFamily: "'Sora', sans-serif", color: '#f0f0f0', padding: '64px 24px 96px' }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap'); * { box-sizing: border-box; }`}</style>
+    <div style={{ background: '#0a0a0a', minHeight: '100vh', fontFamily: "'Sora', sans-serif", color: '#f0f0f0' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap');
+        * { box-sizing: border-box; }
+        .re-nav{position:sticky;top:0;z-index:50;background:rgba(10,10,10,0.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.07);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;}
+        .re-nav-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+        .re-nav-logo{font-size:14px;font-weight:700;color:#fff;text-decoration:none;}
+        .re-nav-sep{color:rgba(255,255,255,0.25);font-size:12px;}
+        .re-nav-crumb{font-size:13px;color:rgba(255,255,255,0.38);text-decoration:none;}
+        .re-nav-crumb:hover{color:rgba(255,255,255,0.85);}
+        .re-nav-tag{font-size:11.5px;font-weight:600;color:#c0392b;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.25);padding:3px 10px;border-radius:999px;}
+        .re-nav-back{font-size:13px;color:rgba(255,255,255,0.38);text-decoration:none;}
+        .re-nav-back:hover{color:rgba(255,255,255,0.85);}
+        @media(max-width:700px){.re-plans-grid{grid-template-columns:1fr !important;}}
+      `}</style>
 
+      {/* NAV */}
+      <nav className="re-nav">
+        <div className="re-nav-left">
+          <a href="/" className="re-nav-logo">Yana Nagaland</a>
+          <span className="re-nav-sep">/</span>
+          <a href="/real-estate" className="re-nav-crumb">Real Estate</a>
+          <span className="re-nav-sep">/</span>
+          <span className="re-nav-tag">Pricing</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <a href="/account" className="re-nav-back">👤 My Account</a>
+          <a href="/real-estate/dashboard" className="re-nav-back">← Dashboard</a>
+        </div>
+      </nav>
+
+      <main style={{ padding: '48px 24px 96px' }}>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
-
-        <a href="/real-estate/dashboard" style={{ fontSize: 13, color: 'rgba(255,255,255,0.38)', textDecoration: 'none', display: 'inline-block', marginBottom: 36 }}>
-          ← Back to Dashboard
-        </a>
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
@@ -185,7 +210,7 @@ export default function RealEstatePricingPage() {
         )}
 
         {/* Plan cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 48 }}>
+        <div className="re-plans-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 48 }}>
           {PLANS.map(plan => {
             const isBuying = buying === plan.key
             return (
@@ -229,6 +254,7 @@ export default function RealEstatePricingPage() {
         </div>
 
       </div>
-    </main>
+      </main>
+    </div>
   )
 }

@@ -373,13 +373,19 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               </div>
               <div className="biz-name">{biz.name}</div>
               {/* Rating right below name */}
-              <div className="header-rating">
-                <span className="header-rating-stars">
-                  {'⭐'.repeat(avgRating ? Math.round(parseFloat(avgRating)) : 0)}{'☆'.repeat(5 - (avgRating ? Math.round(parseFloat(avgRating)) : 0))}
-                </span>
-                <span className="header-rating-num">{avgRating ?? '—'}</span>
-                <span className="header-rating-count">({reviews.length} review{reviews.length !== 1 ? 's' : ''})</span>
-              </div>
+              {reviews.length > 0 ? (
+                <div className="header-rating">
+                  <span className="header-rating-stars">
+                    {'⭐'.repeat(Math.round(parseFloat(avgRating!)))}{'☆'.repeat(5 - Math.round(parseFloat(avgRating!)))}
+                  </span>
+                  <span className="header-rating-num">{avgRating}</span>
+                  <span className="header-rating-count">({reviews.length} review{reviews.length !== 1 ? 's' : ''})</span>
+                </div>
+              ) : (
+                <div className="header-rating">
+                  <span className="header-rating-count" style={{ fontStyle: 'italic', opacity: 0.5 }}>No ratings yet</span>
+                </div>
+              )}
               <div className="location-line">
                 <span>📍</span>
                 <span>{locationLine}</span>
@@ -438,26 +444,34 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               </div>
             </div>
 
-            {/* Features card */}
-            <div className="card fade-up-4">
-              <div className="card-head">Features</div>
-              <div className="features">
-                {featuresList.map((f) => (
-                  <span key={f.label} className={`feature ${f.yes ? 'yes' : 'no'}`}>{f.label}</span>
-                ))}
+            {/* Features card — only show if at least one feature is available */}
+            {featuresList.some(f => f.yes) && (
+              <div className="card fade-up-4">
+                <div className="card-head">Features</div>
+                <div className="features">
+                  {featuresList.filter(f => f.yes).map((f) => (
+                    <span key={f.label} className="feature yes">{f.label}</span>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Reviews card */}
             <div className="card fade-up-4">
               <div className="card-head">Reviews</div>
               <div className="reviews-top">
                 <div className="rating-display">
-                  <div className="rating-num">{avgRating ?? '—'}</div>
-                  <div className="rating-info">
-                    <div className="rating-stars">{'⭐'.repeat(avgRating ? Math.round(parseFloat(avgRating)) : 0)}{'☆'.repeat(5 - (avgRating ? Math.round(parseFloat(avgRating)) : 0))}</div>
-                    <div className="rating-count">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</div>
-                  </div>
+                  {reviews.length > 0 ? (
+                    <>
+                      <div className="rating-num">{avgRating}</div>
+                      <div className="rating-info">
+                        <div className="rating-stars">{'⭐'.repeat(Math.round(parseFloat(avgRating!)))}{'☆'.repeat(5 - Math.round(parseFloat(avgRating!)))}</div>
+                        <div className="rating-count">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rating-count" style={{ fontStyle: 'italic', opacity: 0.5 }}>No ratings yet</div>
+                  )}
                 </div>
                 {!reviewSuccess && (
                   <button type="button" className="write-review-btn" onClick={() => { setShowReviewForm(!showReviewForm); if (!showReviewForm) setTimeout(() => document.getElementById('reviewForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }}>

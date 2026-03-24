@@ -175,8 +175,8 @@ function SearchPageInner() {
             <span className="list-avatar list-avatar-placeholder" aria-hidden />
           ) : loggedIn ? (
             <>
-              <Link href="/dashboard" className="list-btn">Dashboard</Link>
-              <Link href="/dashboard" className="list-avatar" aria-label="Open dashboard">
+              <Link href="/account" className="list-btn">My Account</Link>
+              <Link href="/account" className="list-avatar" aria-label="My account">
                 <span className="list-avatar-icon">👤</span>
               </Link>
             </>
@@ -331,6 +331,7 @@ function SearchPageInner() {
                           <img src={getBizPhotoUrl(biz)!} alt={biz.name} className="biz-photo" />
                         ) : (
                           <div className="biz-photo-placeholder biz-photo-category">
+                            <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: 6, opacity: 0.5 }}>{getCategoryEmoji(biz.category)}</span>
                             <span>{biz.category}</span>
                           </div>
                         )}
