@@ -882,7 +882,7 @@ export default function DashboardPage() {
                     price: '₹499',
                     sub: '/month',
                     border: '1px solid var(--gold)',
-                    features: ['Everything in Pro', 'Unlimited photos', 'Always first in search', 'Gold verified badge', 'Featured on homepage weekly', 'AI competitor intel', 'AI full business report', 'Weekly WhatsApp analytics', 'Festival promotion banner'],
+                    features: ['Everything in Pro', 'Unlimited photos', 'Always first in search', 'Gold verified badge', 'Featured on homepage weekly', 'AI competitor intel', 'AI full business report', 'Weekly WhatsApp analytics'],
                   },
                 ] as const).map(p => (
                   <div key={p.key} className="card" style={{ border: p.key === 'pro' ? '1px solid var(--red)' : p.key === 'plus' ? '1px solid var(--gold)' : '1px solid var(--border)', background: plan === p.key ? 'var(--surface2)' : undefined }}>
