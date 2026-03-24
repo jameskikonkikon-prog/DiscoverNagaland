@@ -162,14 +162,6 @@ export default function AccountPage() {
           </div>
         )}
 
-        <div className="divider" />
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <span style={{ fontSize: 13, color: 'var(--muted)' }}>Account settings and billing coming soon.</span>
-          <a href="/dashboard/settings" style={{ fontSize: 13, color: 'var(--muted)', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.12)', paddingBottom: 1 }}>
-            Settings →
-          </a>
-        </div>
       </div>
     </div>
   )

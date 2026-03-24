@@ -361,8 +361,8 @@ export default function HomePage() {
           <span className="nav-avatar nav-avatar-placeholder" aria-hidden />
         ) : loggedIn ? (
           <>
-            <a href="/dashboard" className="nav-cta-btn">Dashboard</a>
-            <a href="/dashboard" className="nav-avatar" aria-label="Open dashboard">
+            <a href="/account" className="nav-cta-btn">My Account</a>
+            <a href="/account" className="nav-avatar" aria-label="My account">
               <span className="nav-avatar-icon">👤</span>
             </a>
           </>
@@ -422,7 +422,9 @@ export default function HomePage() {
           {/* FEATURED */}
           <div className="sec-head">
             <span className="sec-title">Featured this week</span>
-            <button className="sec-more" onClick={() => quickSearch('featured businesses Nagaland')}>See all →</button>
+            {featuredBusinesses.length > 1 && (
+              <button className="sec-more" onClick={() => quickSearch('featured businesses Nagaland')}>See all →</button>
+            )}
           </div>
           <div className="featured-grid">
             {featuredBusinesses.map((biz, i) => {
@@ -570,10 +572,6 @@ export default function HomePage() {
           )}
         </div>
       </div>
-
-      <footer className="yana-footer">
-        Yana Nagaland · Built for Nagaland · Powered by Claude AI · yananagaland.com
-      </footer>
 
       {/* ── YANA AI FLOATING CHAT ── */}
 
