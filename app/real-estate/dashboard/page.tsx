@@ -32,12 +32,12 @@ function freshness(last_verified_at: string | null): { label: string; color: str
 
 function trialStatus(plan: string | null, trial_ends_at: string | null): { label: string; color: string; expired: boolean } {
   if (!plan || plan === 'trial') {
-    if (!trial_ends_at) return { label: 'Trial expired — listing hidden', color: '#c0392b', expired: true }
+    if (!trial_ends_at) return { label: 'Trial expired', color: '#c0392b', expired: true }
     const daysLeft = Math.ceil((new Date(trial_ends_at).getTime() - Date.now()) / 86400000)
-    if (daysLeft > 0) return { label: `Trial — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`, color: '#3ba88f', expired: false }
-    return { label: 'Trial expired — listing hidden', color: '#c0392b', expired: true }
+    if (daysLeft > 0) return { label: `Trial · ${daysLeft}d left`, color: '#3ba88f', expired: false }
+    return { label: 'Trial expired', color: '#c0392b', expired: true }
   }
-  const labels: Record<string, string> = { starter: 'Starter plan', pro: 'Pro plan', agent: 'Agent plan' }
+  const labels: Record<string, string> = { starter: 'Starter', pro: 'Pro', agent: 'Agent' }
   return { label: labels[plan] ?? plan, color: '#3ba88f', expired: false }
 }
 
@@ -45,6 +45,13 @@ function fmt(price: number) {
   if (price >= 10000000) return `₹${(price / 10000000).toFixed(1)}Cr`
   if (price >= 100000)   return `₹${(price / 100000).toFixed(1)}L`
   return `₹${price.toLocaleString('en-IN')}`
+}
+
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
 }
 
 export default function RealEstateDashboard() {
@@ -56,13 +63,13 @@ export default function RealEstateDashboard() {
     )
   )
   const { showToast } = useToast()
-  const [loading,      setLoading]      = useState(true)
-  const [properties,   setProperties]   = useState<Property[]>([])
-  const [activeCount,  setActiveCount]  = useState(0)
-  const [leadCalls,    setLeadCalls]    = useState(0)
-  const [leadWa,       setLeadWa]       = useState(0)
-  const [refreshing,    setRefreshing]    = useState<string | null>(null)
-  const [disabling,     setDisabling]     = useState<string | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [userName,   setUserName]   = useState('')
+  const [properties, setProperties] = useState<Property[]>([])
+  const [totalLeads, setTotalLeads] = useState(0)
+  const [totalViews, setTotalViews] = useState(0)
+  const [refreshing, setRefreshing] = useState<string | null>(null)
+  const [disabling,  setDisabling]  = useState<string | null>(null)
 
   async function handleDisable(id: string) {
     setDisabling(id)
@@ -75,7 +82,6 @@ export default function RealEstateDashboard() {
       const json = await res.json()
       if (!res.ok) { showToast(json.error ?? 'Failed to update listing', 'error'); return }
       setProperties(prev => prev.map(p => p.id === id ? { ...p, is_available: false } : p))
-      setActiveCount(prev => Math.max(0, prev - 1))
       showToast('Listing marked as sold')
     } catch {
       showToast('Network error. Please try again.', 'error')
@@ -109,6 +115,10 @@ export default function RealEstateDashboard() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/login'); return }
 
+      const meta = session.user.user_metadata
+      const name = meta?.full_name ?? meta?.name ?? session.user.email?.split('@')[0] ?? ''
+      setUserName(name)
+
       const { data } = await supabase
         .from('properties')
         .select('id,title,property_type,listing_type,city,locality,price,price_unit,is_available,last_verified_at,created_at,photos,plan,trial_ends_at')
@@ -117,24 +127,17 @@ export default function RealEstateDashboard() {
 
       const rows = data ?? []
       setProperties(rows)
-      setActiveCount(rows.filter(p => {
-        if (!p.is_available) return false
-        if (!p.last_verified_at) return false
-        return (Date.now() - new Date(p.last_verified_at).getTime()) / 86400000 <= 30
-      }).length)
 
-      // Lead events this month across all owned properties
+      // All-time lead + view events for all owned properties
       if (rows.length > 0) {
         const propIds = rows.map(p => p.id)
-        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-        const { data: leads } = await supabase
+        const { data: events } = await supabase
           .from('lead_events')
           .select('event_type')
           .in('property_id', propIds)
-          .gte('created_at', monthStart)
-        const leadRows = leads ?? []
-        setLeadCalls(leadRows.filter((l: { event_type: string }) => l.event_type === 'call').length)
-        setLeadWa(leadRows.filter((l: { event_type: string }) => l.event_type === 'whatsapp').length)
+        const evRows = events ?? []
+        setTotalLeads(evRows.filter((e: { event_type: string }) => e.event_type === 'call' || e.event_type === 'whatsapp').length)
+        setTotalViews(evRows.filter((e: { event_type: string }) => e.event_type === 'view').length)
       }
 
       setLoading(false)
@@ -142,12 +145,36 @@ export default function RealEstateDashboard() {
     load()
   }, [supabase, router])
 
+  // Compute trial banner from properties
+  const trialBanner = (() => {
+    if (loading || properties.length === 0) return null
+    const now = Date.now()
+    const trialExpired = properties.some(p =>
+      (!p.plan || p.plan === 'trial') &&
+      (!p.trial_ends_at || new Date(p.trial_ends_at).getTime() <= now)
+    )
+    if (trialExpired) return { type: 'expired' as const }
+    const trialActive = properties
+      .filter(p => (!p.plan || p.plan === 'trial') && p.trial_ends_at && new Date(p.trial_ends_at).getTime() > now)
+    if (trialActive.length > 0) {
+      const daysLeft = Math.min(...trialActive.map(p =>
+        Math.ceil((new Date(p.trial_ends_at!).getTime() - now) / 86400000)
+      ))
+      return { type: 'active' as const, daysLeft }
+    }
+    return null
+  })()
+
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', fontFamily: "'Sora', sans-serif", color: 'var(--white)' }}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap');
         :root{--bg:#0a0a0a;--bg2:#111111;--bg3:#161616;--bg4:#1e1e1e;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--white:#ffffff;--off:rgba(255,255,255,0.85);--muted:rgba(255,255,255,0.38);--red:#c0392b;--red2:#a93226;--red-bg:rgba(192,57,43,0.08);--gold:#e8a908;--gold-bg:rgba(232,169,8,0.08);--teal:#3ba88f;--teal-bg:rgba(59,168,143,0.08);}
+        *{box-sizing:border-box;}
         body{background:var(--bg);margin:0;padding:0;}
         body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 50% at 20% 0%,rgba(139,0,0,0.08) 0%,transparent 60%);pointer-events:none;z-index:0;}
+
+        /* NAV */
         .dn{position:sticky;top:0;z-index:50;background:rgba(10,10,10,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;}
         .dn-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
         .dn-logo{font-size:14px;font-weight:700;color:var(--white);text-decoration:none;}
@@ -157,79 +184,92 @@ export default function RealEstateDashboard() {
         .dn-tag{font-size:11.5px;font-weight:600;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);padding:3px 10px;border-radius:999px;}
         .dn-back{font-size:13px;color:var(--muted);text-decoration:none;transition:color 0.15s;}
         .dn-back:hover{color:var(--off);}
-        .dw{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:48px 24px 80px;}
-        .dw-head{margin-bottom:36px;}
-        .dw-eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.2);padding:5px 13px;border-radius:999px;margin-bottom:16px;}
-        .dw-title{font-size:clamp(24px,3.8vw,34px);font-weight:800;line-height:1.15;letter-spacing:-0.025em;color:var(--white);margin-bottom:8px;}
-        .dw-sub{font-size:14px;color:var(--muted);line-height:1.6;max-width:480px;}
-        .dw-earlybar{display:flex;align-items:center;gap:10px;background:var(--gold-bg);border:1px solid rgba(232,169,8,0.18);border-radius:12px;padding:10px 16px;margin-bottom:36px;}
-        .dw-earlybar-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;}
-        .dw-earlybar-text{font-size:12.5px;color:rgba(232,169,8,0.85);line-height:1.5;}
-        .dw-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:36px;}
-        .dw-stat{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;}
-        .dw-stat-val{font-size:26px;font-weight:800;letter-spacing:-0.04em;color:var(--white);margin-bottom:4px;}
-        .dw-stat-label{font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);}
-        .dw-stat-note{font-size:10.5px;color:rgba(255,255,255,0.2);margin-top:6px;}
-        .dw-add{background:var(--bg2);border:1px solid rgba(192,57,43,0.3);border-radius:16px;padding:28px 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:36px;cursor:pointer;text-decoration:none;transition:border-color 0.15s;}
-        .dw-add:hover{border-color:rgba(192,57,43,0.5);background:rgba(192,57,43,0.04);}
-        .dw-add-left{display:flex;align-items:center;gap:16px;}
-        .dw-add-icon{width:44px;height:44px;background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
-        .dw-add-title{font-size:16px;font-weight:700;color:var(--white);margin-bottom:3px;}
-        .dw-add-desc{font-size:13px;color:var(--muted);}
-        .dw-add-cta{font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);padding:8px 18px;border-radius:8px;white-space:nowrap;flex-shrink:0;}
-        .dw-section-label{font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;padding-left:2px;}
-        .dw-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:36px;}
-        .dw-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:22px 20px;display:flex;flex-direction:column;gap:10px;cursor:not-allowed;transition:all 0.15s;position:relative;}
-        .dw-card:hover{border-color:var(--border2);background:var(--bg3);}
-        .dw-card-badge{position:absolute;top:12px;right:12px;font-size:9px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:rgba(255,255,255,0.2);background:var(--bg3);border:1px solid var(--border);padding:2px 7px;border-radius:999px;}
-        .dw-card-icon{font-size:24px;line-height:1;}
-        .dw-card-title{font-size:14px;font-weight:600;color:var(--off);}
-        .dw-card-desc{font-size:12px;color:var(--muted);line-height:1.55;}
-        .dw-pricing{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px 28px;margin-bottom:28px;}
-        .dw-pricing-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px;}
-        .dw-pricing-title{font-size:15px;font-weight:700;color:var(--white);margin-bottom:4px;}
-        .dw-pricing-sub{font-size:12.5px;color:var(--muted);line-height:1.55;}
-        .dw-pricing-badge{font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--teal);background:var(--teal-bg);border:1px solid rgba(59,168,143,0.2);padding:3px 10px;border-radius:999px;white-space:nowrap;flex-shrink:0;}
-        .dw-plans{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-        .dw-plan{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:18px 16px;}
-        .dw-plan.featured{border-color:rgba(192,57,43,0.3);background:rgba(192,57,43,0.04);}
-        .dw-plan-name{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
-        .dw-plan.featured .dw-plan-name{color:var(--red);}
-        .dw-plan-price{font-size:20px;font-weight:800;letter-spacing:-0.04em;color:var(--white);margin-bottom:2px;}
-        .dw-plan-cycle{font-size:11px;color:var(--muted);}
-        .dw-plan-features{margin-top:12px;display:flex;flex-direction:column;gap:5px;}
-        .dw-plan-feature{font-size:11.5px;color:rgba(255,255,255,0.45);display:flex;align-items:center;gap:6px;}
-        .dw-plan-feature::before{content:'·';color:var(--muted);}
-        /* MY LISTINGS */
-        .ml-list{display:flex;flex-direction:column;gap:12px;margin-bottom:36px;}
-        .ml-row{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;}
-        .ml-title{font-size:15px;font-weight:700;color:var(--white);margin-bottom:4px;letter-spacing:-0.01em;}
-        .ml-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;}
-        .ml-chip{font-size:10.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid var(--border);color:var(--muted);background:var(--bg3);}
-        .ml-price{font-size:15px;font-weight:700;color:var(--white);text-align:right;white-space:nowrap;}
-        .ml-freshness{font-size:11px;font-weight:600;text-align:right;margin-top:4px;}
-        .ml-verified{font-size:10.5px;color:rgba(255,255,255,0.2);text-align:right;margin-top:3px;}
-        .ml-empty{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:48px 24px;text-align:center;margin-bottom:36px;}
-        .ml-empty-icon{font-size:36px;margin-bottom:12px;opacity:0.4;}
-        .ml-empty-title{font-size:16px;font-weight:700;color:var(--off);margin-bottom:6px;}
-        .ml-empty-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
-        .ml-empty-btn{display:inline-block;background:var(--red);color:#fff;font-size:13px;font-weight:600;padding:11px 24px;border-radius:10px;text-decoration:none;transition:background 0.15s;}
-        .ml-empty-btn:hover{background:var(--red2);}
-        .ml-actions{display:flex;flex-direction:column;gap:5px;margin-top:8px;}
-        .ml-refresh{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
-        .ml-refresh:hover:not(:disabled){border-color:rgba(59,168,143,0.4);color:var(--teal);}
-        .ml-refresh.urgent{border-color:rgba(232,169,8,0.35);color:var(--gold);}
-        .ml-refresh.urgent:hover:not(:disabled){border-color:rgba(232,169,8,0.6);background:rgba(232,169,8,0.06);}
-        .ml-refresh:disabled{opacity:0.45;cursor:default;}
-        .ml-disable{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid rgba(192,57,43,0.2);background:transparent;color:rgba(192,57,43,0.6);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
-        .ml-disable:hover:not(:disabled){border-color:rgba(192,57,43,0.45);color:var(--red);background:var(--red-bg);}
-        .ml-disable:disabled{opacity:0.4;cursor:default;}
-        .ml-edit{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:rgba(255,255,255,0.45);cursor:pointer;font-family:'Sora',sans-serif;text-decoration:none;transition:all 0.15s;display:inline-block;}
-        .ml-edit:hover{border-color:rgba(255,255,255,0.2);color:var(--off);}
-        .ml-err{font-size:11px;color:#e05a4a;margin-top:6px;text-align:right;}
-        .skeleton{background:var(--bg3);border-radius:14px;animation:pulse 1.4s ease-in-out infinite;}
+
+        /* WRAPPER */
+        .dw{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:40px 24px 80px;}
+
+        /* HEADER */
+        .dw-head{margin-bottom:28px;}
+        .dw-greeting{font-size:22px;font-weight:800;letter-spacing:-0.02em;color:var(--white);margin-bottom:4px;}
+        .dw-sub{font-size:13.5px;color:var(--muted);}
+
+        /* STATS */
+        .dw-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
+        .dw-stat{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+        .dw-stat-val{font-size:28px;font-weight:800;letter-spacing:-0.04em;color:var(--white);margin-bottom:3px;line-height:1;}
+        .dw-stat-label{font-size:12px;font-weight:600;color:var(--off);margin-bottom:2px;}
+        .dw-stat-note{font-size:11px;color:var(--muted);}
+
+        /* TRIAL BANNER */
+        .tb{display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:12px;padding:11px 16px;margin-bottom:20px;font-size:13px;font-weight:600;}
+        .tb-expired{background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.25);color:#e05a4a;}
+        .tb-active{background:rgba(59,168,143,0.07);border:1px solid rgba(59,168,143,0.2);color:#3ba88f;}
+        .tb-link{font-size:12px;font-weight:700;padding:5px 12px;border-radius:7px;text-decoration:none;white-space:nowrap;flex-shrink:0;}
+        .tb-expired .tb-link{background:var(--red);color:#fff;}
+        .tb-active .tb-link{background:rgba(59,168,143,0.12);border:1px solid rgba(59,168,143,0.25);color:var(--teal);}
+
+        /* ADD CTA */
+        .dw-addrow{display:flex;align-items:center;gap:12px;margin-bottom:28px;}
+        .dw-addbtn{display:inline-flex;align-items:center;gap:8px;background:var(--red);color:#fff;font-size:13px;font-weight:700;padding:10px 20px;border-radius:9px;text-decoration:none;letter-spacing:-0.01em;transition:background 0.15s;}
+        .dw-addbtn:hover{background:var(--red2);}
+
+        /* SECTION LABEL */
+        .dw-sec{font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;padding-left:2px;}
+
+        /* LISTING ROWS */
+        .ml-list{display:flex;flex-direction:column;gap:8px;margin-bottom:32px;}
+        .ml-row{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;transition:border-color 0.15s;}
+        .ml-row:hover{border-color:var(--border2);}
+        .ml-top{display:flex;gap:12px;align-items:flex-start;}
+        .ml-thumb{width:60px;height:60px;border-radius:8px;overflow:hidden;background:var(--bg3);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:0.6;}
+        .ml-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+        .ml-info{flex:1;min-width:0;}
+        .ml-title{font-size:14.5px;font-weight:700;color:var(--white);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .ml-loc{font-size:12px;color:var(--muted);margin-bottom:6px;}
+        .ml-badges{display:flex;flex-wrap:wrap;gap:5px;}
+        .ml-badge{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted);background:var(--bg3);}
+        .ml-badge-unavail{border-color:rgba(192,57,43,0.2);color:rgba(192,57,43,0.7);}
+        .ml-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
+        .ml-price{font-size:14px;font-weight:700;color:var(--white);white-space:nowrap;}
+        .ml-fresh{font-size:11px;font-weight:600;white-space:nowrap;}
+        .ml-plan{font-size:10px;font-weight:700;letter-spacing:0.05em;white-space:nowrap;}
+        .ml-divider{height:1px;background:var(--border);}
+        .ml-actions{display:flex;gap:6px;flex-wrap:wrap;}
+        .ml-btn{font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:7px;cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;text-decoration:none;display:inline-flex;align-items:center;border:1px solid var(--border2);background:transparent;color:var(--muted);}
+        .ml-btn:hover:not(:disabled){border-color:rgba(255,255,255,0.2);color:var(--off);}
+        .ml-btn-refresh{border-color:var(--border2);}
+        .ml-btn-refresh.urgent{border-color:rgba(232,169,8,0.35);color:var(--gold);}
+        .ml-btn-refresh.urgent:hover:not(:disabled){border-color:rgba(232,169,8,0.6);background:rgba(232,169,8,0.06);}
+        .ml-btn-refresh:hover:not(:disabled){border-color:rgba(59,168,143,0.3);color:var(--teal);}
+        .ml-btn-disable{border-color:rgba(192,57,43,0.2);color:rgba(192,57,43,0.55);}
+        .ml-btn-disable:hover:not(:disabled){border-color:rgba(192,57,43,0.4);color:var(--red);background:var(--red-bg);}
+        .ml-btn:disabled{opacity:0.4;cursor:default;}
+
+        /* EMPTY */
+        .ml-empty{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:44px 24px;text-align:center;margin-bottom:32px;}
+        .ml-empty-icon{font-size:32px;margin-bottom:10px;opacity:0.4;}
+        .ml-empty-title{font-size:15px;font-weight:700;color:var(--off);margin-bottom:5px;}
+        .ml-empty-sub{font-size:13px;color:var(--muted);margin-bottom:18px;}
+        .ml-empty-btn{display:inline-block;background:var(--red);color:#fff;font-size:13px;font-weight:600;padding:10px 22px;border-radius:9px;text-decoration:none;}
+
+        /* PLAN FOOTER */
+        .dw-planrow{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;}
+        .dw-planrow-label{font-size:12.5px;color:var(--muted);}
+        .dw-planrow-val{font-size:13px;font-weight:600;color:var(--off);}
+        .dw-planrow-link{font-size:12px;font-weight:700;color:var(--red);text-decoration:none;white-space:nowrap;}
+        .dw-planrow-link:hover{text-decoration:underline;}
+
+        /* SKELETON */
+        .skeleton{background:var(--bg3);border-radius:12px;animation:pulse 1.4s ease-in-out infinite;}
         @keyframes pulse{0%,100%{opacity:0.35;}50%{opacity:0.7;}}
-        @media(max-width:640px){.dw{padding:36px 16px 60px;}.dw-stats{grid-template-columns:1fr 1fr;}.dw-plans{grid-template-columns:1fr;}.dw-add{flex-direction:column;align-items:flex-start;}.dw-cards{grid-template-columns:1fr 1fr;}.ml-row{grid-template-columns:1fr;}}
+
+        @media(max-width:640px){
+          .dw{padding:28px 14px 60px;}
+          .dw-stats{grid-template-columns:1fr 1fr;}
+          .dw-stats .dw-stat:last-child{grid-column:1/-1;}
+          .ml-right{display:none;}
+          .ml-title{white-space:normal;}
+        }
       `}</style>
 
       {/* NAV */}
@@ -241,7 +281,7 @@ export default function RealEstateDashboard() {
           <span className="dn-sep">/</span>
           <span className="dn-tag">Owner Dashboard</span>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:16}}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <a href="/account" className="dn-back">👤 My Account</a>
           <a href="/real-estate" className="dn-back">← Listings</a>
         </div>
@@ -251,56 +291,58 @@ export default function RealEstateDashboard() {
 
         {/* HEADER */}
         <div className="dw-head">
-          <div className="dw-eyebrow"><span>🏡</span><span>Owner Control Panel</span></div>
-          <h1 className="dw-title">Your Property<br />Dashboard</h1>
-          <p className="dw-sub">List, manage, and track your land, homes, and rentals across Nagaland.</p>
-        </div>
-
-        {/* EARLY ACCESS NOTICE */}
-        <div className="dw-earlybar">
-          <div className="dw-earlybar-dot" />
-          <div className="dw-earlybar-text">
-            <strong style={{ color: 'var(--gold)' }}>Early access open.</strong> Listings are live and free. Pricing plans are being finalised.
+          <div className="dw-greeting">
+            {loading ? `${greeting()}` : `${greeting()}${userName ? `, ${userName.split(' ')[0]}` : ''}`}
           </div>
+          <div className="dw-sub">Manage your property listings</div>
         </div>
 
         {/* STATS */}
         <div className="dw-stats">
           <div className="dw-stat">
-            <div className="dw-stat-val">{loading ? '—' : activeCount}</div>
+            <div className="dw-stat-val">{loading ? '—' : properties.length}</div>
             <div className="dw-stat-label">My Listings</div>
             <div className="dw-stat-note">Active properties</div>
           </div>
           <div className="dw-stat">
-            <div className="dw-stat-val">—</div>
-            <div className="dw-stat-label">Total Views</div>
-            <div className="dw-stat-note">Coming soon</div>
+            <div className="dw-stat-val">{loading ? '—' : totalLeads}</div>
+            <div className="dw-stat-label">Total Leads</div>
+            <div className="dw-stat-note">Calls + WhatsApp</div>
           </div>
           <div className="dw-stat">
-            <div className="dw-stat-val">{loading ? '—' : leadCalls + leadWa}</div>
-            <div className="dw-stat-label">Leads this month</div>
-            <div className="dw-stat-note">{loading ? 'Loading…' : `${leadCalls} calls · ${leadWa} WhatsApp`}</div>
+            <div className="dw-stat-val">{loading ? '—' : totalViews}</div>
+            <div className="dw-stat-label">Listing Views</div>
+            <div className="dw-stat-note">All time</div>
           </div>
         </div>
 
-        {/* ADD NEW PROPERTY */}
-        <a href="/real-estate/dashboard/add-property" className="dw-add">
-          <div className="dw-add-left">
-            <div className="dw-add-icon">➕</div>
-            <div>
-              <div className="dw-add-title">Add New Property</div>
-              <div className="dw-add-desc">Post land, a house, apartment, or commercial space.</div>
-            </div>
+        {/* TRIAL / PLAN BANNER */}
+        {trialBanner?.type === 'expired' && (
+          <div className="tb tb-expired">
+            <span>Your trial has expired. Your listing is hidden.</span>
+            <a href="/real-estate/pricing" className="tb-link">Choose a Plan →</a>
           </div>
-          <div className="dw-add-cta">Add Property →</div>
-        </a>
+        )}
+        {trialBanner?.type === 'active' && (
+          <div className="tb tb-active">
+            <span>You have {trialBanner.daysLeft} day{trialBanner.daysLeft !== 1 ? 's' : ''} left on your free trial</span>
+            <a href="/real-estate/pricing" className="tb-link">View Plans →</a>
+          </div>
+        )}
+
+        {/* ADD PROPERTY */}
+        <div className="dw-addrow">
+          <a href="/real-estate/dashboard/add-property" className="dw-addbtn">
+            + Add New Property
+          </a>
+        </div>
 
         {/* MY LISTINGS */}
-        <div className="dw-section-label">My Listings</div>
+        <div className="dw-sec">My Listings</div>
 
         {loading ? (
           <div className="ml-list">
-            {[1,2].map(i => <div key={i} className="skeleton" style={{height:90}} />)}
+            {[1, 2].map(i => <div key={i} className="skeleton" style={{ height: 96 }} />)}
           </div>
         ) : properties.length === 0 ? (
           <div className="ml-empty">
@@ -312,63 +354,56 @@ export default function RealEstateDashboard() {
         ) : (
           <div className="ml-list">
             {properties.map(p => {
-              const { label, color } = freshness(p.last_verified_at)
+              const { label: freshLabel, color: freshColor } = freshness(p.last_verified_at)
               const trial = trialStatus(p.plan, p.trial_ends_at)
               const loc = [p.locality, p.city].filter(Boolean).join(', ')
-              const needsRefresh = label === 'Expiring Soon' || label === 'Expired' || label === 'Unverified'
+              const needsRefresh = freshLabel === 'Expiring Soon' || freshLabel === 'Expired' || freshLabel === 'Unverified'
               const isRefreshing = refreshing === p.id
+              const isDisabling = disabling === p.id
               const thumb = Array.isArray(p.photos) && p.photos.length > 0 ? p.photos[0] : null
+              const emoji = p.property_type === 'land' ? '🌿' : p.property_type === 'apartment' ? '🏢' : p.property_type === 'commercial' ? '🏪' : '🏠'
               return (
                 <div key={p.id} className="ml-row">
-                  <div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
-                    <div style={{width:62,height:52,borderRadius:8,overflow:'hidden',background:'var(--bg3)',border:'1px solid var(--border)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,opacity:0.5}}>
+                  <div className="ml-top">
+                    <div className="ml-thumb">
                       {thumb
-                        ? <img src={thumb} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} onError={e => { (e.currentTarget as HTMLImageElement).style.display='none'; (e.currentTarget.parentElement as HTMLElement).textContent = p.property_type === 'land' ? '🌿' : '🏠' }} />
-                        : (p.property_type === 'land' ? '🌿' : p.property_type === 'apartment' ? '🏢' : p.property_type === 'commercial' ? '🏪' : '🏠')}
+                        ? <img src={thumb} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).textContent = emoji }} />
+                        : emoji}
                     </div>
-                    <div>
-                    <div className="ml-title">{p.title}</div>
-                    <div style={{fontSize:12.5,color:'var(--muted)',marginTop:2}}>{loc}</div>
-                    <div className="ml-meta">
-                      <span className="ml-chip">{p.property_type}</span>
-                      <span className="ml-chip">{p.listing_type === 'rent' ? 'For Rent' : 'For Sale'}</span>
-                      {!p.is_available && <span className="ml-chip" style={{color:'rgba(192,57,43,0.7)',borderColor:'rgba(192,57,43,0.2)'}}>Unavailable</span>}
+                    <div className="ml-info">
+                      <div className="ml-title">{p.title}</div>
+                      {loc && <div className="ml-loc">{loc}</div>}
+                      <div className="ml-badges">
+                        <span className="ml-badge">{p.property_type}</span>
+                        <span className="ml-badge">{p.listing_type === 'rent' ? 'For Rent' : 'For Sale'}</span>
+                        {!p.is_available && <span className="ml-badge ml-badge-unavail">Unavailable</span>}
+                      </div>
                     </div>
-                  </div></div>
-                  <div>
-                    <div className="ml-price">{fmt(p.price)}{p.price_unit ? ` / ${p.price_unit}` : ''}</div>
-                    <div className="ml-freshness" style={{color}}>{label}</div>
-                    <div className="ml-verified">
-                      {p.last_verified_at
-                        ? `Verified ${new Date(p.last_verified_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`
-                        : 'Not verified'}
+                    <div className="ml-right">
+                      <div className="ml-price">{fmt(p.price)}{p.price_unit ? ` / ${p.price_unit}` : ''}</div>
+                      <div className="ml-fresh" style={{ color: freshColor }}>{freshLabel}</div>
+                      <div className="ml-plan" style={{ color: trial.color }}>{trial.label}</div>
                     </div>
-                    <div style={{fontSize:11,fontWeight:600,color:trial.color,marginTop:4}}>{trial.label}</div>
-                    {trial.expired && (
-                      <a href="/real-estate/pricing" style={{display:'inline-block',fontSize:11,fontWeight:700,color:'#fff',background:'#c0392b',padding:'4px 10px',borderRadius:6,textDecoration:'none',marginTop:4}}>Choose a Plan →</a>
-                    )}
-                    <div className="ml-actions">
-                      <a
-                        href={`/real-estate/dashboard/edit/${p.id}`}
-                        className="ml-edit"
-                      >✏️ Edit</a>
+                  </div>
+                  <div className="ml-divider" />
+                  <div className="ml-actions">
+                    <a href={`/real-estate/dashboard/edit/${p.id}`} className="ml-btn">✏ Edit</a>
+                    <button
+                      className={`ml-btn ml-btn-refresh${needsRefresh ? ' urgent' : ''}`}
+                      onClick={() => handleRefresh(p.id)}
+                      disabled={isRefreshing || !!refreshing || !!disabling}
+                    >
+                      {isRefreshing ? 'Refreshing…' : needsRefresh ? '⚡ Refresh Now' : '↻ Refresh'}
+                    </button>
+                    {p.is_available && (
                       <button
-                        className={`ml-refresh${needsRefresh ? ' urgent' : ''}`}
-                        onClick={() => handleRefresh(p.id)}
-                        disabled={isRefreshing || !!refreshing || !!disabling}
+                        className="ml-btn ml-btn-disable"
+                        onClick={() => handleDisable(p.id)}
+                        disabled={!!disabling || !!refreshing}
                       >
-                        {isRefreshing ? 'Refreshing…' : needsRefresh ? '⚡ Refresh Now' : '↻ Refresh'}
+                        {isDisabling ? 'Updating…' : '✕ Mark Sold / Rented'}
                       </button>
-                      {p.is_available && (
-                        <button
-                          className="ml-disable"
-                          onClick={() => handleDisable(p.id)}
-                          disabled={!!disabling || !!refreshing}
-                        >
-                          {disabling === p.id ? 'Updating…' : '✕ Mark as Sold / Rented'}
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
               )
@@ -376,23 +411,25 @@ export default function RealEstateDashboard() {
           </div>
         )}
 
-        {/* COMING SOON BANNER */}
-        <div style={{display:'flex',alignItems:'center',gap:14,background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:14,padding:'18px 20px',marginBottom:36}}>
-          <div style={{fontSize:22,lineHeight:1,flexShrink:0}}>📊</div>
+        {/* PLAN SECTION */}
+        <div className="dw-sec">Your Plan</div>
+        <div className="dw-planrow">
           <div>
-            <div style={{fontSize:14,fontWeight:600,color:'var(--off)',marginBottom:3}}>Listing Analytics <span style={{fontSize:9,fontWeight:700,letterSpacing:'0.07em',textTransform:'uppercase',color:'rgba(255,255,255,0.2)',background:'var(--bg3)',border:'1px solid var(--border)',padding:'2px 7px',borderRadius:999,verticalAlign:'middle',marginLeft:6}}>Soon</span></div>
-            <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.55}}>Track views and enquiries per property.</div>
+            <div className="dw-planrow-label">Current plan</div>
+            <div className="dw-planrow-val">
+              {loading ? '—' : (() => {
+                if (properties.length === 0) return 'No listings'
+                const paidPlan = properties.find(p => p.plan && p.plan !== 'trial')?.plan
+                if (paidPlan) return paidPlan.charAt(0).toUpperCase() + paidPlan.slice(1)
+                if (trialBanner?.type === 'expired') return 'Trial expired'
+                if (trialBanner?.type === 'active') return `Free Trial · ${trialBanner.daysLeft} days left`
+                return 'Free Trial'
+              })()}
+            </div>
           </div>
-        </div>
-
-        {/* PRICING */}
-        <div className="dw-section-label">Property Listing Plans</div>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,background:'var(--bg2)',border:'1px solid rgba(192,57,43,0.2)',borderRadius:16,padding:'22px 24px',marginBottom:28}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:700,color:'var(--white)',marginBottom:4}}>Real Estate Pricing Plans</div>
-            <div style={{fontSize:12.5,color:'var(--muted)',lineHeight:1.55}}>Starter from ₹499/month · Pro from ₹799/month · Agent from ₹1,499/month<br />7-day free trial included. No credit card needed to start.</div>
-          </div>
-          <a href="/real-estate/pricing" style={{flexShrink:0,fontSize:12,fontWeight:700,letterSpacing:'0.06em',textTransform:'uppercase',color:'var(--red)',background:'var(--red-bg)',border:'1px solid rgba(192,57,43,0.25)',padding:'9px 18px',borderRadius:9,textDecoration:'none',whiteSpace:'nowrap'}}>View Plans →</a>
+          <a href="/real-estate/pricing" className="dw-planrow-link">
+            {trialBanner ? 'Upgrade Plan →' : 'Manage Plan →'}
+          </a>
         </div>
 
       </div>
