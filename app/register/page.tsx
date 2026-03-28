@@ -448,38 +448,20 @@ export default function RegisterPage() {
     if (account.password.length < 6) { setError("Password must be at least 6 characters."); return; }
     setLoading(true); setError('');
     try {
-      const { data: authData, error: authErr } = await supabase.auth.signUp({ email: account.email, password: account.password });
-      if (authErr) throw authErr;
-      const user = authData.user;
-      if (!user) throw new Error('Account creation failed');
-
+      // Save business details to localStorage so they survive email verification
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
-      const res = await fetch('/api/register-business', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          signup_user_id: user.id,
-          ...form,
-          slug,
-          email: account.email,
-          custom_fields: customFields,
-          vibe_tags: vibeTags.join(','),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create listing');
+      localStorage.setItem('yana_pending_business', JSON.stringify({
+        ...form,
+        slug,
+        email: account.email,
+        custom_fields: customFields,
+        vibe_tags: vibeTags.join(','),
+      }));
 
-      const businessId = data.business.id;
-      if (data.business.plan === 'pro') setIsFoundingMember(true);
-
-      // Photos require storage auth — only upload if session exists (no email confirmation pending)
-      if (authData.session) {
-        const updates: Record<string, unknown> = {};
-        if (photos.length > 0) updates.photos = await uploadPhotos(businessId);
-        if (menuFile) updates.menu_url = await uploadMenu(businessId);
-        if (Object.keys(updates).length > 0) {
-          await fetch(`/api/businesses/${businessId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
-        }
+      const { error: authErr } = await supabase.auth.signUp({ email: account.email, password: account.password });
+      if (authErr) {
+        localStorage.removeItem('yana_pending_business');
+        throw authErr;
       }
 
       setSubmitted(true);
