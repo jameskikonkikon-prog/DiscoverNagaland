@@ -163,6 +163,10 @@ function SearchPageInner() {
     return `tel:${biz.phone}`;
   }
 
+  if (!mounted) {
+    return <div style={{ background: '#0a0a0a', minHeight: '100vh' }} />;
+  }
+
   return (
     <>
       <style>{styles}</style>
@@ -200,7 +204,7 @@ function SearchPageInner() {
               placeholder="Search by name, category, or keyword…"
               value={query}
               onChange={(e) => handleInput(e.target.value)}
-              autoFocus={mounted}
+              autoFocus
             />
             <button
               className="search-go-btn"

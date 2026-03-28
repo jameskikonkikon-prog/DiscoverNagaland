@@ -342,6 +342,7 @@ async function fetchRelatedResults(
   activeCity: string | null
 ): Promise<Business[]> {
   const stripped = stripConditionsFromQuery(cleanQuery);
+  console.log('[related] cleanQuery:', cleanQuery, '→ strippedQuery:', stripped, '| city:', activeCity);
   if (!stripped || stripped === cleanQuery.toLowerCase().trim()) return [];
   const keywords = stripped.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
   if (keywords.length === 0) return [];
