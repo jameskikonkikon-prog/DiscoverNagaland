@@ -93,6 +93,7 @@ function SearchPageInner() {
       setResults(json.businesses ?? []);
       setCorrectedQuery(json.correctedQuery ?? null);
       setRelatedResults(json.relatedResults ?? []);
+      console.log('[search] relatedResults:', json.relatedResults);
       setFilterOpenNow(false);
       setFilterCity("");
       setFilterBudget(false);
@@ -260,7 +261,7 @@ function SearchPageInner() {
                 </p>
                 {relatedResults.length > 0 ? (
                   <>
-                    <p className="zero-results-sub">Details may not be listed yet — here are some related options you might like:</p>
+                    <p className="zero-results-sub">Here are some related businesses{activeCity ? ` in ${activeCity}` : ''} you might like:</p>
                     <div className="results-grid">
                       {relatedResults.map((biz) => {
                         const isPlus = (biz.plan || "").toLowerCase() === "plus";
