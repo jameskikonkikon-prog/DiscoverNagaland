@@ -30,6 +30,7 @@ function SearchPageInner() {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedCity, setSelectedCity] = useState("");
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
+  const [detectedPrice, setDetectedPrice] = useState<number | null>(null);
   const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
   const [filterOpenNow, setFilterOpenNow] = useState(false);
   const [filterCity, setFilterCity] = useState<"" | "Kohima" | "Dimapur">("");
@@ -86,6 +87,7 @@ function SearchPageInner() {
       const res = await fetch(`/api/search?${params}`);
       const json = await res.json();
       setDetectedCity(json.detectedCity || null);
+      setDetectedPrice(json.detectedPrice ?? null);
       const biz = json.businesses ?? [];
       setResults(biz);
       setCorrectedQuery(json.correctedQuery ?? null);
@@ -208,6 +210,12 @@ function SearchPageInner() {
             <div className="city-detected-badge">
               📍 Showing results in <strong>{detectedCity}</strong>
               <button onClick={() => { setDetectedCity(null); doSearch(query.replace(new RegExp(detectedCity, 'gi'), '').trim(), ''); }} className="clear-city-btn">✕ Show all</button>
+            </div>
+          )}
+          {detectedPrice && (
+            <div className="price-detected-badge">
+              💰 Showing results under <strong>₹{detectedPrice.toLocaleString('en-IN')}</strong>
+              <button onClick={() => { setDetectedPrice(null); doSearch(query, selectedCity); }} className="clear-city-btn">✕ Show all</button>
             </div>
           )}
           {!loading && query.trim() !== "" && results.length > 0 && (
@@ -549,6 +557,18 @@ const styles = `
     background: rgba(192, 57, 43, 0.1);
     border: 1px solid rgba(192, 57, 43, 0.25);
     color: #c0392b;
+    padding: 0.4rem 0.85rem;
+    border-radius: 20px;
+    font-size: 0.82rem;
+  }
+  .price-detected-badge {
+    margin-top: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(39, 174, 96, 0.1);
+    border: 1px solid rgba(39, 174, 96, 0.25);
+    color: #27ae60;
     padding: 0.4rem 0.85rem;
     border-radius: 20px;
     font-size: 0.82rem;

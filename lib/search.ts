@@ -115,22 +115,19 @@ function sortByPlan(businesses: Business[]): Business[] {
   });
 }
 
-function detectPriceCondition(query: string): { max?: number; min?: number } | null {
+const CURRENCY_PAT = '(?:₹|rs\\.?|rupees?)?\\s*';
+
+function detectPriceCondition(query: string): { max?: number; min?: number; detectedPrice?: number } | null {
   const lower = query.toLowerCase();
-  if (lower.match(/under\s*₹?\s*(\d+)/)) {
-    const m = lower.match(/under\s*₹?\s*(\d+)/);
-    return { max: parseInt(m![1]) };
+  const underRe = new RegExp(`(?:under|below)\\s*${CURRENCY_PAT}(\\d+)`);
+  const lessThanRe = new RegExp(`less\\s+than\\s*${CURRENCY_PAT}(\\d+)`);
+  let m = lower.match(underRe) || lower.match(lessThanRe);
+  if (m) {
+    const max = parseInt(m[1]);
+    return { max, detectedPrice: max };
   }
-  if (lower.match(/below\s*₹?\s*(\d+)/)) {
-    const m = lower.match(/below\s*₹?\s*(\d+)/);
-    return { max: parseInt(m![1]) };
-  }
-  if (lower.match(/less than\s*₹?\s*(\d+)/)) {
-    const m = lower.match(/less than\s*₹?\s*(\d+)/);
-    return { max: parseInt(m![1]) };
-  }
-  if (lower.includes('cheap') || lower.includes('budget')) return { max: 500 };
-  if (lower.includes('affordable')) return { max: 2000 };
+  if (lower.includes('cheap') || lower.includes('budget')) return { max: 500, detectedPrice: 500 };
+  if (lower.includes('affordable')) return { max: 2000, detectedPrice: 2000 };
   return null;
 }
 
@@ -258,7 +255,7 @@ function filterByKeywords(pool: Business[], searchQuery: string): Business[] {
 export async function searchBusinesses(
   query: string,
   cityFilter?: string
-): Promise<{ businesses: Business[]; detectedCity: string | null; correctedQuery?: string }> {
+): Promise<{ businesses: Business[]; detectedCity: string | null; correctedQuery?: string; detectedPrice?: number | null }> {
   const serviceClient = getServiceClient();
 
   const detectedCity = detectCity(query);
@@ -320,8 +317,10 @@ export async function searchBusinesses(
     businesses = await fetchBusinessesWithFilter(serviceClient, activeCity, searchTerms);
   }
 
+  const detectedPrice = priceCondition?.detectedPrice ?? null;
+
   if (!businesses || businesses.length === 0) {
-    if (cleanQuery.trim() === '') return { businesses: [], detectedCity };
+    if (cleanQuery.trim() === '') return { businesses: [], detectedCity, detectedPrice };
   }
 
   let conditionFiltered = businesses || [];
@@ -331,7 +330,7 @@ export async function searchBusinesses(
   }
 
   if (cleanQuery.trim() === '') {
-    return { businesses: sortByPlan(conditionFiltered), detectedCity };
+    return { businesses: sortByPlan(conditionFiltered), detectedCity, detectedPrice };
   }
 
   let candidates: Business[] = conditionFiltered;
@@ -383,13 +382,13 @@ export async function searchBusinesses(
   }
 
   if (candidates.length === 0) {
-    return { businesses: [], detectedCity, correctedQuery };
+    return { businesses: [], detectedCity, correctedQuery, detectedPrice };
   }
 
   const sorted = sortByPlan(candidates);
   if (sorted.length === 0) {
-    return { businesses: [], detectedCity, correctedQuery };
+    return { businesses: [], detectedCity, correctedQuery, detectedPrice };
   }
 
-  return { businesses: sorted, detectedCity, correctedQuery };
+  return { businesses: sorted, detectedCity, correctedQuery, detectedPrice };
 }

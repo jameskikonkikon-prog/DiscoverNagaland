@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q') || '';
   const city = request.nextUrl.searchParams.get('city') || '';
 
-  if (!query && !city) return NextResponse.json({ businesses: [], detectedCity: null });
+  if (!query && !city) return NextResponse.json({ businesses: [], detectedCity: null, detectedPrice: null });
 
   try {
     const result = await searchBusinesses(query, city || undefined);
