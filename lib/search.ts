@@ -184,7 +184,7 @@ function haystackIncludes(haystack: string, terms: string[]): boolean {
 const CONDITION_CHECKERS: Record<string, (b: Business, haystack: string) => boolean> = {
   wifi:          (b, h) => b.wifi === true || haystackIncludes(h, ['wifi', 'wi-fi']),
   ac:            (b, h) => b.ac === true   || haystackIncludes(h, ['ac', 'air condition', 'aircondition']),
-  meals:         (b, h) => b.meals === true || haystackIncludes(h, ['meal', 'breakfast included', 'food included']),
+  meals:         (_b, h) => haystackIncludes(h, ['meal', 'breakfast included', 'food included']),
   girls:         (b, h) => (b.gender || '').toLowerCase().includes('girl') || (b.gender || '').toLowerCase().includes('female') || haystackIncludes(h, ['girls', 'female', 'ladies', 'women']),
   boys:          (b, h) => (b.gender || '').toLowerCase().includes('boy')  || (b.gender || '').toLowerCase().includes('male')   || haystackIncludes(h, ['boys', 'gents', 'male']),
   trainer:       (_b, h) => haystackIncludes(h, ['trainer', 'personal trainer', 'coaching']),
@@ -274,7 +274,7 @@ async function fetchBusinessesWithFilter(
   keywords: string[]
 ): Promise<Business[]> {
   const isActiveFilter = 'is_active.eq.true,is_active.is.null';
-  const businessColumns = 'id,name,slug,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,verified,tags,amenities,vibe_tags,cuisine,wifi,ac,meals,gender,is_active,phone,whatsapp,address,landmark,email,created_at,updated_at';
+  const businessColumns = 'id,name,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,tags,amenities,vibe_tags,cuisine,wifi,ac,gender,custom_fields,phone,whatsapp';
   let q = serviceClient.from('businesses').select(businessColumns).or(isActiveFilter);
   if (activeCity) q = q.eq('city', activeCity);
   let orClause = '';
@@ -385,7 +385,7 @@ export async function searchBusinesses(
 
   let businesses: Business[];
 
-  const businessColumns = 'id,name,slug,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,verified,tags,amenities,vibe_tags,cuisine,wifi,ac,meals,gender,is_active,phone,whatsapp,address,landmark,email,created_at,updated_at';
+  const businessColumns = 'id,name,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,tags,amenities,vibe_tags,cuisine,wifi,ac,gender,custom_fields,phone,whatsapp';
   if (query.trim() === 'test123') {
     const { data } = await serviceClient.from('businesses').select(businessColumns).or('is_active.eq.true,is_active.is.null');
     businesses = (data as Business[]) || [];
