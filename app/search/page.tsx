@@ -177,7 +177,7 @@ function SearchPageInner() {
           </Link>
           <div style={{ flex: 1 }} />
           {!mounted ? (
-            <span className="list-avatar list-avatar-placeholder" aria-hidden />
+            <span className="list-avatar list-avatar-placeholder" aria-hidden="true" />
           ) : loggedIn ? (
             <>
               <Link href="/account" className="list-btn">My Account</Link>
@@ -200,7 +200,7 @@ function SearchPageInner() {
               placeholder="Search by name, category, or keyword…"
               value={query}
               onChange={(e) => handleInput(e.target.value)}
-              autoFocus
+              autoFocus={mounted}
             />
             <button
               className="search-go-btn"
