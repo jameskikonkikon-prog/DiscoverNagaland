@@ -78,14 +78,6 @@ function SearchPageInner() {
     };
   }, []);
 
-  function stripPriceFromQuery(q: string): string {
-    return q
-      .replace(/(?:under|below|less\s+than)\s*(?:₹|rs\.?|rupees?)?\s*\d+/gi, '')
-      .replace(/\b(?:cheap|budget|affordable)\b/gi, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-  }
-
   async function doSearch(q: string, city?: string) {
     setLoading(true);
     setHasSearched(true);
@@ -97,28 +89,15 @@ function SearchPageInner() {
       const res = await fetch(`/api/search?${params}`);
       const json = await res.json();
       setDetectedCity(json.detectedCity || null);
-      const price = json.detectedPrice ?? null;
-      setDetectedPrice(price);
-      const biz = json.businesses ?? [];
-      setResults(biz);
+      setDetectedPrice(json.detectedPrice ?? null);
+      setResults(json.businesses ?? []);
       setCorrectedQuery(json.correctedQuery ?? null);
+      setRelatedResults(json.relatedResults ?? []);
       setFilterOpenNow(false);
       setFilterCity("");
       setFilterBudget(false);
       setFilterPremium(false);
       setFilterVerified(false);
-      // If price filter returned nothing, fetch related results without the price condition
-      if (biz.length === 0 && price !== null) {
-        const stripped = stripPriceFromQuery(q);
-        if (stripped) {
-          const rParams = new URLSearchParams();
-          rParams.set("q", stripped);
-          if (city) rParams.set("city", city);
-          const rRes = await fetch(`/api/search?${rParams}`);
-          const rJson = await rRes.json();
-          setRelatedResults(rJson.businesses ?? []);
-        }
-      }
     } finally {
       setLoading(false);
     }
@@ -281,7 +260,7 @@ function SearchPageInner() {
                 </p>
                 {relatedResults.length > 0 ? (
                   <>
-                    <p className="zero-results-sub">Prices may not be listed yet — here are some related options you might like:</p>
+                    <p className="zero-results-sub">Details may not be listed yet — here are some related options you might like:</p>
                     <div className="results-grid">
                       {relatedResults.map((biz) => {
                         const isPlus = (biz.plan || "").toLowerCase() === "plus";

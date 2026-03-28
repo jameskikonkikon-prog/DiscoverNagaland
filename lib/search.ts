@@ -291,6 +291,64 @@ async function fetchBusinessesWithFilter(
   return (data as Business[]) || [];
 }
 
+/**
+ * Strip all condition/price keywords from a query, leaving category + general terms.
+ * Used to build the fallback "related results" query.
+ * Works on cleanQuery (city already removed by caller).
+ */
+export function stripConditionsFromQuery(query: string): string {
+  let result = query.toLowerCase();
+  // Price patterns
+  result = result.replace(/(?:under|below|less\s+than)\s*(?:₹|rs\.?|rupees?)?\s*\d+/gi, ' ');
+  result = result.replace(/\b(?:cheap|budget|affordable)\b/gi, ' ');
+  // Multi-word phrases first (most specific → least specific)
+  const phrases = [
+    'with personal trainer', 'personal trainer',
+    'for girls only', 'girls only', 'for girls',
+    'for boys only', 'boys only', 'for boys',
+    'swimming pool', 'with pool',
+    'meals included', 'food included', 'breakfast included', 'with meals', 'with food',
+    'pet friendly', 'pets allowed', 'pet allowed',
+    'with hot water', 'hot water',
+    'fully furnished',
+    'air conditioned', 'air conditioning', 'air condition', 'with ac',
+    'with wifi', 'with wi-fi', 'wi-fi', 'wi fi',
+    'with parking', 'car park', 'bike park',
+    'round the clock', 'open 24', '24 hours', '24/7',
+    'home delivery', 'take away', 'take-away', 'takeout',
+    'dine-in', 'dine in', 'open air',
+    'with rooftop', 'roof top',
+    'with laundry', 'with cctv', 'security camera',
+    'urgent care',
+    // Standalone condition words
+    'with trainer', 'trainer',
+    'rooftop', 'outdoor', 'indoor',
+    'emergency', 'dental', 'dentist',
+    'furnished', 'laundry', 'cctv',
+    'wifi', 'parking', 'pool',
+    '24hr', 'vegetarian', 'takeaway',
+    'delivery', 'dining', 'geyser',
+    'non-veg', 'nonveg',
+  ];
+  for (const phrase of phrases) {
+    result = result.split(phrase).join(' ');
+  }
+  return result.replace(/\s{2,}/g, ' ').trim();
+}
+
+async function fetchRelatedResults(
+  serviceClient: ReturnType<typeof getServiceClient>,
+  cleanQuery: string,
+  activeCity: string | null
+): Promise<Business[]> {
+  const stripped = stripConditionsFromQuery(cleanQuery);
+  if (!stripped || stripped === cleanQuery.toLowerCase().trim()) return [];
+  const keywords = stripped.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+  if (keywords.length === 0) return [];
+  const results = await fetchBusinessesWithFilter(serviceClient, activeCity, keywords);
+  return sortByPlan(results);
+}
+
 /** Filter a list of businesses by keyword match (same logic as main search). */
 function filterByKeywords(pool: Business[], searchQuery: string): Business[] {
   const keywords = searchQuery.toLowerCase()
@@ -307,7 +365,7 @@ function filterByKeywords(pool: Business[], searchQuery: string): Business[] {
 export async function searchBusinesses(
   query: string,
   cityFilter?: string
-): Promise<{ businesses: Business[]; detectedCity: string | null; correctedQuery?: string; detectedPrice?: number | null }> {
+): Promise<{ businesses: Business[]; detectedCity: string | null; correctedQuery?: string; detectedPrice?: number | null; relatedResults?: Business[] }> {
   const serviceClient = getServiceClient();
 
   const detectedCity = detectCity(query);
@@ -375,18 +433,20 @@ export async function searchBusinesses(
     if (cleanQuery.trim() === '') return { businesses: [], detectedCity, detectedPrice };
   }
 
-  // Both price and conditions are strict — return empty if no match so frontend shows related results
+  // Both price and conditions are strict — return empty + relatedResults if no match
   let conditionFiltered = businesses || [];
   if (priceCondition) {
     conditionFiltered = businesses.filter(b => businessMatchesConditions(b, [], priceCondition));
     if (conditionFiltered.length === 0) {
-      return { businesses: [], detectedCity, detectedPrice };
+      const relatedResults = await fetchRelatedResults(serviceClient, cleanQuery, activeCity);
+      return { businesses: [], detectedCity, detectedPrice, relatedResults };
     }
   }
   if (conditions.length > 0) {
     const strict = conditionFiltered.filter(b => businessMatchesConditions(b, conditions, null));
     if (strict.length === 0) {
-      return { businesses: [], detectedCity, detectedPrice };
+      const relatedResults = await fetchRelatedResults(serviceClient, cleanQuery, activeCity);
+      return { businesses: [], detectedCity, detectedPrice, relatedResults };
     }
     conditionFiltered = strict;
   }
@@ -448,7 +508,11 @@ export async function searchBusinesses(
   }
 
   if (candidates.length === 0) {
-    return { businesses: [], detectedCity, correctedQuery, detectedPrice };
+    const hadConditionsOrPrice = conditions.length > 0 || priceCondition !== null;
+    const relatedResults = hadConditionsOrPrice
+      ? await fetchRelatedResults(serviceClient, cleanQuery, activeCity)
+      : undefined;
+    return { businesses: [], detectedCity, correctedQuery, detectedPrice, relatedResults };
   }
 
   const sorted = sortByPlan(candidates);
