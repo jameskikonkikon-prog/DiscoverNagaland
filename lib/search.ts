@@ -160,13 +160,10 @@ function businessMatchesConditions(b: Business & { custom_fields?: Record<string
   const allText = JSON.stringify(cf).toLowerCase();
 
   if (priceCondition) {
-    const prices = [
-      cf.price_per_month, cf.price_per_night, cf.price_per_hour, cf.price_per_day
-    ].filter(Boolean).map(Number);
-    if (prices.length > 0) {
-      if (priceCondition.max && !prices.some(p => p <= priceCondition.max!)) return false;
-      if (priceCondition.min && !prices.some(p => p >= priceCondition.min!)) return false;
-    }
+    const priceMin = b.price_min != null ? Number(b.price_min) : null;
+    if (priceMin == null) return false;
+    if (priceCondition.max && priceMin > priceCondition.max) return false;
+    if (priceCondition.min && priceMin < priceCondition.min) return false;
   }
 
   for (const condition of conditions) {
@@ -323,9 +320,17 @@ export async function searchBusinesses(
     if (cleanQuery.trim() === '') return { businesses: [], detectedCity, detectedPrice };
   }
 
+  // Apply price filter strictly (no fallback); conditions filter falls back to all if no matches
   let conditionFiltered = businesses || [];
-  if (conditions.length > 0 || priceCondition) {
-    const strict = businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition));
+  if (priceCondition) {
+    conditionFiltered = businesses.filter(b => businessMatchesConditions(b, [], priceCondition));
+    // If price filter kills everything, return empty immediately — don't show unrelated results
+    if (conditionFiltered.length === 0) {
+      return { businesses: [], detectedCity, detectedPrice };
+    }
+  }
+  if (conditions.length > 0) {
+    const strict = conditionFiltered.filter(b => businessMatchesConditions(b, conditions, null));
     if (strict.length > 0) conditionFiltered = strict;
   }
 
@@ -352,13 +357,15 @@ export async function searchBusinesses(
     if (shortened2 !== cleanQuery && kw2.length > 0) {
       const terms2 = [...kw2];
       if (categoryIntent) categoryIntent.forEach(cat => { if (!terms2.some(t => t.toLowerCase() === cat.toLowerCase())) terms2.push(cat); });
-      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms2);
-      let filtered = fallback;
-      if (conditions.length > 0 || priceCondition) {
-        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
-        if (strict.length > 0) filtered = strict;
+      let fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms2);
+      if (priceCondition) {
+        fallback = fallback.filter(b => businessMatchesConditions(b, [], priceCondition));
       }
-      const withIntent = shouldFilterByCategory && categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      if (conditions.length > 0) {
+        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, null));
+        if (strict.length > 0) fallback = strict;
+      }
+      const withIntent = shouldFilterByCategory && categoryIntent && fallback.length > 0 ? filterByCategoryIntent(fallback, categoryIntent) : fallback;
       if (withIntent.length > 0) {
         candidates = withIntent;
         correctedQuery = shortened2;
@@ -367,13 +374,15 @@ export async function searchBusinesses(
     if (candidates.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortenSearchQuery(cleanQuery, 2) && kw3.length > 0) {
       const terms3 = [...kw3];
       if (categoryIntent) categoryIntent.forEach(cat => { if (!terms3.some(t => t.toLowerCase() === cat.toLowerCase())) terms3.push(cat); });
-      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms3);
-      let filtered = fallback;
-      if (conditions.length > 0 || priceCondition) {
-        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
-        if (strict.length > 0) filtered = strict;
+      let fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms3);
+      if (priceCondition) {
+        fallback = fallback.filter(b => businessMatchesConditions(b, [], priceCondition));
       }
-      const withIntent = shouldFilterByCategory && categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      if (conditions.length > 0) {
+        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, null));
+        if (strict.length > 0) fallback = strict;
+      }
+      const withIntent = shouldFilterByCategory && categoryIntent && fallback.length > 0 ? filterByCategoryIntent(fallback, categoryIntent) : fallback;
       if (withIntent.length > 0) {
         candidates = withIntent;
         correctedQuery = shortened3;
