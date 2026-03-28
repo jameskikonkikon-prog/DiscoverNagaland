@@ -30,6 +30,8 @@ function SearchPageInner() {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedCity, setSelectedCity] = useState("");
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
+  const [detectedPrice, setDetectedPrice] = useState<number | null>(null);
+  const [relatedResults, setRelatedResults] = useState<Business[]>([]);
   const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
   const [filterOpenNow, setFilterOpenNow] = useState(false);
   const [filterCity, setFilterCity] = useState<"" | "Kohima" | "Dimapur">("");
@@ -79,6 +81,7 @@ function SearchPageInner() {
   async function doSearch(q: string, city?: string) {
     setLoading(true);
     setHasSearched(true);
+    setRelatedResults([]);
     try {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q);
@@ -86,9 +89,11 @@ function SearchPageInner() {
       const res = await fetch(`/api/search?${params}`);
       const json = await res.json();
       setDetectedCity(json.detectedCity || null);
-      const biz = json.businesses ?? [];
-      setResults(biz);
+      setDetectedPrice(json.detectedPrice ?? null);
+      setResults(json.businesses ?? []);
       setCorrectedQuery(json.correctedQuery ?? null);
+      setRelatedResults(json.relatedResults ?? []);
+      console.log('[search] relatedResults:', json.relatedResults);
       setFilterOpenNow(false);
       setFilterCity("");
       setFilterBudget(false);
@@ -158,6 +163,10 @@ function SearchPageInner() {
     return `tel:${biz.phone}`;
   }
 
+  if (!mounted) {
+    return <div style={{ background: '#0a0a0a', minHeight: '100vh' }} />;
+  }
+
   return (
     <>
       <style>{styles}</style>
@@ -172,7 +181,7 @@ function SearchPageInner() {
           </Link>
           <div style={{ flex: 1 }} />
           {!mounted ? (
-            <span className="list-avatar list-avatar-placeholder" aria-hidden />
+            <span className="list-avatar list-avatar-placeholder" aria-hidden="true" />
           ) : loggedIn ? (
             <>
               <Link href="/account" className="list-btn">My Account</Link>
@@ -248,38 +257,78 @@ function SearchPageInner() {
               </div>
             )}
             {hasSearched && !loading && query.trim() !== "" && results.length === 0 && (
-              <div className="state-msg sad zero-results-ui">
-                <h2>No results for &ldquo;{query || "your search"}&rdquo;</h2>
-                <p className="did-you-mean-label">Did you mean:</p>
-                <div className="popular-chips">
-                  {DID_YOU_MEAN.slice(0, 3).map((label) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className="chip-btn"
-                      onClick={() => { setQuery(label); doSearch(label, selectedCity); }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className="popular-label">Popular searches:</p>
-                <div className="popular-chips">
-                  {POPULAR_SEARCHES.map((label) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className="chip-btn"
-                      onClick={() => { setQuery(label); doSearch(label, selectedCity); }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className="zero-register">
-                  <Link href="/register" style={{ color: "#c0392b" }}>List your business</Link>
-                  {activeCity && <> · Growing in <strong style={{ color: "#c0392b" }}>{activeCity}</strong></>}
+              <div className="zero-results-ui">
+                <p className="zero-results-heading">
+                  {detectedPrice
+                    ? `Hmm, no listings with prices under ₹${detectedPrice.toLocaleString('en-IN')} right now 🙈`
+                    : `Hmm, nothing found for "${query}" 🙈`}
                 </p>
+                {relatedResults.length > 0 ? (
+                  <>
+                    <p className="zero-results-sub">Here are some related businesses{activeCity ? ` in ${activeCity}` : ''} you might like:</p>
+                    <div className="results-grid">
+                      {relatedResults.map((biz) => {
+                        const isPlus = (biz.plan || "").toLowerCase() === "plus";
+                        return (
+                          <div key={biz.id} className={`biz-card${isPlus ? " biz-card-plus" : ""}`}>
+                            <Link href={`/business/${biz.id}`} className="biz-card-link">
+                              <div className="biz-photo-wrap">
+                                {getBizPhotoUrl(biz) ? (
+                                  <img src={getBizPhotoUrl(biz)!} alt={biz.name} className="biz-photo" />
+                                ) : (
+                                  <div className="biz-photo-placeholder biz-photo-category">
+                                    <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: 6, opacity: 0.5 }}>{({'restaurant':'🍽️',cafe:'☕',hotel:'🏨',pg:'🏠',hostel:'🏠',rental:'🏡',gym:'💪',turf:'⚽',shop:'🛍️',salon:'💇',coaching:'📚',school:'🎓',pharmacy:'💊',hospital:'🏥',clinic:'🏥',service:'🔧'} as Record<string,string>)[(biz.category||'').toLowerCase()] ?? '🏪'}</span>
+                                    <span>{biz.category}</span>
+                                  </div>
+                                )}
+                                {isPlus && <span className="biz-verified-badge">✓ Verified Business</span>}
+                              </div>
+                              <div className="biz-body">
+                                <div className="biz-category">{isPlus && "⭐ "}{biz.category}</div>
+                                <div className="biz-name">{biz.name}</div>
+                                <div className="biz-city">📍 {biz.city}</div>
+                                <div className="biz-desc">{getBizDescription(biz)}</div>
+                              </div>
+                            </Link>
+                            <div className="biz-actions">
+                              {getWhatsAppUrl(biz) && (
+                                <a href={getWhatsAppUrl(biz)!} target="_blank" rel="noopener noreferrer" className="action-btn whatsapp-btn">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                  WhatsApp
+                                </a>
+                              )}
+                              {getCallUrl(biz) && (
+                                <a href={getCallUrl(biz)!} className="action-btn call-btn">
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                                  Call
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="did-you-mean-label">Did you mean:</p>
+                    <div className="popular-chips">
+                      {DID_YOU_MEAN.slice(0, 3).map((label) => (
+                        <button key={label} type="button" className="chip-btn" onClick={() => { setQuery(label); doSearch(label, selectedCity); }}>{label}</button>
+                      ))}
+                    </div>
+                    <p className="popular-label">Popular searches:</p>
+                    <div className="popular-chips">
+                      {POPULAR_SEARCHES.map((label) => (
+                        <button key={label} type="button" className="chip-btn" onClick={() => { setQuery(label); doSearch(label, selectedCity); }}>{label}</button>
+                      ))}
+                    </div>
+                    <p className="zero-register">
+                      <Link href="/register" style={{ color: "#c0392b" }}>List your business</Link>
+                      {activeCity && <> · Growing in <strong style={{ color: "#c0392b" }}>{activeCity}</strong></>}
+                    </p>
+                  </>
+                )}
               </div>
             )}
             {hasSearched && !loading && query.trim() !== "" && results.length > 0 && (
@@ -553,6 +602,7 @@ const styles = `
     border-radius: 20px;
     font-size: 0.82rem;
   }
+
   .clear-city-btn {
     background: none;
     border: none;
@@ -639,7 +689,9 @@ const styles = `
   .state-msg { text-align: center; padding: 4rem 2rem; }
   .state-msg h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: #fff; margin-bottom: 0.5rem; }
   .state-msg p { color: #888; font-size: 0.9rem; line-height: 1.6; }
-  .state-msg.sad h2 { color: #e74c3c; }
+  .zero-results-ui { padding: 2rem 0; }
+  .zero-results-heading { font-size: 0.95rem; color: #999; margin-bottom: 0.5rem; font-weight: 400; }
+  .zero-results-sub { font-size: 0.85rem; color: #666; margin-bottom: 1.25rem; }
   .zero-results-ui .did-you-mean-label,
   .zero-results-ui .popular-label { margin-top: 1rem; margin-bottom: 0.4rem; font-size: 0.88rem; color: #888; }
   .zero-results-ui .popular-label { margin-top: 1.25rem; }

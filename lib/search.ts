@@ -115,65 +115,114 @@ function sortByPlan(businesses: Business[]): Business[] {
   });
 }
 
-function detectPriceCondition(query: string): { max?: number; min?: number } | null {
+const CURRENCY_PAT = '(?:₹|rs\\.?|rupees?)?\\s*';
+
+function detectPriceCondition(query: string): { max?: number; min?: number; detectedPrice?: number } | null {
   const lower = query.toLowerCase();
-  if (lower.match(/under\s*₹?\s*(\d+)/)) {
-    const m = lower.match(/under\s*₹?\s*(\d+)/);
-    return { max: parseInt(m![1]) };
+  const underRe = new RegExp(`(?:under|below)\\s*${CURRENCY_PAT}(\\d+)`);
+  const lessThanRe = new RegExp(`less\\s+than\\s*${CURRENCY_PAT}(\\d+)`);
+  let m = lower.match(underRe) || lower.match(lessThanRe);
+  if (m) {
+    const max = parseInt(m[1]);
+    return { max, detectedPrice: max };
   }
-  if (lower.match(/below\s*₹?\s*(\d+)/)) {
-    const m = lower.match(/below\s*₹?\s*(\d+)/);
-    return { max: parseInt(m![1]) };
-  }
-  if (lower.match(/less than\s*₹?\s*(\d+)/)) {
-    const m = lower.match(/less than\s*₹?\s*(\d+)/);
-    return { max: parseInt(m![1]) };
-  }
-  if (lower.includes('cheap') || lower.includes('budget')) return { max: 500 };
-  if (lower.includes('affordable')) return { max: 2000 };
+  if (lower.includes('cheap') || lower.includes('budget')) return { max: 500, detectedPrice: 500 };
+  if (lower.includes('affordable')) return { max: 2000, detectedPrice: 2000 };
   return null;
 }
 
 function detectConditions(query: string): string[] {
-  const conditions: string[] = [];
   const lower = query.toLowerCase();
-  const conditionMap: Record<string, string> = {
-    'veg': 'veg', 'vegetarian': 'veg', 'non-veg': 'non-veg', 'nonveg': 'non-veg',
-    'ac': 'AC', 'air condition': 'AC',
-    'wifi': 'WiFi', 'wi-fi': 'WiFi',
-    'parking': 'parking',
-    'delivery': 'delivery',
-    'boys': 'boys', 'girls': 'girls',
-    'dental': 'dental', 'eye': 'eye', 'ortho': 'ortho',
-    '24': '24 hours', '24hr': '24 hours', '24 hour': '24 hours',
-    'emergency': 'emergency',
-    'meals': 'meals included', 'food included': 'meals included',
-    'dine': 'dine-in', 'dine-in': 'dine-in',
-    'takeaway': 'takeaway',
-    'indoor': 'indoor', 'outdoor': 'outdoor',
-  };
-  for (const [keyword, condition] of Object.entries(conditionMap)) {
-    if (lower.includes(keyword)) conditions.push(condition);
-  }
-  return conditions;
-}
+  const detected: string[] = [];
 
-function businessMatchesConditions(b: Business & { custom_fields?: Record<string, unknown> }, conditions: string[], priceCondition: { max?: number; min?: number } | null): boolean {
-  const cf = b.custom_fields || {};
-  const allText = JSON.stringify(cf).toLowerCase();
+  const CONDITION_TRIGGERS: Array<{ patterns: string[]; key: string }> = [
+    { patterns: ['wifi', 'wi-fi', 'wi fi', 'internet'], key: 'wifi' },
+    { patterns: ['ac', 'air condition', 'air-condition', 'air conditioned', 'aircondition'], key: 'ac' },
+    { patterns: ['parking', 'car park', 'bike park'], key: 'parking' },
+    { patterns: ['vegetarian', ' veg ', 'pure veg', 'veg food'], key: 'veg' },
+    { patterns: ['non-veg', 'nonveg', 'non veg', 'chicken', 'meat'], key: 'non-veg' },
+    { patterns: ['for girls', 'girls only', 'ladies', 'female', 'women'], key: 'girls' },
+    { patterns: ['for boys', 'boys only', 'gents', 'male only', 'men only'], key: 'boys' },
+    { patterns: ['with trainer', 'personal trainer', 'trainer', 'coaching'], key: 'trainer' },
+    { patterns: ['swimming pool', 'with pool', 'pool'], key: 'pool' },
+    { patterns: ['meals included', 'food included', 'with meals', 'with food', 'breakfast included'], key: 'meals' },
+    { patterns: ['24 hours', '24hr', '24/7', 'open 24', 'round the clock'], key: '24hours' },
+    { patterns: ['delivery', 'home delivery', 'delivers'], key: 'delivery' },
+    { patterns: ['takeaway', 'take away', 'takeout', 'take-away'], key: 'takeaway' },
+    { patterns: ['dine-in', 'dine in', 'dining'], key: 'dine-in' },
+    { patterns: ['rooftop', 'roof top', 'terrace'], key: 'rooftop' },
+    { patterns: ['outdoor', 'open air', 'alfresco'], key: 'outdoor' },
+    { patterns: ['indoor'], key: 'indoor' },
+    { patterns: ['emergency', 'urgent care'], key: 'emergency' },
+    { patterns: ['dental', 'dentist'], key: 'dental' },
+    { patterns: ['pet friendly', 'pets allowed', 'pet allowed'], key: 'pet-friendly' },
+    { patterns: ['cctv', 'security camera', 'surveillance'], key: 'cctv' },
+    { patterns: ['laundry', 'washing'], key: 'laundry' },
+    { patterns: ['hot water', 'geyser'], key: 'hot-water' },
+    { patterns: ['furnished', 'fully furnished'], key: 'furnished' },
+  ];
 
-  if (priceCondition) {
-    const prices = [
-      cf.price_per_month, cf.price_per_night, cf.price_per_hour, cf.price_per_day
-    ].filter(Boolean).map(Number);
-    if (prices.length > 0) {
-      if (priceCondition.max && !prices.some(p => p <= priceCondition.max!)) return false;
-      if (priceCondition.min && !prices.some(p => p >= priceCondition.min!)) return false;
+  for (const { patterns, key } of CONDITION_TRIGGERS) {
+    if (patterns.some(p => lower.includes(p))) {
+      detected.push(key);
     }
   }
+  return detected;
+}
 
-  for (const condition of conditions) {
-    if (!allText.includes(condition.toLowerCase())) return false;
+function buildHaystack(b: Business): string {
+  return [
+    b.tags, b.amenities, b.description, b.vibe_tags, b.cuisine,
+    JSON.stringify((b as Business & { custom_fields?: unknown }).custom_fields || {}),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function haystackIncludes(haystack: string, terms: string[]): boolean {
+  return terms.some(t => haystack.includes(t.toLowerCase()));
+}
+
+const CONDITION_CHECKERS: Record<string, (b: Business, haystack: string) => boolean> = {
+  wifi:          (b, h) => b.wifi === true || haystackIncludes(h, ['wifi', 'wi-fi']),
+  ac:            (b, h) => b.ac === true   || haystackIncludes(h, ['ac', 'air condition', 'aircondition']),
+  meals:         (_b, h) => haystackIncludes(h, ['meal', 'breakfast included', 'food included']),
+  girls:         (b, h) => (b.gender || '').toLowerCase().includes('girl') || (b.gender || '').toLowerCase().includes('female') || haystackIncludes(h, ['girls', 'female', 'ladies', 'women']),
+  boys:          (b, h) => (b.gender || '').toLowerCase().includes('boy')  || (b.gender || '').toLowerCase().includes('male')   || haystackIncludes(h, ['boys', 'gents', 'male']),
+  trainer:       (_b, h) => haystackIncludes(h, ['trainer', 'personal trainer', 'coaching']),
+  pool:          (_b, h) => haystackIncludes(h, ['pool', 'swimming']),
+  parking:       (_b, h) => haystackIncludes(h, ['parking', 'car park', 'bike park']),
+  veg:           (b, h) => (b.cuisine || '').toLowerCase().includes('veg') || haystackIncludes(h, ['vegetarian', 'pure veg', ' veg ']),
+  'non-veg':     (_b, h) => haystackIncludes(h, ['non-veg', 'nonveg', 'chicken', 'meat']),
+  '24hours':     (b, h) => (b.opening_hours || '').includes('24') || haystackIncludes(h, ['24 hour', '24hr', '24/7', 'round the clock']),
+  delivery:      (_b, h) => haystackIncludes(h, ['delivery']),
+  takeaway:      (_b, h) => haystackIncludes(h, ['takeaway', 'take away', 'takeout']),
+  'dine-in':     (_b, h) => haystackIncludes(h, ['dine-in', 'dine in', 'dining']),
+  rooftop:       (_b, h) => haystackIncludes(h, ['rooftop', 'roof top', 'terrace']),
+  outdoor:       (_b, h) => haystackIncludes(h, ['outdoor', 'open air']),
+  indoor:        (_b, h) => haystackIncludes(h, ['indoor']),
+  emergency:     (_b, h) => haystackIncludes(h, ['emergency', 'urgent care']),
+  dental:        (_b, h) => haystackIncludes(h, ['dental', 'dentist']),
+  'pet-friendly':(_b, h) => haystackIncludes(h, ['pet friendly', 'pets allowed', 'pet allowed']),
+  cctv:          (_b, h) => haystackIncludes(h, ['cctv', 'security camera', 'surveillance']),
+  laundry:       (_b, h) => haystackIncludes(h, ['laundry', 'washing']),
+  'hot-water':   (_b, h) => haystackIncludes(h, ['hot water', 'geyser']),
+  furnished:     (_b, h) => haystackIncludes(h, ['furnished']),
+};
+
+function businessMatchesConditions(b: Business, conditions: string[], priceCondition: { max?: number; min?: number } | null): boolean {
+  if (priceCondition) {
+    const priceMin = b.price_min != null ? Number(b.price_min) : null;
+    if (priceMin == null) return false;
+    if (priceCondition.max && priceMin > priceCondition.max) return false;
+    if (priceCondition.min && priceMin < priceCondition.min) return false;
+  }
+
+  if (conditions.length > 0) {
+    const haystack = buildHaystack(b);
+    for (const condition of conditions) {
+      const checker = CONDITION_CHECKERS[condition];
+      if (checker && !checker(b, haystack)) return false;
+      // If no checker defined for this condition, skip (don't reject)
+    }
   }
 
   return true;
@@ -225,7 +274,7 @@ async function fetchBusinessesWithFilter(
   keywords: string[]
 ): Promise<Business[]> {
   const isActiveFilter = 'is_active.eq.true,is_active.is.null';
-  const businessColumns = 'id,name,slug,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,verified,tags,vibe_tags,is_active,phone,whatsapp,address,landmark,email,created_at,updated_at';
+  const businessColumns = 'id,name,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,tags,amenities,vibe_tags,cuisine,wifi,ac,gender,custom_fields,phone,whatsapp';
   let q = serviceClient.from('businesses').select(businessColumns).or(isActiveFilter);
   if (activeCity) q = q.eq('city', activeCity);
   let orClause = '';
@@ -240,6 +289,65 @@ async function fetchBusinessesWithFilter(
     return [];
   }
   return (data as Business[]) || [];
+}
+
+/**
+ * Strip all condition/price keywords from a query, leaving category + general terms.
+ * Used to build the fallback "related results" query.
+ * Works on cleanQuery (city already removed by caller).
+ */
+export function stripConditionsFromQuery(query: string): string {
+  let result = query.toLowerCase();
+  // Price patterns
+  result = result.replace(/(?:under|below|less\s+than)\s*(?:₹|rs\.?|rupees?)?\s*\d+/gi, ' ');
+  result = result.replace(/\b(?:cheap|budget|affordable)\b/gi, ' ');
+  // Multi-word phrases first (most specific → least specific)
+  const phrases = [
+    'with personal trainer', 'personal trainer',
+    'for girls only', 'girls only', 'for girls',
+    'for boys only', 'boys only', 'for boys',
+    'swimming pool', 'with pool',
+    'meals included', 'food included', 'breakfast included', 'with meals', 'with food',
+    'pet friendly', 'pets allowed', 'pet allowed',
+    'with hot water', 'hot water',
+    'fully furnished',
+    'air conditioned', 'air conditioning', 'air condition', 'with ac',
+    'with wifi', 'with wi-fi', 'wi-fi', 'wi fi',
+    'with parking', 'car park', 'bike park',
+    'round the clock', 'open 24', '24 hours', '24/7',
+    'home delivery', 'take away', 'take-away', 'takeout',
+    'dine-in', 'dine in', 'open air',
+    'with rooftop', 'roof top',
+    'with laundry', 'with cctv', 'security camera',
+    'urgent care',
+    // Standalone condition words
+    'with trainer', 'trainer',
+    'rooftop', 'outdoor', 'indoor',
+    'emergency', 'dental', 'dentist',
+    'furnished', 'laundry', 'cctv',
+    'wifi', 'parking', 'pool',
+    '24hr', 'vegetarian', 'takeaway',
+    'delivery', 'dining', 'geyser',
+    'non-veg', 'nonveg',
+  ];
+  for (const phrase of phrases) {
+    result = result.split(phrase).join(' ');
+  }
+  return result.replace(/\s{2,}/g, ' ').trim();
+}
+
+async function fetchRelatedResults(
+  serviceClient: ReturnType<typeof getServiceClient>,
+  cleanQuery: string,
+  activeCity: string | null
+): Promise<Business[]> {
+  const stripped = stripConditionsFromQuery(cleanQuery);
+  console.log('[related] cleanQuery:', cleanQuery, '→ strippedQuery:', stripped, '| city:', activeCity);
+  if (!stripped || stripped === cleanQuery.toLowerCase().trim()) return [];
+  const keywords = stripped.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+  if (keywords.length === 0) return [];
+  const results = await fetchBusinessesWithFilter(serviceClient, activeCity, keywords);
+  return sortByPlan(results);
 }
 
 /** Filter a list of businesses by keyword match (same logic as main search). */
@@ -258,7 +366,7 @@ function filterByKeywords(pool: Business[], searchQuery: string): Business[] {
 export async function searchBusinesses(
   query: string,
   cityFilter?: string
-): Promise<{ businesses: Business[]; detectedCity: string | null; correctedQuery?: string }> {
+): Promise<{ businesses: Business[]; detectedCity: string | null; correctedQuery?: string; detectedPrice?: number | null; relatedResults?: Business[] }> {
   const serviceClient = getServiceClient();
 
   const detectedCity = detectCity(query);
@@ -277,7 +385,7 @@ export async function searchBusinesses(
 
   let businesses: Business[];
 
-  const businessColumns = 'id,name,slug,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,verified,tags,vibe_tags,is_active,phone,whatsapp,address,landmark,email,created_at,updated_at';
+  const businessColumns = 'id,name,category,city,area,description,photos,plan,opening_hours,price_range,price_min,is_verified,tags,amenities,vibe_tags,cuisine,wifi,ac,gender,custom_fields,phone,whatsapp';
   if (query.trim() === 'test123') {
     const { data } = await serviceClient.from('businesses').select(businessColumns).or('is_active.eq.true,is_active.is.null');
     businesses = (data as Business[]) || [];
@@ -320,18 +428,32 @@ export async function searchBusinesses(
     businesses = await fetchBusinessesWithFilter(serviceClient, activeCity, searchTerms);
   }
 
+  const detectedPrice = priceCondition?.detectedPrice ?? null;
+
   if (!businesses || businesses.length === 0) {
-    if (cleanQuery.trim() === '') return { businesses: [], detectedCity };
+    if (cleanQuery.trim() === '') return { businesses: [], detectedCity, detectedPrice };
   }
 
+  // Both price and conditions are strict — return empty + relatedResults if no match
   let conditionFiltered = businesses || [];
-  if (conditions.length > 0 || priceCondition) {
-    const strict = businesses.filter(b => businessMatchesConditions(b, conditions, priceCondition));
-    if (strict.length > 0) conditionFiltered = strict;
+  if (priceCondition) {
+    conditionFiltered = businesses.filter(b => businessMatchesConditions(b, [], priceCondition));
+    if (conditionFiltered.length === 0) {
+      const relatedResults = await fetchRelatedResults(serviceClient, cleanQuery, activeCity);
+      return { businesses: [], detectedCity, detectedPrice, relatedResults };
+    }
+  }
+  if (conditions.length > 0) {
+    const strict = conditionFiltered.filter(b => businessMatchesConditions(b, conditions, null));
+    if (strict.length === 0) {
+      const relatedResults = await fetchRelatedResults(serviceClient, cleanQuery, activeCity);
+      return { businesses: [], detectedCity, detectedPrice, relatedResults };
+    }
+    conditionFiltered = strict;
   }
 
   if (cleanQuery.trim() === '') {
-    return { businesses: sortByPlan(conditionFiltered), detectedCity };
+    return { businesses: sortByPlan(conditionFiltered), detectedCity, detectedPrice };
   }
 
   let candidates: Business[] = conditionFiltered;
@@ -353,13 +475,15 @@ export async function searchBusinesses(
     if (shortened2 !== cleanQuery && kw2.length > 0) {
       const terms2 = [...kw2];
       if (categoryIntent) categoryIntent.forEach(cat => { if (!terms2.some(t => t.toLowerCase() === cat.toLowerCase())) terms2.push(cat); });
-      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms2);
-      let filtered = fallback;
-      if (conditions.length > 0 || priceCondition) {
-        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
-        if (strict.length > 0) filtered = strict;
+      let fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms2);
+      if (priceCondition) {
+        fallback = fallback.filter(b => businessMatchesConditions(b, [], priceCondition));
       }
-      const withIntent = shouldFilterByCategory && categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      if (conditions.length > 0) {
+        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, null));
+        fallback = strict; // strict — if nothing, withIntent will be empty and we skip
+      }
+      const withIntent = shouldFilterByCategory && categoryIntent && fallback.length > 0 ? filterByCategoryIntent(fallback, categoryIntent) : fallback;
       if (withIntent.length > 0) {
         candidates = withIntent;
         correctedQuery = shortened2;
@@ -368,13 +492,15 @@ export async function searchBusinesses(
     if (candidates.length === 0 && shortened3 !== cleanQuery && shortened3 !== shortenSearchQuery(cleanQuery, 2) && kw3.length > 0) {
       const terms3 = [...kw3];
       if (categoryIntent) categoryIntent.forEach(cat => { if (!terms3.some(t => t.toLowerCase() === cat.toLowerCase())) terms3.push(cat); });
-      const fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms3);
-      let filtered = fallback;
-      if (conditions.length > 0 || priceCondition) {
-        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, priceCondition));
-        if (strict.length > 0) filtered = strict;
+      let fallback = await fetchBusinessesWithFilter(serviceClient, activeCity, terms3);
+      if (priceCondition) {
+        fallback = fallback.filter(b => businessMatchesConditions(b, [], priceCondition));
       }
-      const withIntent = shouldFilterByCategory && categoryIntent && filtered.length > 0 ? filterByCategoryIntent(filtered, categoryIntent) : filtered;
+      if (conditions.length > 0) {
+        const strict = fallback.filter(b => businessMatchesConditions(b, conditions, null));
+        fallback = strict;
+      }
+      const withIntent = shouldFilterByCategory && categoryIntent && fallback.length > 0 ? filterByCategoryIntent(fallback, categoryIntent) : fallback;
       if (withIntent.length > 0) {
         candidates = withIntent;
         correctedQuery = shortened3;
@@ -383,13 +509,17 @@ export async function searchBusinesses(
   }
 
   if (candidates.length === 0) {
-    return { businesses: [], detectedCity, correctedQuery };
+    const hadConditionsOrPrice = conditions.length > 0 || priceCondition !== null;
+    const relatedResults = hadConditionsOrPrice
+      ? await fetchRelatedResults(serviceClient, cleanQuery, activeCity)
+      : undefined;
+    return { businesses: [], detectedCity, correctedQuery, detectedPrice, relatedResults };
   }
 
   const sorted = sortByPlan(candidates);
   if (sorted.length === 0) {
-    return { businesses: [], detectedCity, correctedQuery };
+    return { businesses: [], detectedCity, correctedQuery, detectedPrice };
   }
 
-  return { businesses: sorted, detectedCity, correctedQuery };
+  return { businesses: sorted, detectedCity, correctedQuery, detectedPrice };
 }
