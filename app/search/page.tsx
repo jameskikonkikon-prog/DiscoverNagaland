@@ -331,7 +331,7 @@ function SearchPageInner() {
                           <img src={getBizPhotoUrl(biz)!} alt={biz.name} className="biz-photo" />
                         ) : (
                           <div className="biz-photo-placeholder biz-photo-category">
-                            <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: 6, opacity: 0.5 }}>{getCategoryEmoji(biz.category)}</span>
+                            <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: 6, opacity: 0.5 }}>{({'restaurant':'🍽️',cafe:'☕',hotel:'🏨',pg:'🏠',hostel:'🏠',rental:'🏡',gym:'💪',turf:'⚽',shop:'🛍️',salon:'💇',coaching:'📚',school:'🎓',pharmacy:'💊',hospital:'🏥',clinic:'🏥',service:'🔧'} as Record<string,string>)[(biz.category||'').toLowerCase()] ?? '🏪'}</span>
                             <span>{biz.category}</span>
                           </div>
                         )}
