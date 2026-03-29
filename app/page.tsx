@@ -201,8 +201,12 @@ export default function HomePage() {
         .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(6);
-      setRecentBusinesses((recent || []) as Business[]);
+        .limit(18);
+      const sorted = ((recent || []) as Business[]).sort((a, b) => {
+        const rank = (p: string | undefined) => (p === 'pro' || p === 'plus' ? 0 : 1);
+        return rank(a.plan) - rank(b.plan);
+      });
+      setRecentBusinesses(sorted.slice(0, 6));
 
       const { data: allActive } = await supabase
         .from('businesses')
@@ -300,7 +304,7 @@ export default function HomePage() {
   }
   function getRecentBadge(biz: Business): { cls: string; label: string } {
     if (biz.is_verified) return { cls: 'r-verified', label: '✓ Verified' };
-    if (biz.plan === 'plus' || biz.plan === 'pro') return { cls: 'r-hot', label: 'POPULAR' };
+    if (biz.plan === 'plus' || biz.plan === 'pro') return { cls: 'r-hot', label: '🔥 Hot Today' };
     return { cls: 'r-new', label: 'NEW' };
   }
 
