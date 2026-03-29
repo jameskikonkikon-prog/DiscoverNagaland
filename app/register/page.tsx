@@ -470,12 +470,6 @@ export default function RegisterPage() {
         throw signUpErr;
       }
 
-      const { error: otpErr } = await supabase.auth.signInWithOtp({ email: account.email, options: { shouldCreateUser: false } });
-      if (otpErr) {
-        localStorage.removeItem('yana_pending_business');
-        throw otpErr;
-      }
-
       setShowOtp(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -487,7 +481,7 @@ export default function RegisterPage() {
     if (otpCode.length !== 6) { setOtpError('Please enter the 6-digit code'); return; }
     setOtpLoading(true); setOtpError('');
     try {
-      const { error: verifyErr } = await supabase.auth.verifyOtp({ email: account.email, token: otpCode, type: 'email' });
+      const { error: verifyErr } = await supabase.auth.verifyOtp({ email: account.email, token: otpCode, type: 'signup' });
       if (verifyErr) throw verifyErr;
       // Session is now established — save pending business to DB
       const pending = localStorage.getItem('yana_pending_business');
@@ -512,7 +506,7 @@ export default function RegisterPage() {
 
   const handleOtpResend = async () => {
     setOtpResending(true); setOtpResent(false);
-    await supabase.auth.signInWithOtp({ email: account.email, options: { shouldCreateUser: false } });
+    await supabase.auth.resend({ type: 'signup', email: account.email });
     setOtpResending(false); setOtpResent(true);
   };
 
