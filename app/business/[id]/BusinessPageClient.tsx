@@ -103,6 +103,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
   const [navScrolled, setNavScrolled] = useState(false);
   const [failedPhotos, setFailedPhotos] = useState<Set<number>>(new Set());
   const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimForm, setClaimForm] = useState({ name: '', phone: '', email: '', designation: '' });
@@ -232,7 +233,6 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
       );
     }
 
-    // Find first valid photo indices
     const validIndices = photos.map((_, i) => i).filter(i => !failedPhotos.has(i));
     if (validIndices.length === 0) {
       return (
@@ -243,9 +243,11 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
       );
     }
 
+    const openLightbox = (pos: number) => { setLightboxIndex(pos); setShowAllPhotos(true); };
+
     if (validIndices.length === 1) {
       return (
-        <div className="gallery-single">
+        <div className="gallery-single" style={{ cursor: 'pointer' }} onClick={() => openLightbox(0)}>
           <img
             src={photos[validIndices[0]]}
             alt={biz.name}
@@ -260,8 +262,8 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
     if (validIndices.length === 2) {
       return (
         <div className="gallery-duo">
-          {validIndices.map(idx => (
-            <div key={idx} className="gallery-duo-item">
+          {validIndices.map((idx, pos) => (
+            <div key={idx} className="gallery-duo-item" style={{ cursor: 'pointer' }} onClick={() => openLightbox(pos)}>
               <img
                 src={photos[idx]}
                 alt={biz.name}
@@ -282,7 +284,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
 
     return (
       <div className="gallery-grid">
-        <div className="gallery-main">
+        <div className="gallery-main" style={{ cursor: 'pointer' }} onClick={() => openLightbox(0)}>
           <img
             src={photos[mainIdx]}
             alt={biz.name}
@@ -291,7 +293,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
           />
         </div>
         <div className="gallery-side">
-          <div className="gallery-side-item">
+          <div className="gallery-side-item" style={{ cursor: 'pointer' }} onClick={() => openLightbox(1)}>
             <img
               src={photos[rightIdx1]}
               alt={`${biz.name} photo`}
@@ -299,25 +301,23 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
               onError={() => handlePhotoError(rightIdx1)}
             />
           </div>
-          <div className="gallery-side-item">
+          <div className="gallery-side-item gallery-side-last" style={{ cursor: 'pointer' }} onClick={() => openLightbox(2)}>
             <img
               src={photos[rightIdx2]}
               alt={`${biz.name} photo`}
               className="gallery-img-fill"
               onError={() => handlePhotoError(rightIdx2)}
             />
+            <button
+              type="button"
+              className="view-all-photos-btn"
+              onClick={e => { e.stopPropagation(); openLightbox(0); }}
+            >
+              See all {validIndices.length} photos
+            </button>
           </div>
         </div>
         <div className="gallery-grad" />
-        {validIndices.length >= 4 && (
-          <button
-            type="button"
-            className="view-all-photos-btn"
-            onClick={() => setShowAllPhotos(true)}
-          >
-            View all {validIndices.length} photos
-          </button>
-        )}
       </div>
     );
   };
@@ -597,26 +597,34 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
         </div>
       </main>
 
-      {/* All photos lightbox */}
-      {showAllPhotos && (
-        <div className="photos-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowAllPhotos(false); }}>
-          <div className="photos-modal">
-            <div className="photos-modal-header">
-              <div className="photos-modal-title">All Photos</div>
-              <button className="cm-close" onClick={() => setShowAllPhotos(false)} aria-label="Close">✕</button>
-            </div>
-            <div className="photos-modal-grid">
-              {photos.map((p, i) => !failedPhotos.has(i) && (
-                <img
-                  key={i}
-                  src={p}
-                  alt={`${biz.name} photo ${i + 1}`}
-                  className="photos-modal-img"
-                  onError={() => handlePhotoError(i)}
-                />
-              ))}
-            </div>
+      {/* Lightbox */}
+      {showAllPhotos && validPhotos.length > 0 && (
+        <div className="lightbox-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAllPhotos(false); }}>
+          <button className="lightbox-close" onClick={() => setShowAllPhotos(false)} aria-label="Close">✕</button>
+          {validPhotos.length > 1 && (
+            <button
+              className="lightbox-nav lightbox-prev"
+              onClick={() => setLightboxIndex(i => (i - 1 + validPhotos.length) % validPhotos.length)}
+              aria-label="Previous photo"
+            >‹</button>
+          )}
+          <div className="lightbox-img-wrap" onClick={e => e.stopPropagation()}>
+            <img
+              src={validPhotos[lightboxIndex] ?? validPhotos[0]}
+              alt={`${biz.name} photo ${lightboxIndex + 1}`}
+              className="lightbox-img"
+            />
           </div>
+          {validPhotos.length > 1 && (
+            <button
+              className="lightbox-nav lightbox-next"
+              onClick={() => setLightboxIndex(i => (i + 1) % validPhotos.length)}
+              aria-label="Next photo"
+            >›</button>
+          )}
+          {validPhotos.length > 1 && (
+            <div className="lightbox-counter">{lightboxIndex + 1} / {validPhotos.length}</div>
+          )}
         </div>
       )}
 
@@ -724,7 +732,7 @@ const styles = `
   .gallery {
     margin-top: 56px; position: relative;
     height: 420px; max-height: 480px; min-height: 300px;
-    background: var(--surface2); overflow: hidden;
+    background: var(--surface2); overflow: hidden; border-radius: 12px;
   }
   .gallery-grad {
     position: absolute; inset: 0;
@@ -750,17 +758,19 @@ const styles = `
   .gallery-main .gallery-img-fill { cursor: pointer; }
   .gallery-main:hover .gallery-img-fill { transform: scale(1.03); }
   .gallery-side { display: grid; grid-template-rows: 1fr 1fr; gap: 3px; overflow: hidden; }
-  .gallery-side-item { overflow: hidden; }
+  .gallery-side-item { overflow: hidden; position: relative; }
   .gallery-side-item:hover .gallery-img-fill { transform: scale(1.03); }
+  .gallery-side-last { }
 
   .view-all-photos-btn {
-    position: absolute; bottom: 20px; right: 20px; z-index: 3;
-    padding: 8px 18px; border-radius: 8px;
-    background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15);
-    backdrop-filter: blur(8px); color: #fff; font-size: 12px; font-weight: 600;
+    position: absolute; bottom: 8px; right: 8px; z-index: 3;
+    padding: 6px 14px; border-radius: 8px;
+    background: rgba(0,0,0,0.72); border: 1px solid rgba(255,255,255,0.15);
+    backdrop-filter: blur(8px); color: #fff; font-size: 11px; font-weight: 600;
     cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s;
+    white-space: nowrap;
   }
-  .view-all-photos-btn:hover { background: rgba(0,0,0,0.85); border-color: rgba(255,255,255,0.3); }
+  .view-all-photos-btn:hover { background: rgba(0,0,0,0.9); border-color: rgba(255,255,255,0.3); }
 
   /* Content layout */
   .content {
@@ -918,13 +928,17 @@ const styles = `
   .cm-submit:hover:not(:disabled) { opacity: 0.85; }
   .cm-submit:disabled { opacity: 0.45; cursor: not-allowed; }
 
-  /* Photos lightbox */
-  .photos-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.15s ease; overflow-y: auto; }
-  .photos-modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px; width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; animation: fadeUp 0.2s cubic-bezier(0.22,1,0.36,1) both; }
-  .photos-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-  .photos-modal-title { font-size: 15px; font-weight: 800; }
-  .photos-modal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-  .photos-modal-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; }
+  /* Lightbox */
+  .lightbox-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.96); display: flex; align-items: center; justify-content: center; animation: fadeIn 0.15s ease; }
+  .lightbox-img-wrap { display: flex; align-items: center; justify-content: center; max-width: 90vw; max-height: 88vh; }
+  .lightbox-img { max-width: 90vw; max-height: 88vh; object-fit: contain; border-radius: 6px; display: block; }
+  .lightbox-close { position: absolute; top: 16px; right: 16px; z-index: 10; width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: 'Sora', sans-serif; transition: background 0.2s; }
+  .lightbox-close:hover { background: rgba(255,255,255,0.22); }
+  .lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; font-size: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: serif; transition: background 0.2s; z-index: 10; line-height: 1; padding-bottom: 2px; }
+  .lightbox-nav:hover { background: rgba(255,255,255,0.22); }
+  .lightbox-prev { left: 16px; }
+  .lightbox-next { right: 16px; }
+  .lightbox-counter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.75); font-size: 13px; font-weight: 600; background: rgba(0,0,0,0.5); padding: 4px 14px; border-radius: 20px; font-family: 'Sora', sans-serif; white-space: nowrap; }
 
   /* Mobile */
   @media (max-width: 900px) {
@@ -940,6 +954,8 @@ const styles = `
     .rf-grid { grid-template-columns: 1fr; }
     .nav { padding: 0 20px; }
     .nav-center { display: none; }
-    .photos-modal-grid { grid-template-columns: 1fr 1fr; }
+    .lightbox-prev { left: 8px; }
+    .lightbox-next { right: 8px; }
+    .lightbox-nav { width: 44px; height: 44px; font-size: 26px; }
   }
 `;
