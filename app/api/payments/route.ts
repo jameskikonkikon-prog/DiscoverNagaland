@@ -1,10 +1,21 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import { getServiceClient } from '@/lib/supabase';
 import { PLANS, FOUNDING_MEMBER_LIMIT } from '@/types';
 import Razorpay from 'razorpay';
 
 export async function POST(request: NextRequest) {
+  const cookieStore = await cookies();
+  const authClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  );
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { businessId, plan } = await request.json();
 
   if (!businessId || !plan || !['pro', 'plus'].includes(plan)) {
@@ -28,12 +39,16 @@ export async function POST(request: NextRequest) {
     const serviceClient = getServiceClient();
     const { data: business } = await serviceClient
       .from('businesses')
-      .select('plan, plan_expires_at')
+      .select('plan, plan_expires_at, owner_id')
       .eq('id', businessId)
       .single();
 
     if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    }
+
+    if (business.owner_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Pro plan: check if eligible for founding member (free Pro)
