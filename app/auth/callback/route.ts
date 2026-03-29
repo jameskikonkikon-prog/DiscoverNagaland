@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       }
 
       if (type === 'signup' || type === 'email') {
-        return redirectWithCookies(`${origin}/`);
+        return redirectWithCookies(`${origin}/dashboard`);
       }
 
       const userId = data.user.id;
