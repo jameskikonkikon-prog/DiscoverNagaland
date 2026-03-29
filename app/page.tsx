@@ -433,7 +433,7 @@ export default function HomePage() {
           <div className="featured-grid">
             {featuredBusinesses.map((biz, i) => {
               const planVal = (biz.plan ?? '').toString().trim().toLowerCase();
-              const isPlus = planVal === 'plus';
+              const isPlus = planVal === 'plus' || planVal === 'pro';
               console.log('[featured]', biz.name, 'plan:', biz.plan, '→ isPlus:', isPlus);
               return (
               <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}${isPlus ? ' feat-plus' : ''}`}>
@@ -493,7 +493,7 @@ export default function HomePage() {
           <div className="recent-list">
             {recentBusinesses.map((biz) => {
               const badge = getRecentBadge(biz);
-              const isPlus = (biz.plan || '').toLowerCase() === 'plus';
+              const isPlus = ['plus', 'pro'].includes((biz.plan || '').toLowerCase());
               return (
                 <a key={biz.id} href={`/business/${biz.id}`} className={`recent${isPlus ? ' recent-plus' : ''}`}>
                   <div className="recent-photo">
