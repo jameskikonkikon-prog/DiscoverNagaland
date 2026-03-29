@@ -393,6 +393,12 @@ export default function RegisterPage() {
   const [isFoundingMember, setIsFoundingMember] = useState(false);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
+  const [showOtp, setShowOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [otpResending, setOtpResending] = useState(false);
+  const [otpResent, setOtpResent] = useState(false);
   const [foundingSpots, setFoundingSpots] = useState<number | null>(null);
   const [earlyAccessFull, setEarlyAccessFull] = useState(false);
 
@@ -448,7 +454,7 @@ export default function RegisterPage() {
     if (account.password.length < 6) { setError("Password must be at least 6 characters."); return; }
     setLoading(true); setError('');
     try {
-      // Save business details to localStorage so they survive email verification
+      // Save business details to localStorage so they survive OTP verification
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
       localStorage.setItem('yana_pending_business', JSON.stringify({
         ...form,
@@ -458,17 +464,56 @@ export default function RegisterPage() {
         vibe_tags: vibeTags.join(','),
       }));
 
-      const { error: authErr } = await supabase.auth.signUp({ email: account.email, password: account.password });
-      if (authErr) {
+      const { error: signUpErr } = await supabase.auth.signUp({ email: account.email, password: account.password });
+      if (signUpErr) {
         localStorage.removeItem('yana_pending_business');
-        throw authErr;
+        throw signUpErr;
       }
 
-      setSubmitted(true);
+      const { error: otpErr } = await supabase.auth.signInWithOtp({ email: account.email, options: { shouldCreateUser: false } });
+      if (otpErr) {
+        localStorage.removeItem('yana_pending_business');
+        throw otpErr;
+      }
+
+      setShowOtp(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     }
     setLoading(false);
+  };
+
+  const handleOtpVerify = async () => {
+    if (otpCode.length !== 6) { setOtpError('Please enter the 6-digit code'); return; }
+    setOtpLoading(true); setOtpError('');
+    try {
+      const { error: verifyErr } = await supabase.auth.verifyOtp({ email: account.email, token: otpCode, type: 'email' });
+      if (verifyErr) throw verifyErr;
+      // Session is now established — save pending business to DB
+      const pending = localStorage.getItem('yana_pending_business');
+      if (pending) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const payload = JSON.parse(pending);
+          const res = await fetch('/api/register-business', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, signup_user_id: session.user.id }),
+          });
+          if (res.ok) localStorage.removeItem('yana_pending_business');
+        }
+      }
+      window.location.href = '/dashboard';
+    } catch (err: unknown) {
+      setOtpError(err instanceof Error ? err.message : 'Invalid or expired code. Try again.');
+    }
+    setOtpLoading(false);
+  };
+
+  const handleOtpResend = async () => {
+    setOtpResending(true); setOtpResent(false);
+    await supabase.auth.signInWithOtp({ email: account.email, options: { shouldCreateUser: false } });
+    setOtpResending(false); setOtpResent(true);
   };
 
   const canNext = [
@@ -485,6 +530,66 @@ export default function RegisterPage() {
     setResending(false);
     setResent(true);
   };
+
+  if (showOtp) return (
+    <>
+      <style>{styles}</style>
+      <main className="reg-page">
+        <div className="reg-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔐</div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: 'var(--white)', marginBottom: '0.75rem' }}>Enter your code</h1>
+          <p style={{ color: 'var(--muted)', marginBottom: '0.5rem', lineHeight: '1.6' }}>We sent a 6-digit code to</p>
+          <p style={{ color: 'var(--white)', fontWeight: 600, marginBottom: '1.5rem' }}>{account.email}</p>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={otpCode}
+            onChange={e => { setOtpCode(e.target.value.replace(/\D/g, '')); setOtpError(''); }}
+            placeholder="000000"
+            autoFocus
+            style={{
+              display: 'block', margin: '0 auto 1rem',
+              width: '100%', maxWidth: '220px', textAlign: 'center',
+              letterSpacing: '0.5em', fontSize: '2rem', fontWeight: 700,
+              background: 'var(--card)', border: `1.5px solid ${otpError ? '#f87171' : 'var(--border2)'}`,
+              borderRadius: '12px', color: 'var(--white)', padding: '0.75rem',
+              fontFamily: "'Sora', sans-serif", outline: 'none',
+            }}
+          />
+          {otpError && <p style={{ color: '#f87171', fontSize: '0.88rem', marginBottom: '0.75rem' }}>{otpError}</p>}
+          <button
+            onClick={handleOtpVerify}
+            disabled={otpLoading || otpCode.length !== 6}
+            style={{
+              display: 'block', margin: '0 auto 1.25rem',
+              width: '100%', maxWidth: '220px', padding: '0.85rem',
+              background: 'var(--red)', border: 'none', borderRadius: '10px',
+              color: '#fff', fontFamily: "'Sora', sans-serif", fontSize: '1rem',
+              fontWeight: 600, cursor: (otpLoading || otpCode.length !== 6) ? 'default' : 'pointer',
+              opacity: (otpLoading || otpCode.length !== 6) ? 0.6 : 1,
+            }}
+          >
+            {otpLoading ? 'Verifying…' : 'Verify Code'}
+          </button>
+          {otpResent ? (
+            <p style={{ color: '#4ade80', fontSize: '0.88rem', marginBottom: '1rem' }}>✓ New code sent. Check your inbox.</p>
+          ) : (
+            <button
+              onClick={handleOtpResend}
+              disabled={otpResending}
+              style={{ background: 'transparent', border: '1.5px solid var(--border2)', borderRadius: '10px', color: 'var(--muted)', fontFamily: "'Sora', sans-serif", fontSize: '0.88rem', padding: '0.65rem 1.4rem', cursor: otpResending ? 'default' : 'pointer', marginBottom: '1rem', opacity: otpResending ? 0.5 : 1 }}
+            >
+              {otpResending ? 'Sending…' : 'Resend code'}
+            </button>
+          )}
+          <div style={{ marginTop: '0.5rem' }}>
+            <a href="/register" style={{ color: 'var(--muted)', fontSize: '0.82rem', textDecoration: 'none' }}>← Start over</a>
+          </div>
+        </div>
+      </main>
+    </>
+  );
 
   if (submitted) return (
     <>
