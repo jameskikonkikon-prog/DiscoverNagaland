@@ -9,8 +9,20 @@ export async function POST(req: NextRequest) {
       signup_user_id,
       name, category, city, address, landmark, phone, whatsapp,
       email, website, description, opening_hours, slug,
-      custom_fields, vibe_tags,
+      custom_fields,
     } = body;
+
+    const toArray = (v: unknown): string[] | null => {
+      if (!v) return null;
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'string') return v.split(',').map((s: string) => s.trim()).filter(Boolean);
+      return null;
+    };
+
+    const vibe_tags = toArray(body.vibe_tags);
+    const tags      = toArray(body.tags);
+    const amenities = toArray(body.amenities);
+    const photos    = toArray(body.photos);
 
     if (!signup_user_id) {
       return NextResponse.json({ error: 'Missing user ID' }, { status: 400 });
@@ -47,7 +59,10 @@ export async function POST(req: NextRequest) {
       description: description || null,
       opening_hours: opening_hours || null,
       custom_fields: custom_fields || null,
-      vibe_tags: vibe_tags || null,
+      vibe_tags,
+      tags,
+      amenities,
+      photos,
       owner_id: userData.user.id,
       plan: isFoundingMember ? 'pro' : 'basic',
       is_active: true,
