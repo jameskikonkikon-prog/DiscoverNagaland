@@ -464,19 +464,10 @@ export default function RegisterPage() {
         vibe_tags: vibeTags.join(','),
       }));
 
-      // Try OTP first — if user already exists unverified, this succeeds and we skip signUp
-      const { error: otpErr } = await supabase.auth.signInWithOtp({ email: account.email, options: { shouldCreateUser: false } });
-      if (otpErr && !otpErr.message.toLowerCase().includes('user not found')) {
+      const { error: signUpErr } = await supabase.auth.signUp({ email: account.email, password: account.password });
+      if (signUpErr) {
         localStorage.removeItem('yana_pending_business');
-        throw otpErr;
-      }
-      if (otpErr) {
-        // User not found — new signup
-        const { error: signUpErr } = await supabase.auth.signUp({ email: account.email, password: account.password });
-        if (signUpErr) {
-          localStorage.removeItem('yana_pending_business');
-          throw signUpErr;
-        }
+        throw signUpErr;
       }
 
       setShowOtp(true);
@@ -490,12 +481,8 @@ export default function RegisterPage() {
     if (otpCode.length !== 6) { setOtpError('Please enter the 6-digit code'); return; }
     setOtpLoading(true); setOtpError('');
     try {
-      // Try 'signup' type first (new user); fall back to 'email' type (existing unverified user)
-      let { error: verifyErr } = await supabase.auth.verifyOtp({ email: account.email, token: otpCode, type: 'signup' });
-      if (verifyErr) {
-        const { error: verifyErr2 } = await supabase.auth.verifyOtp({ email: account.email, token: otpCode, type: 'email' });
-        if (verifyErr2) throw verifyErr2;
-      }
+      const { error: verifyErr } = await supabase.auth.verifyOtp({ email: account.email, token: otpCode, type: 'signup' });
+      if (verifyErr) throw verifyErr;
       // Session is now established — save pending business to DB
       const pending = localStorage.getItem('yana_pending_business');
       if (pending) {
