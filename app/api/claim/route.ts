@@ -107,8 +107,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to save claim. Please try again.' }, { status: 500 });
     }
 
-    console.log('[claim] inserted — business_id:', business_id, '| claimant:', name, email, '| user_id:', claimant_user_id);
-
     // Send notification email (non-fatal)
     await sendClaimEmail({ business_id, name, phone, email, designation });
 

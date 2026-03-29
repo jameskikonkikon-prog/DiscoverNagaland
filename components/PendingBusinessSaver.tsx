@@ -11,11 +11,9 @@ import { supabase } from '@/lib/supabase';
 export default function PendingBusinessSaver() {
   useEffect(() => {
     const pending = localStorage.getItem('yana_pending_business');
-    console.log('[PendingBusinessSaver] localStorage data:', pending ? JSON.parse(pending) : null);
     if (!pending) return;
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      console.log('[PendingBusinessSaver] session:', session ? `user ${session.user.id}` : 'no session');
       if (!session?.user) return;
       try {
         const payload = JSON.parse(pending);
@@ -25,7 +23,6 @@ export default function PendingBusinessSaver() {
           body: JSON.stringify({ ...payload, signup_user_id: session.user.id }),
         });
         const data = await res.json();
-        console.log('[PendingBusinessSaver] API response:', res.status, data);
         if (res.ok) {
           localStorage.removeItem('yana_pending_business');
           window.location.href = '/dashboard';
