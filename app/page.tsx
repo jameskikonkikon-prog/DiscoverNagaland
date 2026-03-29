@@ -164,7 +164,7 @@ export default function HomePage() {
           .from('businesses')
           .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
           .eq('is_active', true)
-          .in('plan', ['plus', 'pro'])
+          .eq('plan', 'plus')
           .order('created_at', { ascending: false })
           .limit(8);
         featuredList = (planRows || []) as Business[];
@@ -203,7 +203,7 @@ export default function HomePage() {
         .order('created_at', { ascending: false })
         .limit(18);
       const sorted = ((recent || []) as Business[]).sort((a, b) => {
-        const rank = (p: string | undefined) => (p === 'pro' || p === 'plus' ? 0 : 1);
+        const rank = (p: string | undefined) => p === 'plus' ? 0 : p === 'pro' ? 1 : 2;
         return rank(a.plan) - rank(b.plan);
       });
       setRecentBusinesses(sorted.slice(0, 6));
@@ -304,7 +304,7 @@ export default function HomePage() {
   }
   function getRecentBadge(biz: Business): { cls: string; label: string } {
     if (biz.is_verified) return { cls: 'r-verified', label: '✓ Verified' };
-    if (biz.plan === 'plus' || biz.plan === 'pro') return { cls: 'r-hot', label: '🔥 Hot Today' };
+    if (biz.plan === 'plus') return { cls: 'r-hot', label: '🔥 Hot Today' };
     return { cls: 'r-new', label: 'NEW' };
   }
 
@@ -433,7 +433,7 @@ export default function HomePage() {
           <div className="featured-grid">
             {featuredBusinesses.map((biz, i) => {
               const planVal = (biz.plan ?? '').toString().trim().toLowerCase();
-              const isPlus = planVal === 'plus' || planVal === 'pro';
+              const isPlus = planVal === 'plus';
               console.log('[featured]', biz.name, 'plan:', biz.plan, '→ isPlus:', isPlus);
               return (
               <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}${isPlus ? ' feat-plus' : ''}`}>
@@ -493,7 +493,7 @@ export default function HomePage() {
           <div className="recent-list">
             {recentBusinesses.map((biz) => {
               const badge = getRecentBadge(biz);
-              const isPlus = ['plus', 'pro'].includes((biz.plan || '').toLowerCase());
+              const isPlus = (biz.plan || '').toLowerCase() === 'plus';
               return (
                 <a key={biz.id} href={`/business/${biz.id}`} className={`recent${isPlus ? ' recent-plus' : ''}`}>
                   <div className="recent-photo">
