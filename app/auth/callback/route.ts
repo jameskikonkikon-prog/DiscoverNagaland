@@ -7,7 +7,6 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const type = searchParams.get("type");
-  const next = searchParams.get("next") ?? "/dashboard";
 
   if (code) {
     const cookieStore = await cookies();
@@ -30,13 +29,21 @@ export async function GET(request: NextRequest) {
 
     const { error, data } = await supabase.auth.exchangeCodeForSession(code);
     if (!error && data.user) {
+      // Helper: build a redirect response with all session cookies attached
+      function redirectWithCookies(url: string) {
+        const response = NextResponse.redirect(url);
+        cookieStore.getAll().forEach(cookie => {
+          response.cookies.set(cookie.name, cookie.value, cookie);
+        });
+        return response;
+      }
+
       if (type === 'recovery') {
-        return NextResponse.redirect(`${origin}/reset-password`);
+        return redirectWithCookies(`${origin}/reset-password`);
       }
 
       if (type === 'signup' || type === 'email') {
-        // Session is already established — send user home, logged in
-        return NextResponse.redirect(`${origin}/`);
+        return redirectWithCookies(`${origin}/`);
       }
 
       const userId = data.user.id;
@@ -54,7 +61,7 @@ export async function GET(request: NextRequest) {
       if (hasBiz && !hasProp) destination = '/dashboard';
       else if (hasProp && !hasBiz) destination = '/real-estate/dashboard';
 
-      return NextResponse.redirect(`${origin}${destination}`);
+      return redirectWithCookies(`${origin}${destination}`);
     }
   }
 
