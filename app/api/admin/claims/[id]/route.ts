@@ -72,9 +72,5 @@ export async function PATCH(
     }
   }
 
-  console.log(
-    `[admin/claims] ${action}d claim ${claimId}`,
-    `(business ${claim.business_id}, new owner: ${claim.claimant_user_id ?? 'none'})`
-  );
   return NextResponse.json({ success: true });
 }

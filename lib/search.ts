@@ -283,7 +283,6 @@ async function fetchBusinessesWithFilter(
     if (orClause) q = q.or(orClause);
   }
   const { data, error } = await q;
-  console.log('[search] Supabase query:', { keywords, orClause: orClause || '(none)', dataLength: data?.length ?? 0, error: error?.message ?? null });
   if (error) {
     console.error('Search query error:', error);
     return [];
@@ -342,7 +341,6 @@ async function fetchRelatedResults(
   activeCity: string | null
 ): Promise<Business[]> {
   const stripped = stripConditionsFromQuery(cleanQuery);
-  console.log('[related] cleanQuery:', cleanQuery, '→ strippedQuery:', stripped, '| city:', activeCity);
   if (!stripped || stripped === cleanQuery.toLowerCase().trim()) return [];
   const keywords = stripped.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
   if (keywords.length === 0) return [];
@@ -389,7 +387,6 @@ export async function searchBusinesses(
   if (query.trim() === 'test123') {
     const { data } = await serviceClient.from('businesses').select(businessColumns).or('is_active.eq.true,is_active.is.null');
     businesses = (data as Business[]) || [];
-    console.log('[search] test123: returning all businesses', businesses.length);
   } else if (cleanQuery.trim() === '') {
     const { data } = await serviceClient.from('businesses').select(businessColumns).or('is_active.eq.true,is_active.is.null');
     if (activeCity) {
@@ -408,7 +405,6 @@ export async function searchBusinesses(
         (b.category && b.category.toLowerCase().includes(qLower)) ||
         (b.description && b.description.toLowerCase().includes(qLower))
     );
-    console.log('[search] Fallback (no keywords): query=', cleanQuery, 'results=', businesses.length);
   } else {
     // Keep original terms; add category synonyms (never replace — so "football" stays and we add "Turfs & Sports")
     const categoryIntent = getCategoryIntent(cleanQuery);

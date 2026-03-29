@@ -93,7 +93,6 @@ function SearchPageInner() {
       setResults(json.businesses ?? []);
       setCorrectedQuery(json.correctedQuery ?? null);
       setRelatedResults(json.relatedResults ?? []);
-      console.log('[search] relatedResults:', json.relatedResults);
       setFilterOpenNow(false);
       setFilterCity("");
       setFilterBudget(false);

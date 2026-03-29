@@ -60,8 +60,6 @@ async function checkAndIncrement(identifier: string): Promise<boolean> {
   const today = new Date().toISOString().split('T')[0];
   const service = getServiceClient();
 
-  console.log('[yana-ai] rate-limit identifier:', identifier, '| date:', today);
-
   const { data: existing, error: selectError } = await service
     .from('yana_ai_usage')
     .select('count')
@@ -74,15 +72,12 @@ async function checkAndIncrement(identifier: string): Promise<boolean> {
   }
 
   const current = existing?.count ?? 0;
-  console.log('[yana-ai] rate-limit current count:', current);
 
   if (current >= DAILY_LIMIT) {
-    console.log('[yana-ai] rate-limit BLOCKED — limit reached for', identifier);
     return false;
   }
 
   const payload = { identifier, date: today, count: current + 1 };
-  console.log('[yana-ai] rate-limit upsert payload:', JSON.stringify(payload));
 
   const { error: upsertError } = await service
     .from('yana_ai_usage')
@@ -92,8 +87,6 @@ async function checkAndIncrement(identifier: string): Promise<boolean> {
     console.error('[yana-ai] rate-limit UPSERT error:', JSON.stringify(upsertError));
     // Non-fatal: allow the request through even if tracking fails,
     // so a write bug does not break Yana AI for users.
-  } else {
-    console.log('[yana-ai] rate-limit upsert OK — count now:', current + 1);
   }
 
   return true;
@@ -257,10 +250,6 @@ export async function POST(req: NextRequest) {
     const results = await fetchByIntent(intent, location);
     const resultCount = results.length;
 
-    console.log('[yana-ai] message:', message);
-    console.log('[yana-ai] intent:', intent, '| location:', location);
-    console.log('[yana-ai] supabase results count:', resultCount);
-
     // Tell Claude exactly what was queried and what came back
     const locationContext = location
       ? `Location filter: ${location} (ONLY recommend businesses from this city)`
@@ -288,13 +277,7 @@ Return JSON: {"text": "string"}`,
       ],
     });
 
-    console.log('[yana-ai] stop_reason:', response.stop_reason);
-    if (response.stop_reason === 'max_tokens') {
-      console.error('[yana-ai] response truncated by max_tokens');
-    }
-
     const raw = response.content[0].type === 'text' ? response.content[0].text : '';
-    console.log('[yana-ai] raw response:', raw);
 
     const cleaned = extractJSON(raw);
     let data: { text?: string };

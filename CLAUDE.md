@@ -62,7 +62,7 @@
 ## Environment Variables (Vercel)
 - WHATSAPP_ACCESS_TOKEN
 - WHATSAPP_PHONE_NUMBER_ID
-- WHATSAPP_VERIFY_TOKEN = yana_verify
+- WHATSAPP_VERIFY_TOKEN = (stored in Vercel env, do not commit)
 
 ## Business Registration
 - Udyam Registration: UDYAM-NL-01-0014410
