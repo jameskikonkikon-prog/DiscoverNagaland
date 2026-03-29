@@ -1,12 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import { getServiceClient } from '@/lib/supabase';
 import { FOUNDING_MEMBER_LIMIT } from '@/types';
 
 export async function POST(req: NextRequest) {
   try {
+    // Authenticate from session cookie — never trust client-supplied user ID
+    const cookieStore = await cookies();
+    const authClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+    );
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await req.json();
     const {
-      signup_user_id,
       name, category, city, address, landmark, phone, whatsapp,
       email, website, description, opening_hours, slug,
       custom_fields,
@@ -24,20 +37,11 @@ export async function POST(req: NextRequest) {
     const amenities = toArray(body.amenities);
     const photos    = toArray(body.photos);
 
-    if (!signup_user_id) {
-      return NextResponse.json({ error: 'Missing user ID' }, { status: 400 });
-    }
     if (!name || !category || !city || !address || !phone) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const supabase = getServiceClient();
-
-    // Verify the user actually exists in auth.users — prevents spoofed IDs
-    const { data: userData, error: userErr } = await supabase.auth.admin.getUserById(signup_user_id);
-    if (userErr || !userData?.user) {
-      return NextResponse.json({ error: 'Invalid user' }, { status: 401 });
-    }
 
     // Check founding member spots
     const { count } = await supabase
@@ -63,7 +67,7 @@ export async function POST(req: NextRequest) {
       tags,
       amenities,
       photos,
-      owner_id: userData.user.id,
+      owner_id: user.id,
       plan: isFoundingMember ? 'pro' : 'basic',
       is_active: true,
       is_verified: false,
