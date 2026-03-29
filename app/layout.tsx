@@ -3,6 +3,7 @@ import './globals.css'
 import ConsentBanner from '@/components/ConsentBanner'
 import Footer from '@/components/Footer'
 import { ToastProvider } from '@/components/Toast'
+import PendingBusinessSaver from '@/components/PendingBusinessSaver'
 
 export const metadata: Metadata = {
   title: {
@@ -40,6 +41,7 @@ export default function RootLayout({
       </head>
       <body>
         <ToastProvider>
+          <PendingBusinessSaver />
           {children}
           <Footer />
           <ConsentBanner />

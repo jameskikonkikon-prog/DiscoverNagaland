@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
       }
 
       if (type === 'signup' || type === 'email') {
-        return NextResponse.redirect(`${origin}/login?verified=true`);
+        // Session is already established — send user home, logged in
+        return NextResponse.redirect(`${origin}/`);
       }
 
       const userId = data.user.id;
