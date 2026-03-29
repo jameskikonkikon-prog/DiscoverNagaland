@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
+import { PLANS } from '@/types';
 
 type Business = {
   id: string;
@@ -19,6 +20,8 @@ type Business = {
   description: string | null;
   tags: string | null;
   website: string | null;
+  photos: string[] | null;
+  plan: 'basic' | 'pro' | 'plus';
 };
 
 const CATEGORIES = [
@@ -58,6 +61,12 @@ export default function SettingsPage() {
   const [tags, setTags] = useState('');
   const [website, setWebsite] = useState('');
 
+  // Photo management
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [brokenThumbs, setBrokenThumbs] = useState<Set<number>>(new Set());
+
   useEffect(() => {
     let mounted = true;
     async function load() {
@@ -67,7 +76,7 @@ export default function SettingsPage() {
 
       const { data: biz } = await supabase
         .from('businesses')
-        .select('id, name, category, city, area, phone, whatsapp, price_range, opening_hours, description, tags, website')
+        .select('id, name, category, city, area, phone, whatsapp, price_range, opening_hours, description, tags, website, photos, plan')
         .eq('owner_id', user.id)
         .eq('is_active', true)
         .single();
@@ -87,12 +96,40 @@ export default function SettingsPage() {
         setDescription(b.description ?? '');
         setTags(b.tags ?? '');
         setWebsite(b.website ?? '');
+        setPhotos(Array.isArray(b.photos) ? b.photos : []);
       }
       setLoading(false);
     }
     load().catch(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, [supabase, router]);
+
+  async function handlePhotoFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!files.length) return;
+    const plan = (business?.plan ?? 'basic') as 'basic' | 'pro' | 'plus';
+    const maxPhotos = PLANS[plan]?.maxPhotos ?? 2;
+    if (photos.length >= maxPhotos) {
+      setUploadError(`Your plan allows max ${maxPhotos === Infinity ? 'unlimited' : maxPhotos} photos`);
+      return;
+    }
+    const allowed = maxPhotos === Infinity ? files.length : Math.min(files.length, maxPhotos - photos.length);
+    const toUpload = files.slice(0, allowed);
+    if (toUpload.length < files.length) setUploadError(`Only ${allowed} more photo${allowed !== 1 ? 's' : ''} allowed on your plan`);
+    else setUploadError('');
+    setUploading(true);
+    if (!toUpload.length) { setUploading(false); return; }
+    try {
+      const fd = new FormData();
+      toUpload.forEach(f => fd.append('files', f));
+      const res = await fetch('/api/upload?type=business', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) setUploadError(json.error ?? 'Upload failed. Please try again.');
+      else setPhotos(prev => [...prev, ...json.urls]);
+    } catch { setUploadError('Network error during upload. Please try again.'); }
+    finally { setUploading(false); }
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -115,6 +152,7 @@ export default function SettingsPage() {
         description: description.trim() || null,
         tags: tags.trim() || null,
         website: website.trim() || null,
+        photos: photos.length ? photos : null,
       })
       .eq('id', business.id);
 
@@ -277,6 +315,49 @@ export default function SettingsPage() {
                 placeholder="Describe your business…"
               />
             </div>
+
+            {/* PHOTOS */}
+            {(() => {
+              const plan = (business?.plan ?? 'basic') as 'basic' | 'pro' | 'plus';
+              const mx = PLANS[plan]?.maxPhotos ?? 2;
+              const mxLabel = mx === Infinity ? '∞' : mx;
+              return (
+                <div style={{ marginTop: 16, marginBottom: 4 }}>
+                  <label style={s.label}>
+                    Photos <span style={{ fontWeight: 400, opacity: 0.5 }}>({photos.length}/{mxLabel})</span>
+                  </label>
+                  {photos.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(80px,1fr))', gap: 8, marginBottom: 8 }}>
+                      {photos.map((url, i) => (
+                        <div key={url} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', aspectRatio: '1', background: '#1a1a1a', border: '1px solid #222' }}>
+                          {brokenThumbs.has(i) ? (
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, opacity: 0.3 }}>🖼️</div>
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={url} alt={`Photo ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={() => setBrokenThumbs(prev => new Set(prev).add(i))} />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))}
+                            style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                            aria-label="Remove photo"
+                          >✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(mx === Infinity || photos.length < mx) && (
+                    <label style={{ display: 'block', background: '#0a0a0a', border: '1.5px dashed #1e1e1e', borderRadius: 10, padding: '14px 16px', textAlign: 'center', cursor: uploading ? 'default' : 'pointer' }}>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" multiple style={{ display: 'none' }} onChange={handlePhotoFiles} disabled={uploading} />
+                      <div style={{ fontSize: 18, marginBottom: 4 }}>📷</div>
+                      <div style={{ fontSize: 12, color: '#ccc', fontWeight: 600, marginBottom: 2 }}>{uploading ? 'Uploading…' : photos.length === 0 ? 'Add photos' : 'Add more'}</div>
+                      <div style={{ fontSize: 11, color: '#555' }}>JPG, PNG, WebP · Max 5 MB each</div>
+                    </label>
+                  )}
+                  {uploadError && <div style={{ fontSize: 11, color: '#c0392b', marginTop: 6 }}>{uploadError}</div>}
+                </div>
+              );
+            })()}
 
             <div style={s.grid2}>
               <div>

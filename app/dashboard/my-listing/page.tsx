@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { useToast } from '@/components/Toast';
+import { PLANS } from '@/types';
 
 type Business = {
   id: string;
@@ -13,6 +14,7 @@ type Business = {
   category: string;
   city: string | null;
   area: string | null;
+  plan: 'basic' | 'pro' | 'plus';
   phone: string | null;
   whatsapp: string | null;
   email: string | null;
@@ -63,7 +65,7 @@ export default function MyListingPage() {
 
       const { data: biz } = await supabase
         .from('businesses')
-        .select('id, name, category, city, area, phone, whatsapp, email, price_range, opening_hours, website, photos, description, tags, vibe_tags')
+        .select('id, name, category, city, area, phone, whatsapp, email, price_range, opening_hours, website, photos, description, tags, vibe_tags, plan')
         .eq('owner_id', user.id)
         .eq('is_active', true)
         .single();
@@ -90,12 +92,17 @@ export default function MyListingPage() {
     const files = Array.from(e.target.files ?? []);
     e.target.value = '';
     if (!files.length) return;
-    if (photos.length + files.length > 10) { setUploadError('Max 10 photos allowed'); return; }
+    const plan = (business?.plan ?? 'basic') as 'basic' | 'pro' | 'plus';
+    const maxPhotos = PLANS[plan]?.maxPhotos ?? 2;
+    if (photos.length >= maxPhotos) { setUploadError(`Your plan allows max ${maxPhotos === Infinity ? 'unlimited' : maxPhotos} photos`); return; }
+    const allowed = maxPhotos === Infinity ? files.length : Math.min(files.length, maxPhotos - photos.length);
+    const toUpload = files.slice(0, allowed);
+    if (toUpload.length < files.length) setUploadError(`Only ${allowed} more photo${allowed !== 1 ? 's' : ''} allowed on your plan`);
     setUploading(true);
-    setUploadError('');
+    if (!toUpload.length) { setUploading(false); return; }
     try {
       const fd = new FormData();
-      files.forEach(f => fd.append('files', f));
+      toUpload.forEach(f => fd.append('files', f));
       const res = await fetch('/api/upload?type=business', { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok) { const msg = json.error ?? 'Upload failed. Please try again.'; setUploadError(msg); showToast(msg, 'error'); }
@@ -196,42 +203,51 @@ export default function MyListingPage() {
 
           {/* PHOTOS */}
           <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,color:'#666',fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>
-              Photos <span style={{fontWeight:400,opacity:0.5}}>({photos.length}/10)</span>
-            </div>
-            {photos.length > 0 && (
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(80px,1fr))',gap:8,marginBottom:10}}>
-                {photos.map((url, i) => (
-                  <div key={url} style={{position:'relative',borderRadius:8,overflow:'hidden',aspectRatio:'1',background:'#1a1a1a',border:'1px solid #222'}}>
-                    {brokenThumbs.has(i) ? (
-                      <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,opacity:0.3}}>🖼️</div>
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={url}
-                        alt={`Photo ${i + 1}`}
-                        style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}
-                        onError={() => setBrokenThumbs(prev => new Set(prev).add(i))}
-                      />
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))}
-                      style={{position:'absolute',top:3,right:3,width:18,height:18,borderRadius:'50%',background:'rgba(0,0,0,0.75)',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',fontSize:10,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}
-                      aria-label="Remove photo"
-                    >✕</button>
+            {(() => {
+              const p = (business?.plan ?? 'basic') as 'basic' | 'pro' | 'plus';
+              const mx = PLANS[p]?.maxPhotos ?? 2;
+              const mxLabel = mx === Infinity ? '∞' : mx;
+              return (
+                <>
+                  <div style={{fontSize:11,color:'#666',fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>
+                    Photos <span style={{fontWeight:400,opacity:0.5}}>({photos.length}/{mxLabel})</span>
                   </div>
-                ))}
-              </div>
-            )}
-            {photos.length < 10 && (
-              <label style={{display:'block',background:'#161616',border:'1.5px dashed #2a2a2a',borderRadius:10,padding:'14px 16px',textAlign:'center',cursor:uploading?'default':'pointer',transition:'border-color 0.15s'}}>
-                <input type="file" accept="image/jpeg,image/png,image/webp" multiple style={{display:'none'}} onChange={handlePhotoFiles} disabled={uploading} />
-                <div style={{fontSize:18,marginBottom:4}}>📷</div>
-                <div style={{fontSize:12,color:'#ccc',fontWeight:600,marginBottom:2}}>{uploading ? 'Uploading…' : photos.length === 0 ? 'Add photos' : 'Add more'}</div>
-                <div style={{fontSize:11,color:'#555'}}>JPG, PNG, WebP · Max 5 MB each</div>
-              </label>
-            )}
+                  {photos.length > 0 && (
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(80px,1fr))',gap:8,marginBottom:10}}>
+                      {photos.map((url, i) => (
+                        <div key={url} style={{position:'relative',borderRadius:8,overflow:'hidden',aspectRatio:'1',background:'#1a1a1a',border:'1px solid #222'}}>
+                          {brokenThumbs.has(i) ? (
+                            <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,opacity:0.3}}>🖼️</div>
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={url}
+                              alt={`Photo ${i + 1}`}
+                              style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}
+                              onError={() => setBrokenThumbs(prev => new Set(prev).add(i))}
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))}
+                            style={{position:'absolute',top:3,right:3,width:18,height:18,borderRadius:'50%',background:'rgba(0,0,0,0.75)',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',fontSize:10,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}
+                            aria-label="Remove photo"
+                          >✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(mx === Infinity || photos.length < mx) && (
+                    <label style={{display:'block',background:'#161616',border:'1.5px dashed #2a2a2a',borderRadius:10,padding:'14px 16px',textAlign:'center',cursor:uploading?'default':'pointer',transition:'border-color 0.15s'}}>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" multiple style={{display:'none'}} onChange={handlePhotoFiles} disabled={uploading} />
+                      <div style={{fontSize:18,marginBottom:4}}>📷</div>
+                      <div style={{fontSize:12,color:'#ccc',fontWeight:600,marginBottom:2}}>{uploading ? 'Uploading…' : photos.length === 0 ? 'Add photos' : 'Add more'}</div>
+                      <div style={{fontSize:11,color:'#555'}}>JPG, PNG, WebP · Max 5 MB each</div>
+                    </label>
+                  )}
+                </>
+              );
+            })()}
             {uploadError && <div style={{fontSize:11,color:'#c0392b',marginTop:6}}>{uploadError}</div>}
           </div>
 
