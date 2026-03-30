@@ -150,38 +150,14 @@ export default function HomePage() {
   useEffect(() => {
     async function fetchData() {
       let featuredList: Business[] = [];
-      const { data: featuredRows, error: featuredErr } = await supabase
+      const { data: planRows } = await supabase
         .from('businesses')
         .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
         .eq('is_active', true)
-        .eq('featured', true)
+        .eq('plan', 'plus')
         .order('created_at', { ascending: false })
         .limit(8);
-      if (!featuredErr && featuredRows?.length) {
-        featuredList = featuredRows as Business[];
-      } else {
-        const { data: planRows } = await supabase
-          .from('businesses')
-          .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
-          .eq('is_active', true)
-          .eq('plan', 'plus')
-          .order('created_at', { ascending: false })
-          .limit(8);
-        featuredList = (planRows || []) as Business[];
-      }
-      // Pad to at least 4 cards with recent active businesses
-      if (featuredList.length < 4) {
-        const existingIds = featuredList.map((b) => b.id);
-        const { data: padRows } = await supabase
-          .from('businesses')
-          .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(8);
-        const pad = (padRows || []) as Business[];
-        const deduped = pad.filter((b) => !existingIds.includes(b.id));
-        featuredList = [...featuredList, ...deduped].slice(0, 8);
-      }
+      featuredList = (planRows || []) as Business[];
       const featuredIds = featuredList.map((b) => b.id);
 
       let ratingsByBiz: Record<string, number> = {};
