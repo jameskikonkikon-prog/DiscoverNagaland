@@ -312,6 +312,9 @@ export default function HomePage() {
     <>
       <style>{pageStyles}</style>
 
+      {/* ── DESKTOP LAYOUT (hidden on mobile) ── */}
+      <div className="desktop-only">
+
       {/* NAV */}
       <nav className="yana-nav">
         <a href="/" className="brand">
@@ -575,8 +578,9 @@ export default function HomePage() {
           )}
         </div>
       </div>
+      </div>{/* /desktop-only */}
 
-      {/* ── YANA AI FLOATING CHAT ── */}
+      {/* ── YANA AI (shared on both layouts) ── */}
 
       {/* Hint bubble */}
       {!chatOpen && hintVisible && (
@@ -677,32 +681,155 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── MOBILE BOTTOM NAV ── */}
-      <nav className="mob-bottom-nav" aria-label="Main navigation">
-        <a href="/" className="mob-nav-item mob-nav-active">
-          <span className="mob-nav-icon">🏠</span>
-          <span>Home</span>
-        </a>
-        <a href="/search" className="mob-nav-item">
-          <span className="mob-nav-icon">🔍</span>
-          <span>Search</span>
-        </a>
-        <a href="/real-estate" className="mob-nav-item">
-          <span className="mob-nav-icon">🏘️</span>
-          <span>Real Estate</span>
-        </a>
-        {mounted && loggedIn ? (
-          <a href="/dashboard" className="mob-nav-item">
-            <span className="mob-nav-icon">👤</span>
-            <span>My Listing</span>
+      {/* ── MOBILE LAYOUT (shown only ≤767px) ── */}
+      <div className="mobile-only">
+
+        {/* TOP BAR */}
+        <header className="m-topbar">
+          <a href="/" className="m-brand">
+            <svg width="26" height="31" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="m-pinG" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#8B0000"/>
+                  <stop offset="50%" stopColor="#e5383b"/>
+                  <stop offset="100%" stopColor="#922B21"/>
+                </linearGradient>
+              </defs>
+              <path d="M60 18 C38 18 20 36 20 58 C20 82 60 120 60 120 C60 120 100 82 100 58 C100 36 82 18 60 18Z" fill="url(#m-pinG)"/>
+              <circle cx="60" cy="58" r="19" fill="#1a1a1a" stroke="white" strokeWidth="2.5"/>
+              <path d="M54 52 L68 66" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M54 52 L54 60 L62 52 Z" fill="white"/>
+              <line x1="74" y1="72" x2="84" y2="82" stroke="white" strokeWidth="4" strokeLinecap="round"/>
+            </svg>
+            <div className="m-brand-text">
+              <span className="m-brand-yana">Yana</span>
+              <span className="m-brand-naga">Nagaland</span>
+            </div>
           </a>
-        ) : (
-          <a href="/login" className="mob-nav-item">
-            <span className="mob-nav-icon">👤</span>
-            <span>Sign In</span>
+          <a href="/register" className="m-topbar-cta">List your business</a>
+        </header>
+
+        {/* HERO */}
+        <div className="m-hero">
+          <div className="m-eyebrow">
+            <span className="m-eyebrow-dot" />
+            {"Nagaland's first AI directory"}
+          </div>
+          <h1 className="m-heading">
+            Find anything in<br/><em>Nagaland</em>
+          </h1>
+          <p className="m-sub">PG rooms · Gyms · Cafés · Restaurants · Turfs and more</p>
+          <div className="m-search-bar">
+            <svg className="m-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              className="m-search-input"
+              placeholder={placeholder}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+              autoComplete="off"
+            />
+            <button className="m-search-btn" onClick={handleSearch}>Search</button>
+          </div>
+        </div>
+
+        {/* SUGGESTION CHIPS */}
+        <div className="m-chips-wrap">
+          <div className="m-chips">
+            {SEARCH_CHIPS.map(c => (
+              <button key={c.label} className="m-chip" onClick={() => quickSearch(c.query)}>
+                {c.emoji} {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="m-divider" />
+
+        {/* FEATURED THIS WEEK */}
+        <div className="m-section">
+          <div className="m-sec-head">
+            <span className="m-sec-title">Featured this week</span>
+            <button className="m-sec-more" onClick={() => quickSearch('featured businesses Nagaland')}>View all →</button>
+          </div>
+          <div className="m-feat-scroll">
+            {featuredBusinesses.length > 0 ? featuredBusinesses.map(biz => {
+              const isPlus = (biz.plan || '').toLowerCase() === 'plus';
+              return (
+                <a key={biz.id} href={`/business/${biz.id}`} className="m-feat-card">
+                  <div className="m-feat-photo">
+                    {biz.photos?.[0] ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={biz.photos[0]} alt={biz.name} />
+                        <div className="m-feat-overlay" />
+                      </>
+                    ) : (
+                      <span className="m-feat-emoji">{getCategoryEmoji(biz.category)}</span>
+                    )}
+                    {isPlus && <span className="m-feat-badge">✓ Verified</span>}
+                    <div className="m-feat-info-overlay">
+                      <div className="m-feat-name">{biz.name}</div>
+                      <div className="m-feat-meta">{[biz.area, biz.city].filter(Boolean).join(' · ')} · {biz.category}</div>
+                    </div>
+                  </div>
+                </a>
+              );
+            }) : (
+              <div className="m-feat-placeholder">
+                {[1,2,3].map(i => <div key={i} className="m-feat-skel" />)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* REAL ESTATE BANNER */}
+        <div className="m-re-banner">
+          <div className="m-re-left">
+            <div className="m-re-tag">🏘️ Real Estate</div>
+            <div className="m-re-title">Looking for property?</div>
+            <div className="m-re-sub">Land, houses &amp; rentals across Nagaland</div>
+          </div>
+          <a href="/real-estate" className="m-re-btn">Explore →</a>
+        </div>
+
+        {/* COMPACT FOOTER */}
+        <footer className="m-footer">
+          <div className="m-footer-links">
+            <a href="/about" className="m-footer-link">About</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/privacy" className="m-footer-link">Privacy</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/terms" className="m-footer-link">Terms</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/contact" className="m-footer-link">Contact</a>
+          </div>
+          <div className="m-footer-copy">© 2026 Yana Nagaland · Dimapur · Kohima</div>
+        </footer>
+
+        {/* FIXED BOTTOM NAV */}
+        <nav className="m-bottom-nav">
+          <a href="/" className="m-nav-item m-nav-active">
+            <span className="m-nav-icon">🏠</span>
+            <span className="m-nav-label">Home</span>
           </a>
-        )}
-      </nav>
+          <a href="/search" className="m-nav-item">
+            <span className="m-nav-icon">🔍</span>
+            <span className="m-nav-label">Search</span>
+          </a>
+          <a href="/real-estate" className="m-nav-item">
+            <span className="m-nav-icon">🏘️</span>
+            <span className="m-nav-label">Real Estate</span>
+          </a>
+          <a href="/register" className="m-nav-item m-nav-cta">
+            <span className="m-nav-icon">+</span>
+            <span className="m-nav-label">List Business</span>
+          </a>
+        </nav>
+
+      </div>{/* /mobile-only */}
     </>
   );
 }
@@ -1249,203 +1376,211 @@ const pageStyles = `
     30%{transform:translateY(-5px);}
   }
 
-  /* Desktop responsive */
+  /* ── DESKTOP/MOBILE VISIBILITY ── */
+  .desktop-only{display:block;}
+  .mobile-only{display:none;}
+  @media(max-width:767px){
+    .desktop-only{display:none!important;}
+    .mobile-only{display:block;}
+    /* Reposition AI chat above bottom nav */
+    .ai-float{right:16px;bottom:76px;}
+    .ai-hint{right:16px;bottom:148px;}
+    .ai-chat{right:16px;bottom:140px;width:calc(100vw - 32px);}
+  }
+
+  /* Desktop sidebar collapse */
   @media(max-width:860px){
     .main-grid{grid-template-columns:1fr;}
     .sidebar{display:block;margin-top:0;}
   }
 
-  /* ── MOBILE BOTTOM NAV ── */
-  .mob-bottom-nav{
-    display:none;
+  /* ── MOBILE LAYOUT STYLES ── */
+  /* Top bar */
+  .m-topbar{
+    position:sticky;top:0;z-index:100;
+    background:rgba(10,10,10,0.97);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-bottom:1px solid #181818;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;height:56px;
+  }
+  .m-brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;}
+  .m-brand-text{display:flex;flex-direction:column;}
+  .m-brand-yana{font-family:'Playfair Display',serif;font-size:18px;color:#fff;letter-spacing:1px;line-height:1;}
+  .m-brand-naga{font-size:8px;letter-spacing:3.5px;text-transform:uppercase;color:rgba(255,255,255,0.28);margin-top:2px;}
+  .m-topbar-cta{
+    background:#e5383b;color:#fff;border:none;border-radius:20px;
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:700;
+    padding:9px 15px;cursor:pointer;text-decoration:none;
+    white-space:nowrap;letter-spacing:0.2px;transition:background 0.15s;
+  }
+  .m-topbar-cta:hover{background:#c0392b;}
+
+  /* Hero */
+  .m-hero{padding:32px 18px 22px;}
+  .m-eyebrow{
+    display:inline-flex;align-items:center;gap:7px;
+    font-family:'Sora',sans-serif;font-size:10px;font-weight:700;
+    letter-spacing:1.8px;text-transform:uppercase;color:#e5383b;margin-bottom:14px;
+  }
+  .m-eyebrow-dot{
+    width:5px;height:5px;background:#e5383b;border-radius:50%;
+    animation:blink 2s infinite;display:inline-block;flex-shrink:0;
+  }
+  .m-heading{
+    font-family:'Playfair Display',serif;
+    font-size:clamp(30px,8vw,38px);font-weight:700;line-height:1.14;
+    letter-spacing:-0.5px;color:#fff;margin:0 0 10px;
+  }
+  .m-heading em{font-style:italic;color:#e5383b;}
+  .m-sub{font-family:'Sora',sans-serif;font-size:14px;color:#555;line-height:1.65;margin:0 0 22px;font-weight:300;}
+
+  /* Search bar */
+  .m-search-bar{
+    display:flex;align-items:center;
+    background:#111;border:1.5px solid #222;border-radius:14px;
+    overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.5);
+    transition:border-color 0.2s;
+  }
+  .m-search-bar:focus-within{border-color:#e5383b;box-shadow:0 4px 24px rgba(0,0,0,0.5),0 0 0 3px rgba(229,56,59,0.1);}
+  .m-search-icon{padding:0 13px;color:#444;flex-shrink:0;display:flex;align-items:center;}
+  .m-search-input{
+    flex:1;background:none;border:none;outline:none;
+    font-family:'Sora',sans-serif;font-size:16px;font-weight:300;
+    color:#fff;padding:16px 0;min-width:0;
+  }
+  .m-search-input::placeholder{color:rgba(255,255,255,0.2);}
+  .m-search-btn{
+    margin:6px;padding:11px 18px;background:#e5383b;border:none;border-radius:10px;
+    font-family:'Sora',sans-serif;font-size:14px;font-weight:700;
+    color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background 0.15s;
+  }
+  .m-search-btn:hover{background:#c0392b;}
+
+  /* Chips — horizontal scroll */
+  .m-chips-wrap{padding:0 18px 2px;overflow:hidden;}
+  .m-chips{
+    display:flex;gap:8px;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;
+  }
+  .m-chips::-webkit-scrollbar{display:none;}
+  .m-chip{
+    flex-shrink:0;background:#111;border:1px solid #1e1e1e;border-radius:20px;
+    font-family:'Sora',sans-serif;font-size:13px;color:#888;
+    padding:10px 15px;cursor:pointer;transition:all 0.15s;white-space:nowrap;
+  }
+  .m-chip:active{background:#1a1a1a;border-color:#e5383b;color:#fff;}
+
+  /* Divider */
+  .m-divider{border:none;border-top:1px solid #141414;margin:20px 0 0;}
+
+  /* Section */
+  .m-section{margin-top:28px;}
+  .m-sec-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;margin-bottom:16px;
+  }
+  .m-sec-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:800;color:#fff;letter-spacing:-0.3px;}
+  .m-sec-more{
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:600;
+    color:#e5383b;background:none;border:none;cursor:pointer;
+  }
+
+  /* Featured horizontal scroll */
+  .m-feat-scroll{
+    display:flex;gap:14px;overflow-x:auto;
+    padding:0 18px 8px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  .m-feat-scroll::-webkit-scrollbar{display:none;}
+  .m-feat-card{
+    flex-shrink:0;width:210px;border-radius:16px;overflow:hidden;
+    text-decoration:none;color:inherit;border:1px solid #1a1a1a;
+    display:block;position:relative;
+    transition:transform 0.2s;
+  }
+  .m-feat-card:active{transform:scale(0.97);}
+  .m-feat-photo{
+    width:100%;height:175px;background:#111;
+    position:relative;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .m-feat-photo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:block;}
+  .m-feat-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent 25%,rgba(0,0,0,0.88));}
+  .m-feat-emoji{font-size:44px;position:relative;z-index:1;}
+  .m-feat-badge{
+    position:absolute;top:10px;left:10px;z-index:3;
+    background:#fff;color:#b8860b;border:1.5px solid #d4af37;
+    font-family:'Sora',sans-serif;font-size:10px;font-weight:700;
+    padding:3px 8px;border-radius:999px;white-space:nowrap;
+  }
+  .m-feat-info-overlay{
+    position:absolute;bottom:0;left:0;right:0;z-index:2;padding:10px 12px 13px;
+  }
+  .m-feat-name{
+    font-family:'Sora',sans-serif;font-size:15px;font-weight:700;color:#fff;
+    margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .m-feat-meta{
+    font-family:'Sora',sans-serif;font-size:12px;color:rgba(255,255,255,0.55);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  /* Loading skeletons */
+  .m-feat-placeholder{display:flex;gap:14px;padding:0;}
+  .m-feat-skel{
+    flex-shrink:0;width:210px;height:175px;border-radius:16px;
+    background:#111;animation:skPulse 1.5s ease-in-out infinite;
+  }
+  @keyframes skPulse{0%,100%{opacity:.25;}50%{opacity:.5;}}
+
+  /* RE Banner */
+  .m-re-banner{
+    margin:28px 18px 0;
+    background:linear-gradient(135deg,#130a08,#0f0a06);
+    border:1px solid rgba(229,56,59,0.2);border-radius:16px;
+    padding:20px 18px;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+  }
+  .m-re-left{flex:1;}
+  .m-re-tag{font-family:'Sora',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#e5383b;margin-bottom:7px;}
+  .m-re-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:800;color:#fff;margin-bottom:5px;}
+  .m-re-sub{font-family:'Sora',sans-serif;font-size:13px;color:#555;line-height:1.5;}
+  .m-re-btn{
+    flex-shrink:0;background:#e5383b;color:#fff;border:none;border-radius:10px;
+    font-family:'Sora',sans-serif;font-size:14px;font-weight:700;
+    padding:12px 16px;text-decoration:none;transition:background 0.15s;white-space:nowrap;
+  }
+  .m-re-btn:hover{background:#c0392b;}
+
+  /* Compact footer */
+  .m-footer{margin-top:32px;padding:20px 18px 100px;border-top:1px solid #141414;text-align:center;}
+  .m-footer-links{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 5px;margin-bottom:7px;}
+  .m-footer-link{font-family:'Sora',sans-serif;font-size:12px;color:#2e2e2e;text-decoration:none;transition:color 0.15s;}
+  .m-footer-link:hover{color:#666;}
+  .m-footer-dot{font-size:12px;color:#222;}
+  .m-footer-copy{font-family:'Sora',sans-serif;font-size:11px;color:#222;}
+
+  /* Fixed bottom nav */
+  .m-bottom-nav{
     position:fixed;bottom:0;left:0;right:0;z-index:500;
-    grid-template-columns:repeat(4,1fr);
-    height:64px;
-    background:#0f0f0f;
-    border-top:1px solid #1e1e1e;
-    box-shadow:0 -4px 24px rgba(0,0,0,0.5);
+    display:grid;grid-template-columns:repeat(4,1fr);
+    height:62px;background:#0d0d0d;border-top:1px solid #1e1e1e;
+    box-shadow:0 -6px 32px rgba(0,0,0,0.6);
+    font-family:'Sora',sans-serif;
   }
-  .mob-nav-item{
+  .m-nav-item{
     display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:3px;text-decoration:none;
-    color:#555;font-family:'Sora',sans-serif;
+    gap:3px;text-decoration:none;color:#3a3a3a;
     font-size:10px;font-weight:600;letter-spacing:0.3px;
-    transition:color 0.15s;
+    transition:color 0.15s;padding:0 4px;
   }
-  .mob-nav-active{color:var(--red);}
-  .mob-nav-icon{font-size:20px;line-height:1;}
-
-  /* ── FULL MOBILE REDESIGN (≤ 768px) ── */
-  @media(max-width:768px){
-
-    /* Show bottom nav */
-    .mob-bottom-nav{display:grid;}
-
-    /* Nav bar — compact */
-    .yana-nav{
-      padding:0 16px;height:52px;
-    }
-    .nav-links{display:none;}
-    .nav-cta-btn{display:none;}
-    .nav-avatar{display:none;}
-
-    /* Extra page bottom padding to clear fixed nav */
-    body{padding-bottom:64px;}
-
-    /* ── HERO ── */
-    .hero{
-      padding:36px 20px 28px;
-      text-align:left;
-    }
-    .hero-badge{
-      font-size:10px;padding:4px 12px;margin-bottom:16px;
-    }
-    .hero h1{
-      font-size:clamp(28px,8vw,36px);
-      margin-bottom:10px;line-height:1.15;
-    }
-    .hero-sub{
-      font-size:14px;line-height:1.65;
-      margin-bottom:24px;
-    }
-
-    /* ── SEARCH ── */
-    .search-wrap{max-width:100%;}
-    .search-bar{
-      border-radius:14px;
-      box-shadow:0 4px 24px rgba(0,0,0,0.4);
-    }
-    .s-input{
-      font-size:16px;padding:16px 0;
-    }
-    .s-btn{
-      margin:5px;padding:10px 18px;
-      font-size:14px;border-radius:10px;
-    }
-
-    /* Chips — horizontal scroll strip, no wrap */
-    .chips{
-      flex-wrap:nowrap;overflow-x:auto;
-      justify-content:flex-start;
-      gap:8px;margin-top:16px;
-      padding-bottom:4px;
-      -webkit-overflow-scrolling:touch;
-      scrollbar-width:none;
-    }
-    .chips::-webkit-scrollbar{display:none;}
-    .chip{
-      flex-shrink:0;
-      padding:10px 16px;min-height:40px;
-      border-radius:20px;font-size:13px;
-    }
-
-    /* ── MAIN GRID ── */
-    .main-grid{
-      padding:0 0 32px;
-      gap:0;
-    }
-
-    /* ── SECTION HEADERS ── */
-    .sec-head{
-      padding:0 20px;
-      margin-top:36px;margin-bottom:14px;
-    }
-    .sec-title{
-      font-size:17px;font-weight:800;
-      letter-spacing:-0.3px;text-transform:none;
-      color:var(--white);
-    }
-    .sec-more{font-size:13px;}
-
-    /* RE pointer — card style */
-    .re-pointer{
-      display:flex;margin:28px 20px 0;
-      padding:14px 18px;border-radius:14px;
-      font-size:14px;width:auto;
-    }
-    .re-pointer-link{font-size:14px;}
-
-    /* ── FEATURED CARDS ── */
-    .featured-grid{
-      grid-template-columns:1fr;
-      padding:0 20px;
-      gap:14px;margin-bottom:0;
-    }
-    .feat{border-radius:16px;}
-    .feat-photo{height:170px;}
-    .feat-name{font-size:16px;margin-bottom:4px;}
-    .feat-detail{font-size:13px;margin-bottom:10px;}
-    .feat-body{padding:14px 16px;}
-    .feat-tag{font-size:11px;padding:4px 10px;}
-
-    /* ── CATEGORY GRID ── */
-    .categories-wrap{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;padding:0 20px;
-      margin-bottom:0;
-    }
-    .category-chip{
-      padding:14px 14px;
-      border-radius:14px;
-      font-size:14px;
-      justify-content:flex-start;
-      min-height:56px;
-    }
-    .category-emoji{font-size:20px;}
-    .category-name{font-size:14px;font-weight:600;}
-    .category-count{font-size:12px;margin-left:auto;}
-
-    /* ── RECENTLY LISTED ── */
-    .recent-list{
-      padding:0 20px;
-      gap:12px;margin-bottom:0;
-    }
-    .recent{
-      padding:14px 16px;
-      border-radius:16px;
-      gap:14px;
-    }
-    .recent-photo{
-      width:60px;height:60px;
-      font-size:26px;
-      border-radius:12px;
-    }
-    .recent-name{font-size:15px;font-weight:700;}
-    .recent-meta{font-size:13px;margin-top:3px;}
-    .rbadge{font-size:11px;padding:5px 10px;border-radius:6px;}
-
-    /* ── SIDEBAR (stacked below, mobile-friendly) ── */
-    .sidebar{padding:0 20px 8px;}
-    .live-row{margin-top:4px;}
-
-    /* Stats — horizontal 3-col */
-    .stats-grid.stats-three{
-      grid-template-columns:repeat(3,1fr);
-      gap:10px;
-    }
-    .stat{padding:14px 8px;}
-    .stat-val{font-size:22px;}
-    .stat-lbl{font-size:10px;}
-    .stat-icon{font-size:16px;margin-bottom:4px;}
-
-    /* CTA box */
-    .cta-box{
-      border-radius:16px;padding:24px 20px;
-    }
-    .cta-title{font-size:16px;margin-bottom:8px;}
-    .cta-sub{font-size:13px;margin-bottom:16px;}
-    .cta-btn{padding:14px;font-size:15px;border-radius:12px;}
-    .cta-urgency{font-size:12px;}
-
-    /* Trending / categories list */
-    .trend{padding:14px 16px;}
-    .trend-t{font-size:14px;}
-    .trend-c{font-size:12px;}
-
-    /* AI button — above bottom nav */
-    .ai-float{right:16px;bottom:76px;}
-    .ai-hint{right:16px;bottom:148px;}
-    .ai-chat{right:16px;bottom:140px;width:calc(100vw - 32px);}
+  .m-nav-active{color:#e5383b;}
+  .m-nav-icon{font-size:19px;line-height:1;}
+  .m-nav-label{font-size:10px;}
+  .m-nav-cta{
+    margin:8px 6px;border-radius:10px;
+    background:rgba(229,56,59,0.14);border:1px solid rgba(229,56,59,0.28);
+    color:#e5383b;font-weight:700;
   }
+
 `;
