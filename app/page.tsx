@@ -6,29 +6,29 @@ import { createBrowserClient } from '@supabase/ssr';
 import { supabase } from '@/lib/supabase';
 
 const ROTATING_PLACEHOLDERS = [
-  'Couple date night cafés in Dimapur…',
-  'Gym near PR Hill Kohima with trainer…',
-  'First time in Nagaland — hotels near Kisama…',
-  'Girls PG under Rs.4000 near 4th Mile…',
-  'Football turf available this Saturday…',
-  'Best pork curry restaurant in Kohima…',
-  '2BHK rental house Dimapur under Rs.8000…',
-  'Quiet study space with AC Dimapur…',
-  'Boys hostel near JN Aier College…',
-  'Rooftop café with good view Dimapur…',
-  'Hornbill Festival hotels near Kisama village…',
-  'Budget gym under Rs.800 per month Dimapur…',
+  'Try: Girls PG in Kohima…',
+  'Try: Gym with trainer Dimapur…',
+  'Try: Hotels near Kisama…',
+  'Try: Boys PG near PR Hill…',
+  'Try: Football turf Wokha…',
+  'Try: Naga food restaurant Kohima…',
+  'Try: 2BHK rental Dimapur…',
+  'Try: Study space with AC…',
+  'Try: Car rental Dimapur…',
+  'Try: Coaching centre Kohima…',
+  'Try: Rooftop café Dimapur…',
+  'Try: Budget gym Dimapur…',
 ];
 
 const SEARCH_CHIPS = [
-  { emoji: '🌙', label: 'Date night cafés', query: 'Couple date night café Dimapur' },
-  { emoji: '🏠', label: 'Girls PG · 4th Mile', query: 'Girls PG near 4th Mile Dimapur under Rs.4000' },
+  { emoji: '🏠', label: 'Boys PG · PR Hill', query: 'Boys PG near PR Hill Kohima' },
+  { emoji: '🎓', label: 'Coaching Centre · Kohima', query: 'Coaching centre Kohima' },
+  { emoji: '🚗', label: 'Car Rental · Dimapur', query: 'Car rental Dimapur' },
+  { emoji: '⚽', label: 'Turf · Wokha', query: 'Football turf Wokha' },
+  { emoji: '🍖', label: 'Naga food · Kohima', query: 'Naga food restaurant Kohima' },
+  { emoji: '🏨', label: 'Hotels · Kisama', query: 'Hotels near Kisama Hornbill Festival' },
   { emoji: '💪', label: 'Gym with trainer', query: 'Gym with trainer Dimapur' },
-  { emoji: '🏨', label: 'Hotels near Kisama', query: 'Hotels near Kisama Hornbill Festival' },
-  { emoji: '⚽', label: 'Turf this weekend', query: 'Football turf available weekend Dimapur' },
-  { emoji: '🍖', label: 'Naga food Kohima', query: 'Best Naga food pork curry restaurant Kohima' },
-  { emoji: '📚', label: 'Study space AC', query: 'Quiet study space AC Dimapur' },
-  { emoji: '🏡', label: 'Rental house 2BHK', query: '2BHK rental house Dimapur under Rs.8000' },
+  { emoji: '📚', label: 'Study space · AC', query: 'Study space with AC Dimapur' },
 ];
 
 const NAV_QUICK = [
