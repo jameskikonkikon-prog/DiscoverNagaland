@@ -275,7 +275,7 @@ const styles = `
   }
   .brand-sub {
     font-family: 'Sora', sans-serif;
-    font-size: 0.52rem; letter-spacing: 0.35em;
+    font-size: 0.68rem; letter-spacing: 0.3em;
     color: #666; text-transform: uppercase;
     margin-top: 2px;
   }
@@ -330,7 +330,7 @@ const styles = `
     border: 1.5px solid #2a2a2a;
     border-radius: 10px; color: #fff;
     font-family: 'Sora', sans-serif;
-    font-size: 0.92rem; outline: none;
+    font-size: 1rem; outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
   .field input::placeholder { color: #444; }

@@ -474,16 +474,19 @@ const styles = `
     background: #c0392b;
     color: #fff;
     text-decoration: none;
-    font-size: 0.82rem;
+    font-size: 0.875rem;
     font-weight: 600;
-    padding: 8px 20px;
+    padding: 12px 20px;
+    min-height: 44px;
     border-radius: 6px;
     transition: background 0.2s;
+    display: inline-flex;
+    align-items: center;
   }
   .list-btn:hover { background: #e74c3c; }
   .list-avatar{
-    width:32px;
-    height:32px;
+    width:40px;
+    height:40px;
     border-radius:999px;
     background:rgba(255,255,255,0.04);
     border:1px solid #333;
@@ -549,7 +552,7 @@ const styles = `
     padding: 14px 20px;
     color: #fff;
     font-family: 'Sora', sans-serif;
-    font-size: 0.95rem;
+    font-size: 1rem;
     min-width: 0;
   }
   .search-input::placeholder { color: #555; }

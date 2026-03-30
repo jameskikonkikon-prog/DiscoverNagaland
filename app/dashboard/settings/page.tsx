@@ -195,6 +195,16 @@ export default function SettingsPage() {
 
   return (
     <div style={s.page}>
+      <style>{`
+        .settings-grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:0;}
+        .settings-input{width:100%;padding:10px 14px;background:#111;border:1px solid #222;border-radius:10px;color:#e5e5e5;font-family:'Sora',sans-serif;font-size:16px;box-sizing:border-box;}
+        .settings-textarea{width:100%;padding:10px 14px;background:#111;border:1px solid #222;border-radius:10px;color:#e5e5e5;font-family:'Sora',sans-serif;font-size:16px;resize:vertical;box-sizing:border-box;}
+        .settings-chip{padding:10px 14px;border-radius:8px;border:1px solid #222;background:#0a0a0a;color:#e5e5e5;font-size:14px;font-family:'Sora',sans-serif;cursor:pointer;min-height:44px;}
+        .settings-del{position:absolute;top:3px;right:3px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.8);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
+        @media(max-width:600px){
+          .settings-grid2{grid-template-columns:1fr;}
+        }
+      `}</style>
       <div style={s.container}>
         <div style={s.card}>
           <div style={s.titleRow}>
@@ -206,14 +216,14 @@ export default function SettingsPage() {
           </div>
 
           <form onSubmit={handleSave}>
-            <div style={s.grid2}>
+            <div className="settings-grid2">
               <div>
                 <label style={s.label}>Business Name *</label>
                 <input
                   required
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  style={s.input}
+                  className="settings-input"
                   placeholder="Your business name"
                 />
               </div>
@@ -223,7 +233,7 @@ export default function SettingsPage() {
                   required
                   value={category}
                   onChange={e => setCategory(e.target.value)}
-                  style={s.input}
+                  className="settings-input"
                 >
                   <option value="">Select category</option>
                   {CATEGORIES.map(c => (
@@ -233,13 +243,13 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div style={s.grid2}>
+            <div className="settings-grid2">
               <div>
                 <label style={s.label}>City</label>
                 <input
                   value={city}
                   onChange={e => setCity(e.target.value)}
-                  style={s.input}
+                  className="settings-input"
                   placeholder="e.g. Kohima"
                 />
               </div>
@@ -248,19 +258,19 @@ export default function SettingsPage() {
                 <input
                   value={area}
                   onChange={e => setArea(e.target.value)}
-                  style={s.input}
+                  className="settings-input"
                   placeholder="e.g. High School Colony"
                 />
               </div>
             </div>
 
-            <div style={s.grid2}>
+            <div className="settings-grid2">
               <div>
                 <label style={s.label}>Phone Number</label>
                 <input
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
-                  style={s.input}
+                  className="settings-input"
                   placeholder="+91 98765 43210"
                 />
               </div>
@@ -269,13 +279,13 @@ export default function SettingsPage() {
                 <input
                   value={whatsapp}
                   onChange={e => setWhatsapp(e.target.value)}
-                  style={s.input}
+                  className="settings-input"
                   placeholder="+91 98765 43210"
                 />
               </div>
             </div>
 
-            <div style={s.grid2}>
+            <div className="settings-grid2">
               <div>
                 <label style={s.label}>Price Range</label>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -284,10 +294,8 @@ export default function SettingsPage() {
                       key={p}
                       type="button"
                       onClick={() => setPriceRange(priceRange === p ? '' : p)}
-                      style={{
-                        ...s.chipBtn,
-                        ...(priceRange === p ? s.chipSelected : {}),
-                      }}
+                      className="settings-chip"
+                      style={priceRange === p ? { borderColor: '#c0392b', background: 'rgba(192,57,43,0.12)', color: '#c0392b' } : {}}
                     >
                       {p}
                     </button>
@@ -299,7 +307,7 @@ export default function SettingsPage() {
                 <input
                   value={openingHours}
                   onChange={e => setOpeningHours(e.target.value)}
-                  style={s.input}
+                  className="settings-input"
                   placeholder="e.g. Mon–Sat 9am–7pm"
                 />
               </div>
@@ -311,7 +319,7 @@ export default function SettingsPage() {
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 rows={5}
-                style={s.textarea}
+                className="settings-textarea"
                 placeholder="Describe your business…"
               />
             </div>
@@ -339,7 +347,7 @@ export default function SettingsPage() {
                           <button
                             type="button"
                             onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))}
-                            style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                            className="settings-del"
                             aria-label="Remove photo"
                           >✕</button>
                         </div>
@@ -359,13 +367,13 @@ export default function SettingsPage() {
               );
             })()}
 
-            <div style={s.grid2}>
+            <div className="settings-grid2">
               <div>
                 <label style={s.label}>Tags</label>
                 <input
                   value={tags}
                   onChange={e => setTags(e.target.value)}
-                  style={s.input}
+                  className="settings-input"
                   placeholder="e.g. delivery, dine-in, vegetarian"
                 />
               </div>
@@ -374,7 +382,7 @@ export default function SettingsPage() {
                 <input
                   value={website}
                   onChange={e => setWebsite(e.target.value)}
-                  style={s.input}
+                  className="settings-input"
                   placeholder="https://instagram.com/yourbusiness"
                 />
               </div>
