@@ -1400,9 +1400,9 @@ const pageStyles = `
     /* Hide global layout footer — mobile has its own compact footer */
     .yana-global-footer{display:none!important;}
     /* Reposition AI chat above bottom nav */
-    .ai-float{right:16px;bottom:76px;}
-    .ai-hint{right:16px;bottom:148px;}
-    .ai-chat{right:16px;bottom:140px;width:calc(100vw - 32px);}
+    .ai-float{right:16px;bottom:86px;}
+    .ai-hint{right:16px;bottom:158px;}
+    .ai-chat{right:16px;bottom:150px;width:calc(100vw - 32px);}
   }
 
   /* Desktop sidebar collapse */
