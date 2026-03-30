@@ -169,6 +169,19 @@ export default function HomePage() {
           .limit(8);
         featuredList = (planRows || []) as Business[];
       }
+      // Pad to at least 4 cards with recent active businesses
+      if (featuredList.length < 4) {
+        const existingIds = featuredList.map((b) => b.id);
+        const { data: padRows } = await supabase
+          .from('businesses')
+          .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(8);
+        const pad = (padRows || []) as Business[];
+        const deduped = pad.filter((b) => !existingIds.includes(b.id));
+        featuredList = [...featuredList, ...deduped].slice(0, 8);
+      }
       const featuredIds = featuredList.map((b) => b.id);
 
       let ratingsByBiz: Record<string, number> = {};
@@ -809,27 +822,27 @@ export default function HomePage() {
           <div className="m-footer-copy">© 2026 Yana Nagaland · Dimapur · Kohima</div>
         </footer>
 
-        {/* FIXED BOTTOM NAV */}
-        <nav className="m-bottom-nav">
-          <a href="/" className="m-nav-item m-nav-active">
-            <span className="m-nav-icon">🏠</span>
-            <span className="m-nav-label">Home</span>
-          </a>
-          <a href="/search" className="m-nav-item">
-            <span className="m-nav-icon">🔍</span>
-            <span className="m-nav-label">Search</span>
-          </a>
-          <a href="/real-estate" className="m-nav-item">
-            <span className="m-nav-icon">🏘️</span>
-            <span className="m-nav-label">Real Estate</span>
-          </a>
-          <a href="/register" className="m-nav-item m-nav-cta">
-            <span className="m-nav-icon">+</span>
-            <span className="m-nav-label">List Business</span>
-          </a>
-        </nav>
-
       </div>{/* /mobile-only */}
+
+      {/* FIXED BOTTOM NAV — outside mobile-only, visibility controlled by CSS */}
+      <nav className="m-bottom-nav">
+        <a href="/" className="m-nav-item m-nav-active">
+          <span className="m-nav-icon">🏠</span>
+          <span className="m-nav-label">Home</span>
+        </a>
+        <a href="/search" className="m-nav-item">
+          <span className="m-nav-icon">🔍</span>
+          <span className="m-nav-label">Search</span>
+        </a>
+        <a href="/real-estate" className="m-nav-item">
+          <span className="m-nav-icon">🏘️</span>
+          <span className="m-nav-label">Real Estate</span>
+        </a>
+        <a href="/register" className="m-nav-item m-nav-cta">
+          <span className="m-nav-icon">+</span>
+          <span className="m-nav-label">List Business</span>
+        </a>
+      </nav>
     </>
   );
 }
@@ -1382,6 +1395,8 @@ const pageStyles = `
   @media(max-width:767px){
     .desktop-only{display:none!important;}
     .mobile-only{display:block;}
+    /* Hide global layout footer — mobile has its own compact footer */
+    .yana-global-footer{display:none!important;}
     /* Reposition AI chat above bottom nav */
     .ai-float{right:16px;bottom:76px;}
     .ai-hint{right:16px;bottom:148px;}
@@ -1458,7 +1473,7 @@ const pageStyles = `
   .m-search-btn:hover{background:#c0392b;}
 
   /* Chips — horizontal scroll */
-  .m-chips-wrap{padding:0 18px 2px;overflow:hidden;}
+  .m-chips-wrap{padding:0 18px 2px;overflow:visible;}
   .m-chips{
     display:flex;gap:8px;overflow-x:auto;
     -webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;
@@ -1553,20 +1568,24 @@ const pageStyles = `
   .m-re-btn:hover{background:#c0392b;}
 
   /* Compact footer */
-  .m-footer{margin-top:32px;padding:20px 18px 100px;border-top:1px solid #141414;text-align:center;}
+  .m-footer{margin-top:32px;padding:20px 18px 80px;border-top:1px solid #141414;text-align:center;}
   .m-footer-links{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 5px;margin-bottom:7px;}
   .m-footer-link{font-family:'Sora',sans-serif;font-size:12px;color:#2e2e2e;text-decoration:none;transition:color 0.15s;}
   .m-footer-link:hover{color:#666;}
   .m-footer-dot{font-size:12px;color:#222;}
   .m-footer-copy{font-family:'Sora',sans-serif;font-size:11px;color:#222;}
 
-  /* Fixed bottom nav */
+  /* Fixed bottom nav — hidden on desktop, shown on mobile via media query */
   .m-bottom-nav{
-    position:fixed;bottom:0;left:0;right:0;z-index:500;
-    display:grid;grid-template-columns:repeat(4,1fr);
+    display:none;
+    position:fixed;bottom:0;left:0;right:0;z-index:600;
+    grid-template-columns:repeat(4,1fr);
     height:62px;background:#0d0d0d;border-top:1px solid #1e1e1e;
     box-shadow:0 -6px 32px rgba(0,0,0,0.6);
     font-family:'Sora',sans-serif;
+  }
+  @media(max-width:767px){
+    .m-bottom-nav{display:grid;}
   }
   .m-nav-item{
     display:flex;flex-direction:column;align-items:center;justify-content:center;

@@ -10,7 +10,7 @@ const LINKS = [
 
 export default function Footer() {
   return (
-    <footer style={{
+    <footer className="yana-global-footer" style={{
       background: '#0f0f0f',
       borderTop: '1px solid rgba(255,255,255,0.06)',
       padding: '28px 24px 40px',
