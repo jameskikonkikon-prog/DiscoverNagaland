@@ -676,6 +676,33 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* ── MOBILE BOTTOM NAV ── */}
+      <nav className="mob-bottom-nav" aria-label="Main navigation">
+        <a href="/" className="mob-nav-item mob-nav-active">
+          <span className="mob-nav-icon">🏠</span>
+          <span>Home</span>
+        </a>
+        <a href="/search" className="mob-nav-item">
+          <span className="mob-nav-icon">🔍</span>
+          <span>Search</span>
+        </a>
+        <a href="/real-estate" className="mob-nav-item">
+          <span className="mob-nav-icon">🏘️</span>
+          <span>Real Estate</span>
+        </a>
+        {mounted && loggedIn ? (
+          <a href="/dashboard" className="mob-nav-item">
+            <span className="mob-nav-icon">👤</span>
+            <span>My Listing</span>
+          </a>
+        ) : (
+          <a href="/login" className="mob-nav-item">
+            <span className="mob-nav-icon">👤</span>
+            <span>Sign In</span>
+          </a>
+        )}
+      </nav>
     </>
   );
 }
@@ -1222,23 +1249,203 @@ const pageStyles = `
     30%{transform:translateY(-5px);}
   }
 
-  /* Responsive */
+  /* Desktop responsive */
   @media(max-width:860px){
     .main-grid{grid-template-columns:1fr;}
     .sidebar{display:block;margin-top:0;}
   }
-  @media(max-width:520px){
-    .stats-grid.stats-three{grid-template-columns:repeat(3,1fr);}
-    .cta-box{padding:20px 16px;}
+
+  /* ── MOBILE BOTTOM NAV ── */
+  .mob-bottom-nav{
+    display:none;
+    position:fixed;bottom:0;left:0;right:0;z-index:500;
+    grid-template-columns:repeat(4,1fr);
+    height:64px;
+    background:#0f0f0f;
+    border-top:1px solid #1e1e1e;
+    box-shadow:0 -4px 24px rgba(0,0,0,0.5);
   }
-  @media(max-width:520px){
-    .yana-nav{padding:0 16px;}
+  .mob-nav-item{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;text-decoration:none;
+    color:#555;font-family:'Sora',sans-serif;
+    font-size:10px;font-weight:600;letter-spacing:0.3px;
+    transition:color 0.15s;
+  }
+  .mob-nav-active{color:var(--red);}
+  .mob-nav-icon{font-size:20px;line-height:1;}
+
+  /* ── FULL MOBILE REDESIGN (≤ 768px) ── */
+  @media(max-width:768px){
+
+    /* Show bottom nav */
+    .mob-bottom-nav{display:grid;}
+
+    /* Nav bar — compact */
+    .yana-nav{
+      padding:0 16px;height:52px;
+    }
     .nav-links{display:none;}
-    .hero{padding:48px 16px 36px;}
-    .main-grid{padding:0 16px 40px;}
-    .featured-grid{grid-template-columns:1fr;}
-    .ai-chat{width:calc(100vw - 32px);right:16px;bottom:72px;}
-    .ai-float{right:16px;bottom:16px;}
-    .ai-hint{right:16px;bottom:88px;}
+    .nav-cta-btn{display:none;}
+    .nav-avatar{display:none;}
+
+    /* Extra page bottom padding to clear fixed nav */
+    body{padding-bottom:64px;}
+
+    /* ── HERO ── */
+    .hero{
+      padding:36px 20px 28px;
+      text-align:left;
+    }
+    .hero-badge{
+      font-size:10px;padding:4px 12px;margin-bottom:16px;
+    }
+    .hero h1{
+      font-size:clamp(28px,8vw,36px);
+      margin-bottom:10px;line-height:1.15;
+    }
+    .hero-sub{
+      font-size:14px;line-height:1.65;
+      margin-bottom:24px;
+    }
+
+    /* ── SEARCH ── */
+    .search-wrap{max-width:100%;}
+    .search-bar{
+      border-radius:14px;
+      box-shadow:0 4px 24px rgba(0,0,0,0.4);
+    }
+    .s-input{
+      font-size:16px;padding:16px 0;
+    }
+    .s-btn{
+      margin:5px;padding:10px 18px;
+      font-size:14px;border-radius:10px;
+    }
+
+    /* Chips — horizontal scroll strip, no wrap */
+    .chips{
+      flex-wrap:nowrap;overflow-x:auto;
+      justify-content:flex-start;
+      gap:8px;margin-top:16px;
+      padding-bottom:4px;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-width:none;
+    }
+    .chips::-webkit-scrollbar{display:none;}
+    .chip{
+      flex-shrink:0;
+      padding:10px 16px;min-height:40px;
+      border-radius:20px;font-size:13px;
+    }
+
+    /* ── MAIN GRID ── */
+    .main-grid{
+      padding:0 0 32px;
+      gap:0;
+    }
+
+    /* ── SECTION HEADERS ── */
+    .sec-head{
+      padding:0 20px;
+      margin-top:36px;margin-bottom:14px;
+    }
+    .sec-title{
+      font-size:17px;font-weight:800;
+      letter-spacing:-0.3px;text-transform:none;
+      color:var(--white);
+    }
+    .sec-more{font-size:13px;}
+
+    /* RE pointer — card style */
+    .re-pointer{
+      display:flex;margin:28px 20px 0;
+      padding:14px 18px;border-radius:14px;
+      font-size:14px;width:auto;
+    }
+    .re-pointer-link{font-size:14px;}
+
+    /* ── FEATURED CARDS ── */
+    .featured-grid{
+      grid-template-columns:1fr;
+      padding:0 20px;
+      gap:14px;margin-bottom:0;
+    }
+    .feat{border-radius:16px;}
+    .feat-photo{height:170px;}
+    .feat-name{font-size:16px;margin-bottom:4px;}
+    .feat-detail{font-size:13px;margin-bottom:10px;}
+    .feat-body{padding:14px 16px;}
+    .feat-tag{font-size:11px;padding:4px 10px;}
+
+    /* ── CATEGORY GRID ── */
+    .categories-wrap{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;padding:0 20px;
+      margin-bottom:0;
+    }
+    .category-chip{
+      padding:14px 14px;
+      border-radius:14px;
+      font-size:14px;
+      justify-content:flex-start;
+      min-height:56px;
+    }
+    .category-emoji{font-size:20px;}
+    .category-name{font-size:14px;font-weight:600;}
+    .category-count{font-size:12px;margin-left:auto;}
+
+    /* ── RECENTLY LISTED ── */
+    .recent-list{
+      padding:0 20px;
+      gap:12px;margin-bottom:0;
+    }
+    .recent{
+      padding:14px 16px;
+      border-radius:16px;
+      gap:14px;
+    }
+    .recent-photo{
+      width:60px;height:60px;
+      font-size:26px;
+      border-radius:12px;
+    }
+    .recent-name{font-size:15px;font-weight:700;}
+    .recent-meta{font-size:13px;margin-top:3px;}
+    .rbadge{font-size:11px;padding:5px 10px;border-radius:6px;}
+
+    /* ── SIDEBAR (stacked below, mobile-friendly) ── */
+    .sidebar{padding:0 20px 8px;}
+    .live-row{margin-top:4px;}
+
+    /* Stats — horizontal 3-col */
+    .stats-grid.stats-three{
+      grid-template-columns:repeat(3,1fr);
+      gap:10px;
+    }
+    .stat{padding:14px 8px;}
+    .stat-val{font-size:22px;}
+    .stat-lbl{font-size:10px;}
+    .stat-icon{font-size:16px;margin-bottom:4px;}
+
+    /* CTA box */
+    .cta-box{
+      border-radius:16px;padding:24px 20px;
+    }
+    .cta-title{font-size:16px;margin-bottom:8px;}
+    .cta-sub{font-size:13px;margin-bottom:16px;}
+    .cta-btn{padding:14px;font-size:15px;border-radius:12px;}
+    .cta-urgency{font-size:12px;}
+
+    /* Trending / categories list */
+    .trend{padding:14px 16px;}
+    .trend-t{font-size:14px;}
+    .trend-c{font-size:12px;}
+
+    /* AI button — above bottom nav */
+    .ai-float{right:16px;bottom:76px;}
+    .ai-hint{right:16px;bottom:148px;}
+    .ai-chat{right:16px;bottom:140px;width:calc(100vw - 32px);}
   }
 `;
