@@ -12,7 +12,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!);
   const { data, error } = await client.from('businesses').select('*').eq('id', params.id).single();
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
-  return NextResponse.json({ business: data });
+  // Strip fields that must never be exposed publicly
+  const { owner_id: _oid, email: _email, phone: _phone, ...publicData } = data;
+  return NextResponse.json({ business: publicData });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
@@ -91,6 +93,18 @@ const VALID_EVENTS = new Set([
 ]);
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  // Auth required to record analytics (prevents anonymous abuse)
+  const { createServerClient } = await import('@supabase/ssr');
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const authClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  );
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { event } = await request.json();
   if (!event || !VALID_EVENTS.has(event)) {
     return NextResponse.json({ error: 'Invalid event' }, { status: 400 });

@@ -9,5 +9,6 @@ export async function GET(_: NextRequest, { params }: { params: { slug: string }
   );
   const { data, error } = await serviceClient.from('businesses').select('*').eq('slug', params.slug).single();
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
-  return NextResponse.json({ business: data });
+  const { owner_id: _oid, email: _email, phone: _phone, ...publicData } = data;
+  return NextResponse.json({ business: publicData });
 }

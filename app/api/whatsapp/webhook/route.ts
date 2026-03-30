@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/supabase';
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN ?? 'yana_verify';
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!;
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
 
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const token     = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+  if (VERIFY_TOKEN && mode === 'subscribe' && token === VERIFY_TOKEN) {
     return new NextResponse(challenge, { status: 200 });
   }
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
