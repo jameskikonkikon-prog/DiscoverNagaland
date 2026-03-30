@@ -78,6 +78,7 @@ export default function HomePage() {
   const [placeholder, setPlaceholder] = useState(ROTATING_PLACEHOLDERS[0]);
   const [featuredBusinesses, setFeaturedBusinesses] = useState<Business[]>([]);
   const [recentBusinesses, setRecentBusinesses] = useState<Business[]>([]);
+  const [recentlyAdded, setRecentlyAdded] = useState<Business[]>([]);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
   const [totalBusinesses, setTotalBusinesses] = useState(0);
   const [totalCities, setTotalCities] = useState(0);
@@ -191,6 +192,8 @@ export default function HomePage() {
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(18);
+      // Mobile "Recently listed" — top 5 by created_at (before plan-sort)
+      setRecentlyAdded(((recent || []) as Business[]).slice(0, 5));
       const sorted = ((recent || []) as Business[]).sort((a, b) => {
         const rank = (p: string | undefined) => p === 'plus' ? 0 : p === 'pro' ? 1 : 2;
         return rank(a.plan) - rank(b.plan);
@@ -769,6 +772,29 @@ export default function HomePage() {
             }) : (
               <div className="m-feat-placeholder">
                 {[1,2,3].map(i => <div key={i} className="m-feat-skel" />)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RECENTLY LISTED */}
+        <div className="m-section">
+          <div className="m-sec-head">
+            <span className="m-sec-title">Recently listed</span>
+            <a href="/search" className="m-sec-more">View all →</a>
+          </div>
+          <div className="m-feat-scroll">
+            {recentlyAdded.length > 0 ? recentlyAdded.map(biz => (
+              <a key={biz.id} href={`/business/${biz.id}`} className="m-recent-card">
+                <div className="m-recent-icon">{getCategoryEmoji(biz.category)}</div>
+                <span className="m-recent-new">NEW</span>
+                <div className="m-recent-name">{biz.name}</div>
+                <div className="m-recent-meta">{biz.city}{biz.area ? ` · ${biz.area}` : ''}</div>
+                <div className="m-recent-cat">{biz.category}</div>
+              </a>
+            )) : (
+              <div className="m-feat-placeholder">
+                {[1,2,3].map(i => <div key={i} className="m-recent-skel" />)}
               </div>
             )}
           </div>
@@ -1523,6 +1549,31 @@ const pageStyles = `
     background:#111;animation:skPulse 1.5s ease-in-out infinite;
   }
   @keyframes skPulse{0%,100%{opacity:.25;}50%{opacity:.5;}}
+
+  /* Recently listed cards */
+  .m-recent-card{
+    flex-shrink:0;width:160px;border-radius:16px;
+    background:#111;border:1px solid #1a1a1a;
+    padding:16px 14px 14px;text-decoration:none;color:inherit;
+    display:flex;flex-direction:column;position:relative;
+    transition:transform 0.2s;
+  }
+  .m-recent-card:active{transform:scale(0.97);}
+  .m-recent-icon{font-size:36px;line-height:1;margin-bottom:10px;}
+  .m-recent-new{
+    position:absolute;top:10px;right:10px;
+    background:#e5383b;color:#fff;
+    font-family:'Sora',sans-serif;font-size:9px;font-weight:800;
+    letter-spacing:0.8px;padding:3px 7px;border-radius:999px;
+  }
+  .m-recent-name{
+    font-family:'Sora',sans-serif;font-size:14px;font-weight:700;color:#fff;
+    margin-bottom:4px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .m-recent-meta{font-family:'Sora',sans-serif;font-size:11px;color:#555;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .m-recent-cat{font-family:'Sora',sans-serif;font-size:11px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .m-recent-skel{flex-shrink:0;width:160px;height:130px;border-radius:16px;background:#111;animation:skPulse 1.5s ease-in-out infinite;}
 
   /* RE Banner */
   .m-re-banner{
