@@ -230,7 +230,7 @@ export default function MyListingPage() {
                           <button
                             type="button"
                             onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))}
-                            style={{position:'absolute',top:3,right:3,width:18,height:18,borderRadius:'50%',background:'rgba(0,0,0,0.75)',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',fontSize:10,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}
+                            style={{position:'absolute',top:3,right:3,width:28,height:28,borderRadius:'50%',background:'rgba(0,0,0,0.8)',border:'1px solid rgba(255,255,255,0.2)',color:'#fff',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}
                             aria-label="Remove photo"
                           >✕</button>
                         </div>
@@ -391,7 +391,7 @@ const s: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid transparent',
     color: '#ccc',
     fontFamily: "'Sora', sans-serif",
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: 500,
     textAlign: 'right',
     outline: 'none',

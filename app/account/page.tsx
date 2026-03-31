@@ -103,7 +103,7 @@ export default function AccountPage() {
         <p className="sub">Manage your business listings and real estate properties from one place.</p>
 
         {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div className="cards">
             <div className="skeleton" style={{ height: 220, borderRadius: 18 }} />
             <div className="skeleton" style={{ height: 220, borderRadius: 18 }} />
           </div>

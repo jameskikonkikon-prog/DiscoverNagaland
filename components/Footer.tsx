@@ -10,10 +10,10 @@ const LINKS = [
 
 export default function Footer() {
   return (
-    <footer style={{
+    <footer className="yana-global-footer" style={{
       background: '#0f0f0f',
       borderTop: '1px solid rgba(255,255,255,0.06)',
-      padding: '28px 24px 110px',
+      padding: '28px 24px 40px',
       fontFamily: "'Sora', sans-serif",
     }}>
       <style>{`.yna-footer-link{font-size:12.5px;color:rgba(255,255,255,0.32);text-decoration:none;transition:color 0.15s}.yna-footer-link:hover{color:rgba(255,255,255,0.65)}`}</style>

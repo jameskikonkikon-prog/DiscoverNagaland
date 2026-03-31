@@ -907,7 +907,7 @@ const styles = `
   }
   .step-item.active .step-bubble { border-color: var(--red); color: var(--red); background: var(--red-bg); box-shadow: 0 0 0 4px rgba(192,57,43,0.08); }
   .step-item.done .step-bubble { border-color: var(--red); background: var(--red); color: #fff; }
-  .step-label { font-size: 0.62rem; color: var(--muted); text-align: center; white-space: nowrap; transition: color 0.3s; }
+  .step-label { font-size: 0.72rem; color: var(--muted); text-align: center; white-space: nowrap; transition: color 0.3s; }
   .step-item.active .step-label { color: var(--red); }
   .step-item.done .step-label { color: var(--off); }
 
@@ -935,7 +935,7 @@ const styles = `
   /* FORM */
   .form-group { margin-bottom: 1.2rem; }
   .form-label {
-    display: block; font-size: 0.74rem; color: var(--red);
+    display: block; font-size: 0.8rem; color: var(--red);
     letter-spacing: 0.1em; text-transform: uppercase;
     margin-bottom: 0.45rem; font-weight: 600;
   }
@@ -945,7 +945,7 @@ const styles = `
     background: rgba(0,0,0,0.3);
     border: 1.5px solid var(--border2);
     border-radius: 10px; color: var(--white);
-    font-family: 'Sora', sans-serif; font-size: 0.95rem;
+    font-family: 'Sora', sans-serif; font-size: 1rem;
     outline: none; transition: border-color 0.2s, box-shadow 0.2s;
   }
   .form-input::placeholder, .form-textarea::placeholder { color: var(--muted2); }

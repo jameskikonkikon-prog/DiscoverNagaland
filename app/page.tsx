@@ -6,29 +6,29 @@ import { createBrowserClient } from '@supabase/ssr';
 import { supabase } from '@/lib/supabase';
 
 const ROTATING_PLACEHOLDERS = [
-  'Couple date night cafés in Dimapur…',
-  'Gym near PR Hill Kohima with trainer…',
-  'First time in Nagaland — hotels near Kisama…',
-  'Girls PG under Rs.4000 near 4th Mile…',
-  'Football turf available this Saturday…',
-  'Best pork curry restaurant in Kohima…',
-  '2BHK rental house Dimapur under Rs.8000…',
-  'Quiet study space with AC Dimapur…',
-  'Boys hostel near JN Aier College…',
-  'Rooftop café with good view Dimapur…',
-  'Hornbill Festival hotels near Kisama village…',
-  'Budget gym under Rs.800 per month Dimapur…',
+  'Try: Girls PG in Kohima…',
+  'Try: Gym with trainer Dimapur…',
+  'Try: Hotels near Kisama…',
+  'Try: Boys PG near PR Hill…',
+  'Try: Football turf Wokha…',
+  'Try: Naga food restaurant Kohima…',
+  'Try: 2BHK rental Dimapur…',
+  'Try: Study space with AC…',
+  'Try: Car rental Dimapur…',
+  'Try: Coaching centre Kohima…',
+  'Try: Rooftop café Dimapur…',
+  'Try: Budget gym Dimapur…',
 ];
 
 const SEARCH_CHIPS = [
-  { emoji: '🌙', label: 'Date night cafés', query: 'Couple date night café Dimapur' },
-  { emoji: '🏠', label: 'Girls PG · 4th Mile', query: 'Girls PG near 4th Mile Dimapur under Rs.4000' },
+  { emoji: '🏠', label: 'Boys PG · PR Hill', query: 'Boys PG near PR Hill Kohima' },
+  { emoji: '🎓', label: 'Coaching Centre · Kohima', query: 'Coaching centre Kohima' },
+  { emoji: '🚗', label: 'Car Rental · Dimapur', query: 'Car rental Dimapur' },
+  { emoji: '⚽', label: 'Turf · Wokha', query: 'Football turf Wokha' },
+  { emoji: '🍖', label: 'Naga food · Kohima', query: 'Naga food restaurant Kohima' },
+  { emoji: '🏨', label: 'Hotels · Kisama', query: 'Hotels near Kisama Hornbill Festival' },
   { emoji: '💪', label: 'Gym with trainer', query: 'Gym with trainer Dimapur' },
-  { emoji: '🏨', label: 'Hotels near Kisama', query: 'Hotels near Kisama Hornbill Festival' },
-  { emoji: '⚽', label: 'Turf this weekend', query: 'Football turf available weekend Dimapur' },
-  { emoji: '🍖', label: 'Naga food Kohima', query: 'Best Naga food pork curry restaurant Kohima' },
-  { emoji: '📚', label: 'Study space AC', query: 'Quiet study space AC Dimapur' },
-  { emoji: '🏡', label: 'Rental house 2BHK', query: '2BHK rental house Dimapur under Rs.8000' },
+  { emoji: '📚', label: 'Study space · AC', query: 'Study space with AC Dimapur' },
 ];
 
 const NAV_QUICK = [
@@ -78,6 +78,7 @@ export default function HomePage() {
   const [placeholder, setPlaceholder] = useState(ROTATING_PLACEHOLDERS[0]);
   const [featuredBusinesses, setFeaturedBusinesses] = useState<Business[]>([]);
   const [recentBusinesses, setRecentBusinesses] = useState<Business[]>([]);
+  const [recentlyAdded, setRecentlyAdded] = useState<Business[]>([]);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
   const [totalBusinesses, setTotalBusinesses] = useState(0);
   const [totalCities, setTotalCities] = useState(0);
@@ -150,25 +151,14 @@ export default function HomePage() {
   useEffect(() => {
     async function fetchData() {
       let featuredList: Business[] = [];
-      const { data: featuredRows, error: featuredErr } = await supabase
+      const { data: planRows } = await supabase
         .from('businesses')
         .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
         .eq('is_active', true)
-        .eq('featured', true)
+        .eq('plan', 'plus')
         .order('created_at', { ascending: false })
         .limit(8);
-      if (!featuredErr && featuredRows?.length) {
-        featuredList = featuredRows as Business[];
-      } else {
-        const { data: planRows } = await supabase
-          .from('businesses')
-          .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
-          .eq('is_active', true)
-          .eq('plan', 'plus')
-          .order('created_at', { ascending: false })
-          .limit(8);
-        featuredList = (planRows || []) as Business[];
-      }
+      featuredList = (planRows || []) as Business[];
       const featuredIds = featuredList.map((b) => b.id);
 
       let ratingsByBiz: Record<string, number> = {};
@@ -202,6 +192,8 @@ export default function HomePage() {
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(18);
+      // Mobile "Recently listed" — top 5 by created_at (before plan-sort)
+      setRecentlyAdded(((recent || []) as Business[]).slice(0, 5));
       const sorted = ((recent || []) as Business[]).sort((a, b) => {
         const rank = (p: string | undefined) => p === 'plus' ? 0 : p === 'pro' ? 1 : 2;
         return rank(a.plan) - rank(b.plan);
@@ -311,6 +303,9 @@ export default function HomePage() {
   return (
     <>
       <style>{pageStyles}</style>
+
+      {/* ── DESKTOP LAYOUT (hidden on mobile) ── */}
+      <div className="desktop-only">
 
       {/* NAV */}
       <nav className="yana-nav">
@@ -575,8 +570,9 @@ export default function HomePage() {
           )}
         </div>
       </div>
+      </div>{/* /desktop-only */}
 
-      {/* ── YANA AI FLOATING CHAT ── */}
+      {/* ── YANA AI (shared on both layouts) ── */}
 
       {/* Hint bubble */}
       {!chatOpen && hintVisible && (
@@ -676,6 +672,179 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* ── MOBILE LAYOUT (shown only ≤767px) ── */}
+      <div className="mobile-only">
+
+        {/* TOP BAR */}
+        <header className="m-topbar">
+          <a href="/" className="m-brand">
+            <svg width="26" height="31" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="m-pinG" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#8B0000"/>
+                  <stop offset="50%" stopColor="#e5383b"/>
+                  <stop offset="100%" stopColor="#922B21"/>
+                </linearGradient>
+              </defs>
+              <path d="M60 18 C38 18 20 36 20 58 C20 82 60 120 60 120 C60 120 100 82 100 58 C100 36 82 18 60 18Z" fill="url(#m-pinG)"/>
+              <circle cx="60" cy="58" r="19" fill="#1a1a1a" stroke="white" strokeWidth="2.5"/>
+              <path d="M54 52 L68 66" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M54 52 L54 60 L62 52 Z" fill="white"/>
+              <line x1="74" y1="72" x2="84" y2="82" stroke="white" strokeWidth="4" strokeLinecap="round"/>
+            </svg>
+            <div className="m-brand-text">
+              <span className="m-brand-yana">Yana</span>
+              <span className="m-brand-naga">Nagaland</span>
+            </div>
+          </a>
+          <a href="/register" className="m-topbar-cta">List your business</a>
+        </header>
+
+        {/* HERO */}
+        <div className="m-hero">
+          <div className="m-eyebrow">
+            <span className="m-eyebrow-dot" />
+            {"Nagaland's first AI directory"}
+          </div>
+          <h1 className="m-heading">
+            Find anything in<br/><em>Nagaland</em>
+          </h1>
+          <p className="m-sub">PG rooms · Gyms · Cafés · Restaurants · Turfs and more</p>
+          <div className="m-search-bar">
+            <svg className="m-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              className="m-search-input"
+              placeholder={placeholder}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+              autoComplete="off"
+            />
+            <button className="m-search-btn" onClick={handleSearch}>Search</button>
+          </div>
+        </div>
+
+        {/* SUGGESTION CHIPS */}
+        <div className="m-chips-wrap">
+          <div className="m-chips">
+            {SEARCH_CHIPS.map(c => (
+              <button key={c.label} className="m-chip" onClick={() => quickSearch(c.query)}>
+                {c.emoji} {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="m-divider" />
+
+        {/* FEATURED THIS WEEK */}
+        <div className="m-section">
+          <div className="m-sec-head">
+            <span className="m-sec-title">Featured this week</span>
+            <button className="m-sec-more" onClick={() => quickSearch('featured businesses Nagaland')}>View all →</button>
+          </div>
+          <div className="m-feat-scroll">
+            {featuredBusinesses.length > 0 ? featuredBusinesses.map(biz => {
+              const isPlus = (biz.plan || '').toLowerCase() === 'plus';
+              return (
+                <a key={biz.id} href={`/business/${biz.id}`} className="m-feat-card">
+                  <div className="m-feat-photo">
+                    {biz.photos?.[0] ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={biz.photos[0]} alt={biz.name} />
+                        <div className="m-feat-overlay" />
+                      </>
+                    ) : (
+                      <span className="m-feat-emoji">{getCategoryEmoji(biz.category)}</span>
+                    )}
+                    {isPlus && <span className="m-feat-badge">✓ Verified</span>}
+                    <div className="m-feat-info-overlay">
+                      <div className="m-feat-name">{biz.name}</div>
+                      <div className="m-feat-meta">{[biz.area, biz.city].filter(Boolean).join(' · ')} · {biz.category}</div>
+                    </div>
+                  </div>
+                </a>
+              );
+            }) : (
+              <div className="m-feat-placeholder">
+                {[1,2,3].map(i => <div key={i} className="m-feat-skel" />)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RECENTLY LISTED */}
+        <div className="m-section">
+          <div className="m-sec-head">
+            <span className="m-sec-title">Recently listed</span>
+            <a href="/search" className="m-sec-more">View all →</a>
+          </div>
+          <div className="m-feat-scroll">
+            {recentlyAdded.length > 0 ? recentlyAdded.map(biz => (
+              <a key={biz.id} href={`/business/${biz.id}`} className="m-recent-card">
+                <div className="m-recent-icon">{getCategoryEmoji(biz.category)}</div>
+                <span className="m-recent-new">NEW</span>
+                <div className="m-recent-name">{biz.name}</div>
+                <div className="m-recent-meta">{biz.city}{biz.area ? ` · ${biz.area}` : ''}</div>
+                <div className="m-recent-cat">{biz.category}</div>
+              </a>
+            )) : (
+              <div className="m-feat-placeholder">
+                {[1,2,3].map(i => <div key={i} className="m-recent-skel" />)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* REAL ESTATE BANNER */}
+        <div className="m-re-banner">
+          <div className="m-re-left">
+            <div className="m-re-tag">🏘️ Real Estate</div>
+            <div className="m-re-title">Looking for property?</div>
+            <div className="m-re-sub">Land, houses &amp; rentals across Nagaland</div>
+          </div>
+          <a href="/real-estate" className="m-re-btn">Explore →</a>
+        </div>
+
+        {/* COMPACT FOOTER */}
+        <footer className="m-footer">
+          <div className="m-footer-links">
+            <a href="/about" className="m-footer-link">About</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/privacy" className="m-footer-link">Privacy</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/terms" className="m-footer-link">Terms</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/contact" className="m-footer-link">Contact</a>
+          </div>
+          <div className="m-footer-copy">© 2026 Yana Nagaland · Dimapur · Kohima</div>
+        </footer>
+
+      </div>{/* /mobile-only */}
+
+      {/* FIXED BOTTOM NAV — outside mobile-only, visibility controlled by CSS */}
+      <nav className="m-bottom-nav">
+        <a href="/" className="m-nav-item m-nav-active">
+          <span className="m-nav-icon">🏠</span>
+          <span className="m-nav-label">Home</span>
+        </a>
+        <a href="/search" className="m-nav-item">
+          <span className="m-nav-icon">🔍</span>
+          <span className="m-nav-label">Search</span>
+        </a>
+        <a href="/real-estate" className="m-nav-item">
+          <span className="m-nav-icon">🏘️</span>
+          <span className="m-nav-label">Real Estate</span>
+        </a>
+        <a href="/register" className="m-nav-item m-nav-cta">
+          <span className="m-nav-icon">+</span>
+          <span className="m-nav-label">List Business</span>
+        </a>
+      </nav>
     </>
   );
 }
@@ -701,24 +870,24 @@ const pageStyles = `
   .nl:hover{color:var(--white);background:rgba(255,255,255,0.05);}
   .nl-re{padding:7px 14px;font-size:12px;color:rgba(255,255,255,0.65);border-radius:20px;font-weight:600;cursor:pointer;transition:all 0.15s;background:none;border:1px solid rgba(192,57,43,0.28);font-family:'Sora',sans-serif;text-decoration:none;}
   .nl-re:hover{color:var(--white);border-color:rgba(192,57,43,0.55);background:var(--red-bg);}
-  .re-pointer{display:flex;align-items:center;gap:14px;width:fit-content;margin:0 auto;margin-bottom:40px;padding:10px 22px;background:rgba(192,57,43,0.06);border:1px solid rgba(192,57,43,0.18);border-radius:999px;font-size:13.5px;}
+  .re-pointer{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;width:fit-content;max-width:100%;margin:0 auto;margin-bottom:40px;padding:10px 22px;background:rgba(192,57,43,0.06);border:1px solid rgba(192,57,43,0.18);border-radius:999px;font-size:13.5px;}
   .re-pointer-text{color:var(--off);font-weight:400;}
   .re-pointer-link{color:var(--red);font-weight:600;text-decoration:none;padding-left:14px;border-left:1px solid rgba(192,57,43,0.2);transition:opacity 0.15s;white-space:nowrap;}
   .re-pointer-link:hover{opacity:0.7;}
   .nav-cta-btn{
-    padding:9px 20px;
+    padding:11px 20px;min-height:44px;
     background:var(--red);
     border:none;border-radius:20px;
-    font-size:12px;color:white;font-weight:700;
+    font-size:13px;color:white;font-weight:700;
     cursor:pointer;transition:all 0.15s;
     font-family:'Sora',sans-serif;letter-spacing:0.3px;
     box-shadow:0 4px 16px rgba(192,57,43,0.25);
-    text-decoration:none;
+    text-decoration:none;display:flex;align-items:center;
   }
   .nav-cta-btn:hover{background:var(--red2);transform:translateY(-1px);}
   .nav-avatar{
-    width:32px;
-    height:32px;
+    width:40px;
+    height:40px;
     border-radius:999px;
     background:rgba(255,255,255,0.04);
     border:1px solid var(--border);
@@ -818,13 +987,14 @@ const pageStyles = `
     animation:fadeUp 0.5s 0.4s ease both;
   }
   .chip{
-    padding:7px 15px;
+    padding:10px 16px;min-height:44px;
     background:rgba(255,255,255,0.04);
     border:1px solid var(--border);
     border-radius:20px;
-    font-size:12px;color:var(--muted);
+    font-size:13px;color:var(--muted);
     cursor:pointer;transition:all 0.15s;
     font-family:'Sora',sans-serif;font-weight:400;
+    display:inline-flex;align-items:center;
   }
   .chip:hover{background:var(--red-bg);border-color:rgba(192,57,43,0.25);color:rgba(255,255,255,0.8);}
 
@@ -1123,8 +1293,8 @@ const pageStyles = `
   }
   .ai-qp{
     text-align:left;background:#111;border:1px solid #1e1e1e;
-    border-radius:10px;padding:9px 13px;
-    font-size:12px;color:#b0b0b0;cursor:pointer;
+    border-radius:10px;padding:11px 13px;min-height:44px;
+    font-size:13px;color:#b0b0b0;cursor:pointer;
     font-family:'Sora',sans-serif;line-height:1.4;
     transition:all 0.15s;
   }
@@ -1187,13 +1357,13 @@ const pageStyles = `
   .ai-chat-inp{
     flex:1;background:#111;border:1px solid #1e1e1e;
     border-radius:10px;padding:9px 13px;
-    color:#e5e5e5;font-family:'Sora',sans-serif;font-size:12px;outline:none;
+    color:#e5e5e5;font-family:'Sora',sans-serif;font-size:16px;outline:none;
     transition:border-color 0.15s;
   }
   .ai-chat-inp::placeholder{color:#383838;}
   .ai-chat-inp:focus{border-color:rgba(192,57,43,0.4);}
   .ai-chat-send{
-    width:36px;height:36px;flex-shrink:0;
+    width:44px;height:44px;flex-shrink:0;
     background:#c0392b;border:none;border-radius:10px;
     color:#fff;font-size:17px;cursor:pointer;
     display:grid;place-items:center;
@@ -1221,19 +1391,242 @@ const pageStyles = `
     30%{transform:translateY(-5px);}
   }
 
-  /* Responsive */
+  /* ── DESKTOP/MOBILE VISIBILITY ── */
+  .desktop-only{display:block;}
+  .mobile-only{display:none;}
+  @media(max-width:767px){
+    .desktop-only{display:none!important;}
+    .mobile-only{display:block;}
+    /* Hide global layout footer — mobile has its own compact footer */
+    .yana-global-footer{display:none!important;}
+    /* Reposition AI chat above bottom nav */
+    .ai-float{right:16px;bottom:86px;}
+    .ai-hint{right:16px;bottom:158px;}
+    .ai-chat{right:16px;bottom:150px;width:calc(100vw - 32px);}
+  }
+
+  /* Desktop sidebar collapse */
   @media(max-width:860px){
     .main-grid{grid-template-columns:1fr;}
-    .sidebar{display:none;}
+    .sidebar{display:block;margin-top:0;}
   }
-  @media(max-width:520px){
-    .yana-nav{padding:0 16px;}
-    .nav-links{display:none;}
-    .hero{padding:48px 16px 36px;}
-    .main-grid{padding:0 16px 40px;}
-    .featured-grid{grid-template-columns:1fr;}
-    .ai-chat{width:calc(100vw - 32px);right:16px;bottom:72px;}
-    .ai-float{right:16px;bottom:16px;}
-    .ai-hint{right:16px;bottom:88px;}
+
+  /* ── MOBILE LAYOUT STYLES ── */
+  /* Top bar */
+  .m-topbar{
+    position:sticky;top:0;z-index:100;
+    background:rgba(10,10,10,0.97);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-bottom:1px solid #181818;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;height:56px;
   }
+  .m-brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;}
+  .m-brand-text{display:flex;flex-direction:column;}
+  .m-brand-yana{font-family:'Playfair Display',serif;font-size:18px;color:#fff;letter-spacing:1px;line-height:1;}
+  .m-brand-naga{font-size:8px;letter-spacing:3.5px;text-transform:uppercase;color:rgba(255,255,255,0.28);margin-top:2px;}
+  .m-topbar-cta{
+    background:#e5383b;color:#fff;border:none;border-radius:20px;
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:700;
+    padding:9px 15px;cursor:pointer;text-decoration:none;
+    white-space:nowrap;letter-spacing:0.2px;transition:background 0.15s;
+  }
+  .m-topbar-cta:hover{background:#c0392b;}
+
+  /* Hero */
+  .m-hero{padding:32px 18px 22px;}
+  .m-eyebrow{
+    display:inline-flex;align-items:center;gap:7px;
+    font-family:'Sora',sans-serif;font-size:10px;font-weight:700;
+    letter-spacing:1.8px;text-transform:uppercase;color:#e5383b;margin-bottom:14px;
+  }
+  .m-eyebrow-dot{
+    width:5px;height:5px;background:#e5383b;border-radius:50%;
+    animation:blink 2s infinite;display:inline-block;flex-shrink:0;
+  }
+  .m-heading{
+    font-family:'Playfair Display',serif;
+    font-size:clamp(30px,8vw,38px);font-weight:700;line-height:1.14;
+    letter-spacing:-0.5px;color:#fff;margin:0 0 10px;
+  }
+  .m-heading em{font-style:italic;color:#e5383b;}
+  .m-sub{font-family:'Sora',sans-serif;font-size:14px;color:#555;line-height:1.65;margin:0 0 22px;font-weight:300;}
+
+  /* Search bar */
+  .m-search-bar{
+    display:flex;align-items:center;
+    background:#111;border:1.5px solid #222;border-radius:14px;
+    overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.5);
+    transition:border-color 0.2s;
+  }
+  .m-search-bar:focus-within{border-color:#e5383b;box-shadow:0 4px 24px rgba(0,0,0,0.5),0 0 0 3px rgba(229,56,59,0.1);}
+  .m-search-icon{padding:0 13px;color:#444;flex-shrink:0;display:flex;align-items:center;}
+  .m-search-input{
+    flex:1;background:none;border:none;outline:none;
+    font-family:'Sora',sans-serif;font-size:16px;font-weight:300;
+    color:#fff;padding:16px 0;min-width:0;
+  }
+  .m-search-input::placeholder{color:rgba(255,255,255,0.2);}
+  .m-search-btn{
+    margin:6px;padding:11px 18px;background:#e5383b;border:none;border-radius:10px;
+    font-family:'Sora',sans-serif;font-size:14px;font-weight:700;
+    color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background 0.15s;
+  }
+  .m-search-btn:hover{background:#c0392b;}
+
+  /* Chips — horizontal scroll */
+  .m-chips-wrap{padding:0 18px 2px;overflow:visible;}
+  .m-chips{
+    display:flex;gap:8px;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;
+  }
+  .m-chips::-webkit-scrollbar{display:none;}
+  .m-chip{
+    flex-shrink:0;background:#111;border:1px solid #1e1e1e;border-radius:20px;
+    font-family:'Sora',sans-serif;font-size:13px;color:#888;
+    padding:10px 15px;cursor:pointer;transition:all 0.15s;white-space:nowrap;
+  }
+  .m-chip:active{background:#1a1a1a;border-color:#e5383b;color:#fff;}
+
+  /* Divider */
+  .m-divider{border:none;border-top:1px solid #141414;margin:20px 0 0;}
+
+  /* Section */
+  .m-section{margin-top:28px;}
+  .m-sec-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;margin-bottom:16px;
+  }
+  .m-sec-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:800;color:#fff;letter-spacing:-0.3px;}
+  .m-sec-more{
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:600;
+    color:#e5383b;background:none;border:none;cursor:pointer;
+  }
+
+  /* Featured horizontal scroll */
+  .m-feat-scroll{
+    display:flex;gap:14px;overflow-x:auto;
+    padding:0 18px 8px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  .m-feat-scroll::-webkit-scrollbar{display:none;}
+  .m-feat-card{
+    flex-shrink:0;width:210px;border-radius:16px;overflow:hidden;
+    text-decoration:none;color:inherit;border:1px solid #1a1a1a;
+    display:block;position:relative;
+    transition:transform 0.2s;
+  }
+  .m-feat-card:active{transform:scale(0.97);}
+  .m-feat-photo{
+    width:100%;height:175px;background:#111;
+    position:relative;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .m-feat-photo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:block;}
+  .m-feat-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent 25%,rgba(0,0,0,0.88));}
+  .m-feat-emoji{font-size:44px;position:relative;z-index:1;}
+  .m-feat-badge{
+    position:absolute;top:10px;left:10px;z-index:3;
+    background:#fff;color:#b8860b;border:1.5px solid #d4af37;
+    font-family:'Sora',sans-serif;font-size:10px;font-weight:700;
+    padding:3px 8px;border-radius:999px;white-space:nowrap;
+  }
+  .m-feat-info-overlay{
+    position:absolute;bottom:0;left:0;right:0;z-index:2;padding:10px 12px 13px;
+  }
+  .m-feat-name{
+    font-family:'Sora',sans-serif;font-size:15px;font-weight:700;color:#fff;
+    margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .m-feat-meta{
+    font-family:'Sora',sans-serif;font-size:12px;color:rgba(255,255,255,0.55);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  /* Loading skeletons */
+  .m-feat-placeholder{display:flex;gap:14px;padding:0;}
+  .m-feat-skel{
+    flex-shrink:0;width:210px;height:175px;border-radius:16px;
+    background:#111;animation:skPulse 1.5s ease-in-out infinite;
+  }
+  @keyframes skPulse{0%,100%{opacity:.25;}50%{opacity:.5;}}
+
+  /* Recently listed cards */
+  .m-recent-card{
+    flex-shrink:0;width:160px;border-radius:16px;
+    background:#111;border:1px solid #1a1a1a;
+    padding:16px 14px 14px;text-decoration:none;color:inherit;
+    display:flex;flex-direction:column;position:relative;
+    transition:transform 0.2s;
+  }
+  .m-recent-card:active{transform:scale(0.97);}
+  .m-recent-icon{font-size:36px;line-height:1;margin-bottom:10px;}
+  .m-recent-new{
+    position:absolute;top:10px;right:10px;
+    background:#e5383b;color:#fff;
+    font-family:'Sora',sans-serif;font-size:9px;font-weight:800;
+    letter-spacing:0.8px;padding:3px 7px;border-radius:999px;
+  }
+  .m-recent-name{
+    font-family:'Sora',sans-serif;font-size:14px;font-weight:700;color:#fff;
+    margin-bottom:4px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .m-recent-meta{font-family:'Sora',sans-serif;font-size:11px;color:#555;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .m-recent-cat{font-family:'Sora',sans-serif;font-size:11px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .m-recent-skel{flex-shrink:0;width:160px;height:130px;border-radius:16px;background:#111;animation:skPulse 1.5s ease-in-out infinite;}
+
+  /* RE Banner */
+  .m-re-banner{
+    margin:28px 18px 0;
+    background:linear-gradient(135deg,#130a08,#0f0a06);
+    border:1px solid rgba(229,56,59,0.2);border-radius:16px;
+    padding:20px 18px;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+  }
+  .m-re-left{flex:1;}
+  .m-re-tag{font-family:'Sora',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#e5383b;margin-bottom:7px;}
+  .m-re-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:800;color:#fff;margin-bottom:5px;}
+  .m-re-sub{font-family:'Sora',sans-serif;font-size:13px;color:#555;line-height:1.5;}
+  .m-re-btn{
+    flex-shrink:0;background:#e5383b;color:#fff;border:none;border-radius:10px;
+    font-family:'Sora',sans-serif;font-size:14px;font-weight:700;
+    padding:12px 16px;text-decoration:none;transition:background 0.15s;white-space:nowrap;
+  }
+  .m-re-btn:hover{background:#c0392b;}
+
+  /* Compact footer */
+  .m-footer{margin-top:32px;padding:20px 18px 80px;border-top:1px solid #141414;text-align:center;}
+  .m-footer-links{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 5px;margin-bottom:7px;}
+  .m-footer-link{font-family:'Sora',sans-serif;font-size:12px;color:#2e2e2e;text-decoration:none;transition:color 0.15s;}
+  .m-footer-link:hover{color:#666;}
+  .m-footer-dot{font-size:12px;color:#222;}
+  .m-footer-copy{font-family:'Sora',sans-serif;font-size:11px;color:#222;}
+
+  /* Fixed bottom nav — hidden on desktop, shown on mobile via media query */
+  .m-bottom-nav{
+    display:none;
+    position:fixed;bottom:0;left:0;right:0;z-index:600;
+    grid-template-columns:repeat(4,1fr);
+    height:62px;background:#0d0d0d;border-top:1px solid #1e1e1e;
+    box-shadow:0 -6px 32px rgba(0,0,0,0.6);
+    font-family:'Sora',sans-serif;
+  }
+  @media(max-width:767px){
+    .m-bottom-nav{display:grid;}
+  }
+  .m-nav-item{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;text-decoration:none;color:#3a3a3a;
+    font-size:10px;font-weight:600;letter-spacing:0.3px;
+    transition:color 0.15s;padding:0 4px;
+  }
+  .m-nav-active{color:#e5383b;}
+  .m-nav-icon{font-size:19px;line-height:1;}
+  .m-nav-label{font-size:10px;}
+  .m-nav-cta{
+    margin:8px 6px;border-radius:10px;
+    background:rgba(229,56,59,0.14);border:1px solid rgba(229,56,59,0.28);
+    color:#e5383b;font-weight:700;
+  }
+
 `;

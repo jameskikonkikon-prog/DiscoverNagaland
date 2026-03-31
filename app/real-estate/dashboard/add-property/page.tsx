@@ -179,14 +179,14 @@ export default function AddPropertyPage() {
         .aw-label{font-size:11.5px;font-weight:600;color:rgba(255,255,255,0.55);letter-spacing:0.02em;}
         .aw-hint{font-size:11px;color:rgba(255,255,255,0.25);margin-top:2px;}
         .aw-err{font-size:11px;color:#e05a4a;margin-top:3px;}
-        .aw-input{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:14px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;}
+        .aw-input{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:16px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;}
         .aw-input::placeholder{color:var(--muted);}
         .aw-input:focus{border-color:rgba(192,57,43,0.4);}
         .aw-input-err{border-color:rgba(224,90,74,0.5) !important;}
-        .aw-select{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:14px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.3)' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;}
+        .aw-select{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:16px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.3)' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;}
         .aw-select:focus{border-color:rgba(192,57,43,0.4);}
         .aw-select option{background:var(--bg3);}
-        .aw-textarea{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:14px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;resize:vertical;min-height:96px;line-height:1.6;}
+        .aw-textarea{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:16px;font-family:'Sora',sans-serif;color:var(--white);outline:none;transition:border-color 0.15s;width:100%;box-sizing:border-box;resize:vertical;min-height:96px;line-height:1.6;}
         .aw-textarea::placeholder{color:var(--muted);}
         .aw-textarea:focus{border-color:rgba(192,57,43,0.4);}
         .aw-photo-area{background:var(--bg3);border:1.5px dashed var(--border2);border-radius:12px;padding:22px 20px;text-align:center;transition:border-color 0.15s;cursor:pointer;}
@@ -200,7 +200,7 @@ export default function AddPropertyPage() {
         .aw-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;margin-bottom:12px;}
         .aw-thumb{position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:var(--bg4);border:1px solid var(--border);}
         .aw-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
-        .aw-thumb-rm{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:999px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.12s;}
+        .aw-thumb-rm{position:absolute;top:3px;right:3px;width:28px;height:28px;border-radius:999px;background:rgba(0,0,0,0.75);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.12s;}
         .aw-thumb-rm:hover{background:rgba(192,57,43,0.85);}
         .aw-upload-err{font-size:11.5px;color:#e05a4a;margin-top:8px;}
         .aw-upload-spin{font-size:12px;color:var(--muted);margin-top:8px;}

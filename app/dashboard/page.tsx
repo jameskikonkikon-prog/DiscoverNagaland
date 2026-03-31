@@ -85,6 +85,7 @@ export default function DashboardPage() {
   const [foundingLeft, setFoundingLeft] = useState<number>(100)
   const [earlyAccessFull, setEarlyAccessFull] = useState<boolean>(false)
   const [activeTab,    setActiveTab]    = useState<'overview' | 'listing' | 'ai' | 'analytics' | 'billing'>('overview')
+  const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [loading,      setLoading]      = useState(true)
   const [upgrading,    setUpgrading]    = useState<string | null>(null)
   const [paymentMsg,   setPaymentMsg]   = useState<{ text: string; ok: boolean } | null>(null)
@@ -304,13 +305,13 @@ export default function DashboardPage() {
   if (loading) return (
     <div style={{ display:'flex', minHeight:'100vh', background:'#0a0a0a', fontFamily:'Sora,sans-serif' }}>
       <style>{`@keyframes skPulse{0%,100%{opacity:.22}50%{opacity:.5}}.sk{background:#1e1e1e;border-radius:10px;animation:skPulse 1.5s ease-in-out infinite}`}</style>
-      <div style={{ width:220, background:'#111', borderRight:'1px solid rgba(255,255,255,0.06)', padding:24, display:'flex', flexDirection:'column', gap:14, flexShrink:0 }}>
+      <div style={{ width:220, background:'#111', borderRight:'1px solid rgba(255,255,255,0.06)', padding:24, display:'flex', flexDirection:'column', gap:14, flexShrink:0, position:'fixed', top:0, left:0, bottom:0 }} className="sk-sidebar">
         <div className="sk" style={{ height:30, width:110 }} />
         {[1,2,3,4,5].map(i => <div key={i} className="sk" style={{ height:18, width:'75%' }} />)}
       </div>
-      <div style={{ flex:1, padding:'36px 40px', display:'flex', flexDirection:'column', gap:20 }}>
+      <div style={{ flex:1, padding:'36px 40px', display:'flex', flexDirection:'column', gap:20 }} className="sk-main">
         <div className="sk" style={{ height:34, width:240 }} />
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }} className="sk-stats">
           {[1,2,3].map(i => <div key={i} className="sk" style={{ height:96, borderRadius:14 }} />)}
         </div>
         <div className="sk" style={{ height:180, borderRadius:14 }} />
@@ -323,10 +324,22 @@ export default function DashboardPage() {
   return (
     <>
       <style>{CSS}</style>
+      {/* ── MOBILE TOPBAR ───────────────────────────────────────────── */}
+      <div className="mob-topbar">
+        <button className="hamburger" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button>
+        <span className="mob-topbar-title">Yana Dashboard</span>
+        {business ? (
+          <a href={`/business/${business.slug}`} target="_blank" rel="noreferrer" className="mob-view-btn">🔗</a>
+        ) : <span style={{width:44}} />}
+      </div>
+
       <div className="layout">
 
+        {/* ── SIDEBAR OVERLAY ────────────────────────────────────────── */}
+        {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
         {/* ── SIDEBAR ─────────────────────────────────────────────────── */}
-        <aside className="sidebar">
+        <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
           <div className="sidebar-logo">
             <a href="/" className="sidebar-brand">
               <svg width="30" height="36" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -381,7 +394,7 @@ export default function DashboardPage() {
             ] as const).map(item => (
               <button key={item.key}
                 className={`nav-item${activeTab === item.key ? ' active' : ''}`}
-                onClick={() => setActiveTab(item.key)}>
+                onClick={() => { setActiveTab(item.key); setSidebarOpen(false) }}>
                 <span className="icon">{item.icon}</span>{item.label}
               </button>
             ))}
@@ -389,7 +402,7 @@ export default function DashboardPage() {
             <div className="nav-label">Settings</div>
             <button
               className={`nav-item${activeTab === 'billing' ? ' active' : ''}`}
-              onClick={() => setActiveTab('billing')}>
+              onClick={() => { setActiveTab('billing'); setSidebarOpen(false) }}>
               <span className="icon">💳</span>Plan & Billing
             </button>
           </nav>
@@ -1067,4 +1080,32 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 
 /* MISC */
 .empty-state{text-align:center;padding:32px 0;color:var(--muted);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:8px;}
+
+/* MOBILE NAV */
+.mob-topbar{display:none;align-items:center;justify-content:space-between;padding:0 8px;height:52px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.mob-topbar-title{font-size:14px;font-weight:700;font-family:'Sora',sans-serif;}
+.hamburger{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;}
+.mob-view-btn{display:flex;align-items:center;justify-content:center;width:44px;height:44px;font-size:18px;text-decoration:none;}
+.sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:150;}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .mob-topbar{display:flex;}
+  .layout{display:block;}
+  .sidebar{transform:translateX(-220px);transition:transform 0.25s ease;z-index:200;top:0;}
+  .sidebar.open{transform:translateX(0);}
+  .main{margin-left:0;max-width:100vw;padding:16px 14px;}
+  .topbar{display:none;}
+  .stats-row{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .two-col{grid-template-columns:1fr;}
+  .plan-grid{grid-template-columns:1fr;}
+  .ai-grid{grid-template-columns:1fr;}
+  .hook-stats{display:none;}
+  .upgrade-hook{flex-direction:column;align-items:flex-start;gap:10px;}
+  .stat-value{font-size:22px;}
+  .card{padding:16px;}
+  .sk-sidebar{display:none!important;}
+  .sk-main{margin-left:0!important;padding:16px!important;}
+  .sk-stats{grid-template-columns:repeat(2,1fr)!important;}
+}
 `

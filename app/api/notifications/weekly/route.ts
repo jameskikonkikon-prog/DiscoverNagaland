@@ -19,6 +19,10 @@ export async function GET(request: NextRequest) {
 
   if (!businesses) return NextResponse.json({ sent: 0 });
 
+  function escapeHtml(str: string): string {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   let sent = 0;
   for (const business of businesses) {
     const { data: analytics } = await serviceClient
@@ -49,9 +53,9 @@ export async function GET(request: NextRequest) {
       body: JSON.stringify({
         sender: { email: process.env.FROM_EMAIL, name: process.env.FROM_NAME },
         to: [{ email: ownerEmail }],
-        subject: `Your weekly report for ${business.name}`,
+        subject: `Your weekly report for ${escapeHtml(business.name)}`,
         htmlContent: `
-          <h2>Weekly Report for ${business.name}</h2>
+          <h2>Weekly Report for ${escapeHtml(business.name)}</h2>
           <p>Here's how your business performed this week:</p>
           <ul>
             <li>👁️ Profile Views: <strong>${totals.views}</strong></li>
