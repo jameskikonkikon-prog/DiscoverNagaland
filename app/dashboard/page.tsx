@@ -327,9 +327,15 @@ export default function DashboardPage() {
       {/* ── MOBILE TOPBAR ───────────────────────────────────────────── */}
       <div className="mob-topbar">
         <button className="hamburger" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button>
-        <span className="mob-topbar-title">Yana Dashboard</span>
+        <span className="mob-topbar-title">
+          {business ? (() => {
+            const h = new Date().getHours();
+            const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+            return `${greet}, ${business.name.split(' ')[0]}`;
+          })() : 'Dashboard'}
+        </span>
         {business ? (
-          <a href={`/business/${business.slug}`} target="_blank" rel="noreferrer" className="mob-view-btn">🔗</a>
+          <a href={`/business/${business.slug}`} target="_blank" rel="noreferrer" className="mob-view-btn">View Listing →</a>
         ) : <span style={{width:44}} />}
       </div>
 
@@ -1083,9 +1089,9 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 
 /* MOBILE NAV */
 .mob-topbar{display:none;align-items:center;justify-content:space-between;padding:0 8px;height:52px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
-.mob-topbar-title{font-size:14px;font-weight:700;font-family:'Sora',sans-serif;}
+.mob-topbar-title{font-size:13px;font-weight:600;font-family:'Sora',sans-serif;flex:1;text-align:center;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .hamburger{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;}
-.mob-view-btn{display:flex;align-items:center;justify-content:center;width:44px;height:44px;font-size:18px;text-decoration:none;}
+.mob-view-btn{display:flex;align-items:center;justify-content:center;height:44px;padding:0 8px;font-size:12px;font-weight:700;color:var(--red);text-decoration:none;white-space:nowrap;font-family:'Sora',sans-serif;flex-shrink:0;}
 .sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:150;}
 
 /* RESPONSIVE */
@@ -1097,6 +1103,7 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
   .main{margin-left:0;max-width:100vw;padding:16px 14px;}
   .topbar{display:none;}
   .stats-row{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .stats-row .stat-card{grid-column:auto!important;}
   .two-col{grid-template-columns:1fr;}
   .plan-grid{grid-template-columns:1fr;}
   .ai-grid{grid-template-columns:1fr;}
