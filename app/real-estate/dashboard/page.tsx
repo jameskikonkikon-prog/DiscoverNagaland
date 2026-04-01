@@ -264,6 +264,7 @@ export default function RealEstateDashboard() {
         @keyframes pulse{0%,100%{opacity:0.35;}50%{opacity:0.7;}}
 
         @media(max-width:640px){
+          .dn{display:none;}
           .dw{padding:28px 14px 60px;}
           .dw-stats{grid-template-columns:1fr 1fr;}
           .dw-stats .dw-stat:last-child{grid-column:1/-1;}

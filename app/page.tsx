@@ -826,25 +826,6 @@ export default function HomePage() {
 
       </div>{/* /mobile-only */}
 
-      {/* FIXED BOTTOM NAV — outside mobile-only, visibility controlled by CSS */}
-      <nav className="m-bottom-nav">
-        <a href="/" className="m-nav-item m-nav-active">
-          <span className="m-nav-icon">🏠</span>
-          <span className="m-nav-label">Home</span>
-        </a>
-        <a href="/search" className="m-nav-item">
-          <span className="m-nav-icon">🔍</span>
-          <span className="m-nav-label">Search</span>
-        </a>
-        <a href="/real-estate" className="m-nav-item">
-          <span className="m-nav-icon">🏘️</span>
-          <span className="m-nav-label">Real Estate</span>
-        </a>
-        <a href="/register" className="m-nav-item m-nav-cta">
-          <span className="m-nav-icon">+</span>
-          <span className="m-nav-label">List Business</span>
-        </a>
-      </nav>
     </>
   );
 }
@@ -1602,31 +1583,5 @@ const pageStyles = `
   .m-footer-dot{font-size:12px;color:#222;}
   .m-footer-copy{font-family:'Sora',sans-serif;font-size:11px;color:#222;}
 
-  /* Fixed bottom nav — hidden on desktop, shown on mobile via media query */
-  .m-bottom-nav{
-    display:none;
-    position:fixed;bottom:0;left:0;right:0;z-index:600;
-    grid-template-columns:repeat(4,1fr);
-    height:62px;background:#0d0d0d;border-top:1px solid #1e1e1e;
-    box-shadow:0 -6px 32px rgba(0,0,0,0.6);
-    font-family:'Sora',sans-serif;
-  }
-  @media(max-width:767px){
-    .m-bottom-nav{display:grid;}
-  }
-  .m-nav-item{
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:3px;text-decoration:none;color:#3a3a3a;
-    font-size:10px;font-weight:600;letter-spacing:0.3px;
-    transition:color 0.15s;padding:0 4px;
-  }
-  .m-nav-active{color:#e5383b;}
-  .m-nav-icon{font-size:19px;line-height:1;}
-  .m-nav-label{font-size:10px;}
-  .m-nav-cta{
-    margin:8px 6px;border-radius:10px;
-    background:rgba(229,56,59,0.14);border:1px solid rgba(229,56,59,0.28);
-    color:#e5383b;font-weight:700;
-  }
 
 `;

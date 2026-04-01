@@ -53,3 +53,15 @@ body::before{
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ── GLOBAL MOBILE (≤767px) ── */
+@media(max-width:767px){
+  /* Add bottom padding so content clears the fixed bottom nav */
+  body{padding-bottom:70px;}
+  /* Hide desktop-style global footer */
+  .yana-global-footer{display:none!important;}
+  /* Hide breadcrumb trails — keep logo + action buttons visible */
+  .re-nav-sep,.dn-sep,.an-sep{display:none;}
+  .re-nav-crumb,.dn-crumb,.an-crumb{display:none;}
+  .re-nav-tag,.dn-tag,.an-tag{display:none;}
+}

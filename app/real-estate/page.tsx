@@ -112,7 +112,7 @@ export default function RealEstatePage() {
         .re-empty-title{font-size:19px;font-weight:600;color:var(--off);margin-bottom:8px;letter-spacing:-0.02em;}
         .re-empty-sub{font-size:14px;color:var(--muted);max-width:380px;margin:0 auto 28px;}
         .re-divider{height:1px;background:var(--border);margin:0 0 60px;}
-        @media(max-width:600px){.re-hero{padding:44px 20px 32px;}.re-section{padding:0 16px 60px;}.re-cats{padding:0 16px 28px;}.re-cat-card{min-width:90px;padding:16px 18px;}}
+        @media(max-width:600px){.re-nav{display:none;}.re-hero{padding:44px 20px 32px;}.re-section{padding:0 16px 60px;}.re-cats{padding:0 16px 28px;}.re-cat-card{min-width:90px;padding:16px 18px;}}
       `}</style>
 
       {/* NAV */}

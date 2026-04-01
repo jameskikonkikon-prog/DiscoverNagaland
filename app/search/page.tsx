@@ -898,5 +898,16 @@ const styles = `
     .content { padding: 1rem; }
     .search-hero { padding: 2rem 1rem 1.5rem; }
     .results-grid { grid-template-columns: 1fr; }
+    .state-msg { padding: 1.5rem 1rem; }
+    .trending-chips {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      justify-content: flex-start;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+    }
+    .trending-chips::-webkit-scrollbar { display: none; }
+    .trending-chips .chip-btn { flex-shrink: 0; }
   }
 `;
