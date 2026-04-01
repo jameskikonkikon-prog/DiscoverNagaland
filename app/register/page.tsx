@@ -1110,9 +1110,13 @@ const styles = `
 
   /* RESPONSIVE */
   @media (max-width: 520px) {
+    .reg-page { padding: 2.5rem 1rem 4rem; }
+    .reg-brand { margin-bottom: 3rem; }
     .reg-card { padding: 1.5rem 1.1rem; }
+    .stepper { margin-bottom: 2.5rem; }
+    .step-bubble { width: 42px; height: 42px; font-size: 1rem; }
+    .step-line { top: 21px; }
     .step-label { display: none; }
-    .reg-page { padding: 2rem 1rem 3rem; }
     .cat-grid { grid-template-columns: repeat(4, 1fr); }
   }
 `;
