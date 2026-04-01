@@ -1113,6 +1113,6 @@ const styles = `
     .reg-card { padding: 1.5rem 1.1rem; }
     .step-label { display: none; }
     .reg-page { padding: 2rem 1rem 3rem; }
-    .cat-grid { grid-template-columns: repeat(3, 1fr); }
+    .cat-grid { grid-template-columns: repeat(4, 1fr); }
   }
 `;

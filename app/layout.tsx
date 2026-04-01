@@ -4,6 +4,7 @@ import ConsentBanner from '@/components/ConsentBanner'
 import Footer from '@/components/Footer'
 import { ToastProvider } from '@/components/Toast'
 import PendingBusinessSaver from '@/components/PendingBusinessSaver'
+import MobileBottomNav from '@/components/MobileBottomNav'
 
 export const metadata: Metadata = {
   title: {
@@ -44,6 +45,7 @@ export default function RootLayout({
           <PendingBusinessSaver />
           {children}
           <Footer />
+          <MobileBottomNav />
           <ConsentBanner />
         </ToastProvider>
       </body>
