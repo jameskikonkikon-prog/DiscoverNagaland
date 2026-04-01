@@ -46,6 +46,12 @@ const CATEGORY_EMOJI: Record<string, string> = {
   clinic: '🏥', service: '🔧',
 };
 
+function getInitials(name: string): string {
+  const words = name.trim().split(/[\s\-]+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
 function getCategoryEmoji(category: string): string {
   const lower = (category || '').toLowerCase();
   for (const [key, emoji] of Object.entries(CATEGORY_EMOJI)) {
@@ -87,6 +93,7 @@ export default function HomePage() {
   const [earlyAccessFull, setEarlyAccessFull] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [bizName, setBizName] = useState<string | null>(null);
   const placeholderIndex = useRef(0);
   const router = useRouter();
 
@@ -233,16 +240,39 @@ export default function HomePage() {
     let isMounted = true;
     supabaseBrowser.auth
       .getSession()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (!isMounted) return;
         setLoggedIn(!!data.session);
+        if (data.session?.user?.id) {
+          const { data: biz } = await supabaseBrowser
+            .from('businesses')
+            .select('name')
+            .eq('owner_id', data.session.user.id)
+            .eq('is_active', true)
+            .limit(1)
+            .single();
+          if (isMounted && biz?.name) setBizName(biz.name);
+        }
       })
       .catch(() => {
         if (!isMounted) return;
         setLoggedIn(false);
       });
-    const { data: { subscription } } = supabaseBrowser.auth.onAuthStateChange((_event, session) => {
-      if (isMounted) setLoggedIn(!!session);
+    const { data: { subscription } } = supabaseBrowser.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
+      setLoggedIn(!!session);
+      if (session?.user?.id) {
+        const { data: biz } = await supabaseBrowser
+          .from('businesses')
+          .select('name')
+          .eq('owner_id', session.user.id)
+          .eq('is_active', true)
+          .limit(1)
+          .single();
+        if (isMounted && biz?.name) setBizName(biz.name);
+      } else {
+        setBizName(null);
+      }
     });
     return () => {
       isMounted = false;
@@ -698,7 +728,16 @@ export default function HomePage() {
               <span className="m-brand-naga">Nagaland</span>
             </div>
           </a>
-          <a href="/register" className="m-topbar-cta">List your business</a>
+          {loggedIn ? (
+            <a href="/dashboard" className="m-avatar" title="Go to Dashboard">
+              {bizName ? getInitials(bizName) : '··'}
+            </a>
+          ) : (
+            <div className="m-topbar-right">
+              <a href="/login" className="m-signin">Sign In</a>
+              <a href="/register" className="m-topbar-cta">List your business</a>
+            </div>
+          )}
         </header>
 
         {/* HERO */}
@@ -1406,6 +1445,13 @@ const pageStyles = `
   .m-brand-text{display:flex;flex-direction:column;}
   .m-brand-yana{font-family:'Playfair Display',serif;font-size:18px;color:#fff;letter-spacing:1px;line-height:1;}
   .m-brand-naga{font-size:8px;letter-spacing:3.5px;text-transform:uppercase;color:rgba(255,255,255,0.28);margin-top:2px;}
+  .m-topbar-right{display:flex;align-items:center;gap:10px;}
+  .m-signin{
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:600;
+    color:rgba(255,255,255,0.55);text-decoration:none;transition:color 0.15s;
+    white-space:nowrap;
+  }
+  .m-signin:hover{color:#fff;}
   .m-topbar-cta{
     background:#e5383b;color:#fff;border:none;border-radius:20px;
     font-family:'Sora',sans-serif;font-size:13px;font-weight:700;
@@ -1413,6 +1459,15 @@ const pageStyles = `
     white-space:nowrap;letter-spacing:0.2px;transition:background 0.15s;
   }
   .m-topbar-cta:hover{background:#c0392b;}
+  .m-avatar{
+    width:38px;height:38px;border-radius:50%;flex-shrink:0;
+    background:#1a1a1a;border:1.5px solid rgba(229,56,59,0.35);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:800;
+    color:#e5383b;text-decoration:none;letter-spacing:0.5px;
+    transition:border-color 0.15s;
+  }
+  .m-avatar:hover{border-color:rgba(229,56,59,0.7);}
 
   /* Hero */
   .m-hero{padding:32px 18px 22px;}
