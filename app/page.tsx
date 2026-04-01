@@ -1417,6 +1417,9 @@ const pageStyles = `
   @media(max-width:767px){
     .desktop-only{display:none!important;}
     .mobile-only{display:block;}
+    /* Explicitly hide desktop nav elements on mobile */
+    .yana-nav{display:none!important;}
+    .nav-cta-btn{display:none!important;}
     /* Hide global layout footer — mobile has its own compact footer */
     .yana-global-footer{display:none!important;}
     /* Reposition AI chat above bottom nav */
@@ -1460,10 +1463,10 @@ const pageStyles = `
   }
   .m-topbar-cta:hover{background:#c0392b;}
   .m-avatar{
-    width:38px;height:38px;border-radius:50%;flex-shrink:0;
+    width:36px;height:36px;border-radius:50%;flex-shrink:0;
     background:#1a1a1a;border:1.5px solid rgba(229,56,59,0.35);
     display:flex;align-items:center;justify-content:center;
-    font-family:'Sora',sans-serif;font-size:13px;font-weight:800;
+    font-family:'Sora',sans-serif;font-size:12px;font-weight:800;
     color:#e5383b;text-decoration:none;letter-spacing:0.5px;
     transition:border-color 0.15s;
   }
