@@ -1,5 +1,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
@@ -7,6 +9,24 @@ export default function MobileBottomNav() {
   const isSearch = pathname.startsWith('/search');
   const isRE = pathname.startsWith('/real-estate');
   const isRegister = pathname.startsWith('/register');
+  const isDashboard = pathname.startsWith('/dashboard') || pathname.startsWith('/account');
+
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const client = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    let mounted = true;
+    client.auth.getSession().then(({ data }) => {
+      if (mounted) setLoggedIn(!!data.session);
+    });
+    const { data: { subscription } } = client.auth.onAuthStateChange((_e, session) => {
+      if (mounted) setLoggedIn(!!session);
+    });
+    return () => { mounted = false; subscription.unsubscribe(); };
+  }, []);
 
   return (
     <>
@@ -48,10 +68,17 @@ export default function MobileBottomNav() {
           <span className="gnav-icon">🏘️</span>
           <span className="gnav-label">Real Estate</span>
         </a>
-        <a href="/register" className={`gnav-item gnav-cta${isRegister ? ' gnav-active' : ''}`}>
-          <span className="gnav-icon">+</span>
-          <span className="gnav-label">List Business</span>
-        </a>
+        {loggedIn ? (
+          <a href="/dashboard" className={`gnav-item gnav-cta${isDashboard ? ' gnav-active' : ''}`}>
+            <span className="gnav-icon">📊</span>
+            <span className="gnav-label">Dashboard</span>
+          </a>
+        ) : (
+          <a href="/register" className={`gnav-item gnav-cta${isRegister ? ' gnav-active' : ''}`}>
+            <span className="gnav-icon">+</span>
+            <span className="gnav-label">List Business</span>
+          </a>
+        )}
       </nav>
     </>
   );
