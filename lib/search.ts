@@ -1,23 +1,11 @@
 /**
  * lib/search.ts — YanaNagaland business search
  *
- * Dynamic-first design:
- *  - Category list and city list are fetched from the DB on first use and cached.
- *    No hardcoded category names or city names anywhere in this file.
- *  - Condition triggers (wifi, AC, girls, etc.) are linguistic intent signals
- *    and live in code, not the database.
- *  - Price patterns are regex/keyword rules.
- *
- * Flow:
- *  1. Load metadata (distinct categories + cities) from DB, cache 10 min.
- *  2. Detect city, categories, price condition, and feature conditions from query.
- *  3. Fetch businesses:
- *       - If a category is detected → exact eq/in filter + soft keyword post-filter.
- *       - Otherwise → ilike keyword search across text columns.
- *  4. Apply price filter (hard reject if no match).
- *  5. Apply condition filters (hard reject if no match).
- *  6. If empty → try typo fallback (shorten last word).
- *  7. If still empty → return related results (same category/keywords, no conditions).
+ * Design: no metadata prefetch, no hardcoded category names.
+ * Keywords from the query are matched directly against name/category/description/
+ * city/tags/address via Supabase ilike. City is detected from a static list of
+ * Nagaland cities (geographic knowledge, not business data). Conditions (wifi,
+ * AC, girls-only, etc.) and price are applied as hard post-filters.
  */
 
 import { getServiceClient } from './supabase';
@@ -30,162 +18,67 @@ export function generateSlug(name: string, city: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Cities ───────────────────────────────────────────────────────────────────
+// Static list of Nagaland cities used to detect & strip city from query text.
 
-type ServiceClient = ReturnType<typeof getServiceClient>;
+const NAGALAND_CITIES = [
+  'Kohima', 'Dimapur', 'Mokokchung', 'Wokha', 'Mon', 'Phek',
+  'Tuensang', 'Zunheboto', 'Peren', 'Longleng', 'Kiphire',
+  'Noklak', 'Shamator', 'Tseminyü', 'Chümoukedima', 'Niuland', 'Meluri',
+];
 
-// ─── DB metadata cache ────────────────────────────────────────────────────────
-// Categories and cities are fetched from the DB and cached. No hardcoded values.
-
-interface DbMeta {
-  categories: string[];
-  cities: string[];
-  loadedAt: number;
-}
-
-let _meta: DbMeta | null = null;
-const META_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-async function loadMeta(client: ServiceClient): Promise<DbMeta> {
-  if (_meta && Date.now() - _meta.loadedAt < META_TTL_MS) return _meta;
-
-  try {
-    const [catsRes, citiesRes] = await Promise.all([
-      client.from('businesses').select('category').or('is_active.eq.true,is_active.is.null'),
-      client.from('businesses').select('city').or('is_active.eq.true,is_active.is.null'),
-    ]);
-
-    const categories = [
-      ...new Set(
-        (catsRes.data || []).map((r: { category: string }) => r.category).filter(Boolean)
-      ),
-    ] as string[];
-
-    const cities = [
-      ...new Set(
-        (citiesRes.data || []).map((r: { city: string }) => r.city).filter(Boolean)
-      ),
-    ] as string[];
-
-    _meta = { categories, cities, loadedAt: Date.now() };
-  } catch (err) {
-    console.error('loadMeta failed:', err);
-    // Return stale cache if available, or empty (keyword search will still work)
-    if (!_meta) _meta = { categories: [], cities: [], loadedAt: Date.now() };
-  }
-
-  return _meta!;
+export function detectCity(query: string): string | null {
+  const lower = query.toLowerCase();
+  // Longest-first avoids "Mon" matching inside "Mokokchung"
+  const sorted = [...NAGALAND_CITIES].sort((a, b) => b.length - a.length);
+  return sorted.find((c) => lower.includes(c.toLowerCase())) ?? null;
 }
 
 // ─── Stop words ───────────────────────────────────────────────────────────────
-// These are filtered out before category/keyword matching.
 
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'in', 'at', 'of', 'for', 'and', 'or', 'with', 'to',
   'is', 'are', 'was', 'were', 'i', 'me', 'my', 'we', 'our', 'some', 'any',
-  'where', 'which', 'want', 'place', 'centre', 'center', 'find', 'near',
-  'best', 'good', 'around', 'nearby', 'looking', 'show', 'get', 'list',
-  'need', 'please', 'want', 'have', 'has',
+  'where', 'which', 'want', 'place', 'find', 'near', 'best', 'good',
+  'around', 'nearby', 'looking', 'show', 'get', 'list', 'need', 'under',
+  'above', 'below', 'less', 'than', 'please', 'have', 'has', 'there',
 ]);
-
-// ─── City detection ───────────────────────────────────────────────────────────
-
-export function detectCity(query: string, cities: string[]): string | null {
-  const lower = query.toLowerCase();
-  // Longest match first avoids "Mon" matching inside "Mokokchung"
-  const sorted = [...cities].sort((a, b) => b.length - a.length);
-  return sorted.find((c) => lower.includes(c.toLowerCase())) ?? null;
-}
-
-// ─── Category detection ───────────────────────────────────────────────────────
-//
-// Matches query words against DB category slugs using these rules:
-//  1. Exact full-slug match  ("coaching" == "coaching")
-//  2. Query word equals a slug part split by _ ("study" matches "study_space")
-//  3. A slug part starts with the query word ("coach" matches "coaching")
-//  4. For 2-char words: only exact full-slug match  ("pg" matches "pg")
-// No hardcoded synonym map — keyword search handles alternative words naturally.
-
-function normalize(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
-}
-
-function detectCategories(query: string, dbCategories: string[]): string[] | null {
-  const words = normalize(query)
-    .split(/\s+/)
-    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
-
-  const matched = new Set<string>();
-
-  for (const cat of dbCategories) {
-    const catNorm = normalize(cat);
-    const catParts = catNorm.split(/[_\-]+/).filter((p) => p.length >= 2);
-
-    for (const w of words) {
-      if (w.length === 2) {
-        // 2-char words: exact full-slug match only (prevents "ac" hitting "coaching")
-        if (catNorm === w) matched.add(cat);
-      } else {
-        // 3+ char words: match against parts of the slug
-        if (
-          catNorm === w ||
-          catParts.some(
-            (p) => p === w || p.startsWith(w) || w.startsWith(p)
-          )
-        ) {
-          matched.add(cat);
-        }
-      }
-    }
-  }
-
-  return matched.size > 0 ? [...matched] : null;
-}
 
 // ─── Price detection ──────────────────────────────────────────────────────────
 
-const CURRENCY_PAT = '(?:₹|rs\\.?|rupees?)?\\s*';
-const AMOUNT_PAT = '(\\d+(?:\\.\\d+)?)(k)?';
+const CURRENCY = '(?:₹|rs\\.?|rupees?)?\\s*';
+const AMOUNT   = '(\\d+(?:\\.\\d+)?)(k)?';
 
-function parseAmount(m: RegExpMatchArray): number {
+function parseAmt(m: RegExpMatchArray): number {
   return parseFloat(m[1]) * (m[2] === 'k' ? 1000 : 1);
 }
 
 export function detectPriceCondition(
   query: string
 ): { max?: number; min?: number; detectedPrice?: number } | null {
-  const lower = query.toLowerCase();
-  const underRe   = new RegExp(`(?:under|below)\\s*${CURRENCY_PAT}${AMOUNT_PAT}`);
-  const lessRe    = new RegExp(`less\\s+than\\s*${CURRENCY_PAT}${AMOUNT_PAT}`);
-  const m = lower.match(underRe) || lower.match(lessRe);
-  if (m) {
-    const max = parseAmount(m);
-    return { max, detectedPrice: max };
-  }
-  if (/\bcheap\b|\bbudget\b/.test(lower)) return { max: 500,  detectedPrice: 500  };
-  if (/\baffordable\b/.test(lower))        return { max: 2000, detectedPrice: 2000 };
+  const s = query.toLowerCase();
+  const m =
+    s.match(new RegExp(`(?:under|below)\\s*${CURRENCY}${AMOUNT}`)) ||
+    s.match(new RegExp(`less\\s+than\\s*${CURRENCY}${AMOUNT}`));
+  if (m) { const v = parseAmt(m); return { max: v, detectedPrice: v }; }
+  if (/\bcheap\b|\bbudget\b/.test(s))  return { max: 500,  detectedPrice: 500 };
+  if (/\baffordable\b/.test(s))         return { max: 2000, detectedPrice: 2000 };
   return null;
 }
 
 // ─── Condition detection ──────────────────────────────────────────────────────
-// These are linguistic intent signals, not DB values.
 
-interface ConditionRule {
-  patterns: string[];
-  key: string;
-}
-
-const CONDITION_RULES: ConditionRule[] = [
+const CONDITION_RULES: { key: string; patterns: string[] }[] = [
   { key: 'wifi',         patterns: ['wifi', 'wi-fi', 'wi fi', 'internet'] },
-  { key: 'ac',           patterns: ['with ac', 'air condition', 'air-condition', 'air conditioned', 'airconditioned', 'aircondition'] },
+  { key: 'ac',           patterns: ['with ac', 'air condition', 'air-condition', 'air conditioned', 'airconditioned'] },
   { key: 'parking',      patterns: ['parking', 'car park', 'bike park'] },
-  { key: 'veg',          patterns: ['vegetarian', ' veg ', 'pure veg', 'veg food', 'veg only'] },
-  { key: 'non-veg',      patterns: ['non-veg', 'nonveg', 'non veg', 'chicken', 'meat'] },
+  { key: 'veg',          patterns: [' veg ', 'vegetarian', 'pure veg', 'veg food', 'veg only'] },
+  { key: 'non-veg',      patterns: ['non-veg', 'nonveg', 'non veg'] },
   { key: 'girls',        patterns: ['girls', 'for girls', 'girls only', 'ladies', 'female', 'women'] },
   { key: 'boys',         patterns: ['boys', 'for boys', 'boys only', 'gents', 'male only', 'men only'] },
   { key: 'trainer',      patterns: ['with trainer', 'personal trainer', 'trainer'] },
-  { key: 'pool',         patterns: ['swimming pool', 'with pool', 'pool'] },
-  { key: 'meals',        patterns: ['meals included', 'food included', 'with meals', 'with food', 'breakfast included'] },
+  { key: 'pool',         patterns: ['swimming pool', 'with pool', ' pool'] },
+  { key: 'meals',        patterns: ['meals included', 'food included', 'with meals', 'breakfast included'] },
   { key: '24hours',      patterns: ['24 hours', '24hr', '24/7', 'open 24', 'round the clock'] },
   { key: 'delivery',     patterns: ['delivery', 'home delivery'] },
   { key: 'takeaway',     patterns: ['takeaway', 'take away', 'takeout', 'take-away'] },
@@ -193,79 +86,58 @@ const CONDITION_RULES: ConditionRule[] = [
   { key: 'rooftop',      patterns: ['rooftop', 'roof top', 'terrace'] },
   { key: 'outdoor',      patterns: ['outdoor', 'open air', 'alfresco'] },
   { key: 'indoor',       patterns: ['indoor'] },
-  { key: 'emergency',    patterns: ['emergency', 'urgent care'] },
-  { key: 'dental',       patterns: ['dental', 'dentist'] },
   { key: 'pet-friendly', patterns: ['pet friendly', 'pets allowed', 'pet allowed'] },
-  { key: 'cctv',         patterns: ['cctv', 'security camera', 'surveillance'] },
+  { key: 'cctv',         patterns: ['cctv', 'surveillance'] },
   { key: 'laundry',      patterns: ['laundry', 'washing'] },
   { key: 'hot-water',    patterns: ['hot water', 'geyser'] },
   { key: 'furnished',    patterns: ['furnished', 'fully furnished'] },
 ];
 
 function detectConditions(query: string): string[] {
-  const lower = query.toLowerCase();
-  return CONDITION_RULES
-    .filter(({ patterns }) => patterns.some((p) => lower.includes(p)))
-    .map(({ key }) => key);
+  const s = ` ${query.toLowerCase()} `;
+  return CONDITION_RULES.filter(({ patterns }) => patterns.some((p) => s.includes(p))).map(({ key }) => key);
 }
 
-// ─── Condition checking ───────────────────────────────────────────────────────
+// ─── Condition checkers ───────────────────────────────────────────────────────
 
-type BizExt = Business & { address?: string; landmark?: string };
+type Biz = Business & { address?: string; landmark?: string; meals?: boolean };
 
-function buildHaystack(b: BizExt): string {
+function haystack(b: Biz): string {
   return [b.tags, b.amenities, b.description, b.vibe_tags, b.cuisine,
-          JSON.stringify((b as BizExt & { custom_fields?: unknown }).custom_fields || {})]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+          JSON.stringify((b as Biz & { custom_fields?: unknown }).custom_fields || {})]
+    .filter(Boolean).join(' ').toLowerCase();
 }
 
-function inHaystack(haystack: string, terms: string[]): boolean {
-  return terms.some((t) => haystack.includes(t));
+function has(h: string, terms: string[]): boolean {
+  return terms.some((t) => h.includes(t));
 }
 
-type ConditionChecker = (b: BizExt, h: string) => boolean;
-
-const CONDITION_CHECKERS: Record<string, ConditionChecker> = {
-  wifi:          (b, h) => b.wifi === true    || inHaystack(h, ['wifi', 'wi-fi']),
-  ac:            (b, h) => b.ac === true      || inHaystack(h, ['ac', 'air condition', 'aircondition']),
-  meals:         (b, h) => (b as BizExt & { meals?: boolean }).meals === true
-                          || inHaystack(h, ['meal', 'breakfast included', 'food included']),
-  girls:         (b, h) => (b.gender || '').toLowerCase().includes('girl')
-                          || (b.gender || '').toLowerCase().includes('female')
-                          || inHaystack(h, ['girls', 'female', 'ladies', 'women']),
-  boys:          (b, h) => (b.gender || '').toLowerCase().includes('boy')
-                          || (b.gender || '').toLowerCase().includes('male')
-                          || inHaystack(h, ['boys', 'gents', 'male']),
-  trainer:       (_b, h) => inHaystack(h, ['trainer', 'personal trainer', 'coaching']),
-  pool:          (_b, h) => inHaystack(h, ['pool', 'swimming']),
-  parking:       (_b, h) => inHaystack(h, ['parking', 'car park', 'bike park']),
-  veg:           (b, h) => (b.cuisine || '').toLowerCase().includes('veg')
-                          || inHaystack(h, ['vegetarian', 'pure veg', ' veg ']),
-  'non-veg':     (_b, h) => inHaystack(h, ['non-veg', 'nonveg', 'chicken', 'meat']),
-  '24hours':     (b, h) => (b.opening_hours || '').includes('24')
-                          || inHaystack(h, ['24 hour', '24hr', '24/7', 'round the clock']),
-  delivery:      (_b, h) => inHaystack(h, ['delivery']),
-  takeaway:      (_b, h) => inHaystack(h, ['takeaway', 'take away', 'takeout']),
-  'dine-in':     (_b, h) => inHaystack(h, ['dine-in', 'dine in', 'dining']),
-  rooftop:       (_b, h) => inHaystack(h, ['rooftop', 'roof top', 'terrace']),
-  outdoor:       (_b, h) => inHaystack(h, ['outdoor', 'open air']),
-  indoor:        (_b, h) => inHaystack(h, ['indoor']),
-  emergency:     (_b, h) => inHaystack(h, ['emergency', 'urgent care']),
-  dental:        (_b, h) => inHaystack(h, ['dental', 'dentist']),
-  'pet-friendly':(_b, h) => inHaystack(h, ['pet friendly', 'pets allowed', 'pet allowed']),
-  cctv:          (_b, h) => inHaystack(h, ['cctv', 'security camera', 'surveillance']),
-  laundry:       (_b, h) => inHaystack(h, ['laundry', 'washing']),
-  'hot-water':   (_b, h) => inHaystack(h, ['hot water', 'geyser']),
-  furnished:     (_b, h) => inHaystack(h, ['furnished']),
+const CHECKERS: Record<string, (b: Biz, h: string) => boolean> = {
+  wifi:          (b, h) => b.wifi === true    || has(h, ['wifi', 'wi-fi']),
+  ac:            (b, h) => b.ac === true      || has(h, ['ac', 'air condition']),
+  meals:         (b, h) => b.meals === true   || has(h, ['meal', 'breakfast']),
+  girls:         (b, h) => /girl|female/i.test(b.gender || '') || has(h, ['girls', 'female', 'ladies', 'women']),
+  boys:          (b, h) => /boy|^male/i.test(b.gender || '') || has(h, ['boys', 'gents']),
+  trainer:       (_b, h) => has(h, ['trainer', 'personal trainer']),
+  pool:          (_b, h) => has(h, ['pool', 'swimming']),
+  parking:       (_b, h) => has(h, ['parking', 'car park']),
+  veg:           (b, h) => /veg/i.test(b.cuisine || '') || has(h, ['vegetarian', 'pure veg']),
+  'non-veg':     (_b, h) => has(h, ['non-veg', 'nonveg', 'chicken', 'meat']),
+  '24hours':     (b, h) => (b.opening_hours || '').includes('24') || has(h, ['24 hour', '24/7']),
+  delivery:      (_b, h) => has(h, ['delivery']),
+  takeaway:      (_b, h) => has(h, ['takeaway', 'take away', 'takeout']),
+  'dine-in':     (_b, h) => has(h, ['dine-in', 'dine in', 'dining']),
+  rooftop:       (_b, h) => has(h, ['rooftop', 'roof top', 'terrace']),
+  outdoor:       (_b, h) => has(h, ['outdoor', 'open air']),
+  indoor:        (_b, h) => has(h, ['indoor']),
+  'pet-friendly':(_b, h) => has(h, ['pet friendly', 'pets allowed']),
+  cctv:          (_b, h) => has(h, ['cctv', 'surveillance']),
+  laundry:       (_b, h) => has(h, ['laundry', 'washing']),
+  'hot-water':   (_b, h) => has(h, ['hot water', 'geyser']),
+  furnished:     (_b, h) => has(h, ['furnished']),
 };
 
-function passesConditions(
-  b: BizExt,
-  conditions: string[],
-  price: { max?: number; min?: number } | null
-): boolean {
+function passes(b: Biz, conditions: string[], price: { max?: number; min?: number } | null): boolean {
   if (price) {
     const pm = b.price_min != null ? Number(b.price_min) : null;
     if (pm == null) return false;
@@ -273,187 +145,114 @@ function passesConditions(
     if (price.min && pm < price.min) return false;
   }
   if (conditions.length > 0) {
-    const h = buildHaystack(b);
-    for (const key of conditions) {
-      const check = CONDITION_CHECKERS[key];
-      if (check && !check(b, h)) return false;
+    const h = haystack(b);
+    for (const k of conditions) {
+      const fn = CHECKERS[k];
+      if (fn && !fn(b, h)) return false;
     }
   }
   return true;
 }
 
-// ─── Plan sorting ─────────────────────────────────────────────────────────────
+// ─── Plan sort ────────────────────────────────────────────────────────────────
 
-const PLAN_ORDER: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
+const PLAN_RANK: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
 
-function byPlan(businesses: Business[]): Business[] {
-  return [...businesses].sort((a, b) => {
-    const ra = PLAN_ORDER[(a.plan || 'basic').toLowerCase()] ?? 3;
-    const rb = PLAN_ORDER[(b.plan || 'basic').toLowerCase()] ?? 3;
+function byPlan(list: Business[]): Business[] {
+  return [...list].sort((a, b) => {
+    const ra = PLAN_RANK[(a.plan || 'basic').toLowerCase()] ?? 3;
+    const rb = PLAN_RANK[(b.plan || 'basic').toLowerCase()] ?? 3;
     return ra - rb;
   });
 }
 
-// ─── DB fetch helpers ─────────────────────────────────────────────────────────
+// ─── DB helpers ───────────────────────────────────────────────────────────────
 
-const SELECT_COLS =
+// Columns that actually exist in the businesses table schema
+const COLS =
   'id,name,category,city,description,photos,plan,opening_hours,' +
   'price_range,price_min,is_verified,tags,amenities,vibe_tags,cuisine,' +
-  'wifi,ac,meals,gender,custom_fields,phone,whatsapp,address,landmark';
+  'wifi,ac,meals,gender,custom_fields,phone,whatsapp,address,landmark,slug';
 
-/** ilike OR clause across text columns for a set of keywords. */
-function keywordOrClause(keywords: string[]): string {
-  // 'category' is included so keyword fallback finds businesses by category slug
-  // (e.g. if loadMeta returns empty, searching "cafe" still hits category='cafe')
-  const TEXT_COLS = ['name', 'category', 'description', 'city', 'tags', 'address'];
+// Text columns searched with ilike. Include 'category' so "cafe" hits category='cafe'.
+const SEARCH_COLS = ['name', 'category', 'description', 'city', 'tags', 'address'];
+
+function ilikeClauses(keywords: string[]): string {
   const parts: string[] = [];
-  for (const kw of keywords.slice(0, 12)) {
+  for (const kw of keywords.slice(0, 10)) {
     const esc = kw.replace(/%/g, '\\%').replace(/_/g, '\\_');
-    for (const col of TEXT_COLS) parts.push(`${col}.ilike.%${esc}%`);
+    for (const col of SEARCH_COLS) parts.push(`${col}.ilike.%${esc}%`);
   }
   return parts.join(',');
 }
 
-/** Client-side: does this business text contain any of the keywords? */
-function matchesKeywords(b: BizExt, keywords: string[]): boolean {
-  const hay = [b.name, b.description, b.tags, b.address, b.landmark]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  return keywords.some((k) => hay.includes(k));
-}
+type ServiceClient = ReturnType<typeof getServiceClient>;
 
-/**
- * Fetch all businesses in the given categories (+ optional city).
- * Keywords are applied client-side as a soft filter: if any match, prefer
- * those; otherwise return all in the category.
- */
-async function fetchByCategory(
-  client: ServiceClient,
-  city: string | null,
-  cats: string[],
-  keywords: string[]
-): Promise<Business[]> {
-  let q = client
-    .from('businesses')
-    .select(SELECT_COLS)
-    .or('is_active.eq.true,is_active.is.null');
-
-  if (city) q = q.eq('city', city);
-  if (cats.length === 1) q = q.eq('category', cats[0]);
-  else                   q = q.in('category', cats);
-
-  const { data, error } = await q;
-  if (error) { console.error('fetchByCategory error:', error); return []; }
-
-  const all = ((data as unknown) as BizExt[]) || [];
-  if (keywords.length === 0) return all;
-
-  const matched = all.filter((b) => matchesKeywords(b, keywords));
-  return matched.length > 0 ? matched : all; // soft: fall back to all if nothing matched
-}
-
-/**
- * Keyword ilike search across text columns.
- * Used when no category is detected.
- */
-async function fetchByKeywords(
+async function runQuery(
   client: ServiceClient,
   city: string | null,
   keywords: string[]
 ): Promise<Business[]> {
-  if (keywords.length === 0) return [];
-
   let q = client
     .from('businesses')
-    .select(SELECT_COLS)
+    .select(COLS)
     .or('is_active.eq.true,is_active.is.null');
 
   if (city) q = q.eq('city', city);
 
-  const clause = keywordOrClause(keywords);
-  if (clause) q = q.or(clause);
+  if (keywords.length > 0) {
+    const clause = ilikeClauses(keywords);
+    if (clause) q = q.or(clause);
+  }
 
   const { data, error } = await q;
-  if (error) { console.error('fetchByKeywords error:', error); return []; }
+  if (error) {
+    console.error('[search] DB error:', JSON.stringify(error));
+    return [];
+  }
   return ((data as unknown) as Business[]) || [];
 }
 
-// ─── Related results ──────────────────────────────────────────────────────────
-//
-// Strips price and condition words from the query, then re-runs the search
-// without those constraints. Used when the main search returns nothing.
+// ─── Strip conditions/price from query for related-results fallback ────────────
 
-const CONDITION_STRIP_PHRASES = [
-  // Prices
+const STRIP_PATTERNS: (RegExp | string)[] = [
   /(?:under|below|less\s+than)\s*(?:₹|rs\.?|rupees?)?\s*\d+(?:\.\d+)?k?/gi,
   /\b(?:cheap|budget|affordable)\b/gi,
-  // Multi-word conditions (most specific first)
   'with personal trainer', 'personal trainer',
   'for girls only', 'girls only', 'for girls',
   'for boys only', 'boys only', 'for boys',
   'swimming pool', 'with pool',
-  'meals included', 'food included', 'breakfast included', 'with meals', 'with food',
-  'pet friendly', 'pets allowed', 'pet allowed',
-  'fully furnished', 'with hot water', 'hot water',
+  'meals included', 'food included', 'breakfast included', 'with meals',
+  'pet friendly', 'pets allowed', 'fully furnished', 'with hot water', 'hot water',
   'air conditioned', 'air conditioning', 'air condition', 'with ac',
-  'with wifi', 'with wi-fi', 'wi-fi', 'wi fi',
+  'with wifi', 'with wi-fi', 'wi-fi',
   'with parking', 'car park', 'bike park',
-  'round the clock', 'open 24', '24 hours', '24/7',
+  'round the clock', '24 hours', '24/7', '24hr',
   'home delivery', 'take away', 'take-away', 'takeout',
   'dine-in', 'dine in', 'open air', 'with rooftop', 'roof top',
-  'with laundry', 'with cctv', 'security camera', 'urgent care',
-  // Single-word conditions
   'with trainer', 'trainer', 'rooftop', 'outdoor', 'indoor',
-  'emergency', 'dental', 'dentist', 'furnished', 'laundry', 'cctv',
-  'wifi', 'parking', 'pool', '24hr', 'vegetarian', 'takeaway',
-  'delivery', 'dining', 'geyser', 'non-veg', 'nonveg',
+  'furnished', 'laundry', 'cctv', 'surveillance',
+  'wifi', 'parking', 'vegetarian', 'takeaway', 'delivery', 'geyser',
+  'non-veg', 'nonveg',
   'girls', 'boys', 'ladies', 'female', 'male', 'gents',
-] as const;
+];
 
 export function stripConditions(query: string): string {
   let s = query.toLowerCase();
-  for (const rule of CONDITION_STRIP_PHRASES) {
-    if (rule instanceof RegExp) s = s.replace(rule, ' ');
-    else                        s = s.split(rule).join(' ');
+  for (const p of STRIP_PATTERNS) {
+    if (p instanceof RegExp) s = s.replace(p, ' ');
+    else s = s.split(p).join(' ');
   }
   return s.replace(/\s{2,}/g, ' ').trim();
 }
 
-async function fetchRelated(
-  client: ServiceClient,
-  meta: DbMeta,
-  cleanQuery: string,
-  city: string | null
-): Promise<Business[]> {
-  const stripped = stripConditions(cleanQuery);
-  const cats = detectCategories(stripped, meta.categories);
-  const kws  = stripped
+function extractKeywords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
     .split(/\s+/)
     .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
-
-  if (!cats && kws.length === 0) return [];
-
-  let results: Business[];
-  if (cats) {
-    // Build keyword list excluding words that are already the category
-    const catWords = new Set(cats.map((c) => c.toLowerCase()));
-    const extraKws = kws.filter((w) => !catWords.has(w));
-    results = await fetchByCategory(client, city, cats, extraKws);
-  } else {
-    results = await fetchByKeywords(client, city, kws);
-  }
-  return byPlan(results);
-}
-
-// ─── Typo fallback ────────────────────────────────────────────────────────────
-
-function shortenLast(query: string, n: number): string {
-  const parts = query.trim().split(/\s+/);
-  const last  = parts[parts.length - 1];
-  if (last.length - n < 3) return query; // don't shorten too far
-  const shortened = last.slice(0, -n);
-  return [...parts.slice(0, -1), shortened].join(' ');
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
@@ -470,117 +269,73 @@ export async function searchBusinesses(
 }> {
   const client = getServiceClient();
 
-  // Load DB metadata (categories + cities) — cached
-  const meta = await loadMeta(client);
+  const detectedCity   = detectCity(query);
+  const activeCity     = cityFilter || detectedCity || null;
+  const priceCondition = detectPriceCondition(query);
+  const conditions     = detectConditions(query);
+  const detectedPrice  = priceCondition?.detectedPrice ?? null;
 
-  // ── Detect intent ──
-  const detectedCity    = detectCity(query, meta.cities);
-  const activeCity      = cityFilter || detectedCity;
-  const priceCondition  = detectPriceCondition(query);
-  const conditions      = detectConditions(query);
-  const detectedPrice   = priceCondition?.detectedPrice ?? null;
-
-  // Strip city from query so it doesn't pollute keyword matching
+  // Strip detected city from query before keyword extraction
   let cleanQuery = query.trim();
   if (detectedCity) {
     cleanQuery = cleanQuery.replace(new RegExp(detectedCity, 'gi'), '').trim();
   }
 
-  // Detect category slugs and remaining keywords
-  const detectedCats = detectCategories(cleanQuery, meta.categories);
+  const keywords = extractKeywords(cleanQuery);
 
-  // Keywords: words that are ≥2 chars, not stop words, not the detected category slug itself
-  const catSlugSet = new Set((detectedCats || []).map((c) => c.toLowerCase()));
-  const keywords = cleanQuery
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .split(/\s+/)
-    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w) && !catSlugSet.has(w));
-
-  // ── Edge case: completely empty query ──
-  if (!cleanQuery && !activeCity) {
+  // Nothing to search
+  if (!keywords.length && !activeCity) {
     return { businesses: [], detectedCity, detectedPrice };
   }
 
-  // ── Main fetch ──
-  let businesses: Business[];
+  // ── Fetch ──
+  let results = await runQuery(client, activeCity, keywords);
 
-  if (detectedCats && detectedCats.length > 0) {
-    businesses = await fetchByCategory(client, activeCity, detectedCats, keywords);
-  } else if (keywords.length > 0) {
-    businesses = await fetchByKeywords(client, activeCity, keywords);
-  } else if (activeCity) {
-    // Only a city was given — return all businesses in that city
-    const { data } = await client
-      .from('businesses')
-      .select(SELECT_COLS)
-      .or('is_active.eq.true,is_active.is.null')
-      .eq('city', activeCity);
-    businesses = ((data as unknown) as Business[]) || [];
-  } else {
-    return { businesses: [], detectedCity, detectedPrice };
-  }
-
-  // ── Price filter (hard) ──
+  // ── Price filter (hard — return related if nothing passes) ──
   if (priceCondition) {
-    const priceFiltered = businesses.filter((b) => passesConditions(b as BizExt, [], priceCondition));
+    const priceFiltered = results.filter((b) => passes(b as Biz, [], priceCondition));
     if (priceFiltered.length === 0) {
-      const relatedResults = await fetchRelated(client, meta, cleanQuery, activeCity);
-      return { businesses: [], detectedCity, detectedPrice, relatedResults };
+      const related = await runQuery(client, activeCity, extractKeywords(stripConditions(cleanQuery)));
+      return { businesses: [], detectedCity, detectedPrice, relatedResults: byPlan(related) };
     }
-    businesses = priceFiltered;
+    results = priceFiltered;
   }
 
-  // ── Condition filter (hard) ──
+  // ── Condition filter (hard — return related if nothing passes) ──
   if (conditions.length > 0) {
-    const condFiltered = businesses.filter((b) => passesConditions(b as BizExt, conditions, null));
+    const condFiltered = results.filter((b) => passes(b as Biz, conditions, null));
     if (condFiltered.length === 0) {
-      const relatedResults = await fetchRelated(client, meta, cleanQuery, activeCity);
-      return { businesses: [], detectedCity, detectedPrice, relatedResults };
+      const related = await runQuery(client, activeCity, extractKeywords(stripConditions(cleanQuery)));
+      return { businesses: [], detectedCity, detectedPrice, relatedResults: byPlan(related) };
     }
-    businesses = condFiltered;
+    results = condFiltered;
   }
 
-  // ── Typo fallback ──
-  let correctedQuery: string | undefined;
-  if (businesses.length === 0 && cleanQuery.length >= 4) {
+  // ── Typo fallback (shorten last word) ──
+  if (results.length === 0 && cleanQuery.length >= 4) {
     for (const n of [2, 3]) {
-      const short = shortenLast(cleanQuery, n);
-      if (short === cleanQuery) continue;
-
-      const shortCats = detectCategories(short, meta.categories);
-      const shortKws  = short
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w) => w.length >= 2 && !STOP_WORDS.has(w) && !(shortCats || []).map((c) => c.toLowerCase()).includes(w));
-
-      let fallback: Business[];
-      if (shortCats && shortCats.length > 0) {
-        fallback = await fetchByCategory(client, activeCity, shortCats, shortKws);
-      } else if (shortKws.length > 0) {
-        fallback = await fetchByKeywords(client, activeCity, shortKws);
-      } else continue;
-
-      if (priceCondition) fallback = fallback.filter((b) => passesConditions(b as BizExt, [], priceCondition));
-      if (conditions.length > 0) fallback = fallback.filter((b) => passesConditions(b as BizExt, conditions, null));
-
+      const parts = cleanQuery.trim().split(/\s+/);
+      const last  = parts[parts.length - 1];
+      if (last.length - n < 3) continue;
+      const shortened = [...parts.slice(0, -1), last.slice(0, -n)].join(' ');
+      const shortKws  = extractKeywords(shortened);
+      if (!shortKws.length) continue;
+      let fallback = await runQuery(client, activeCity, shortKws);
+      if (priceCondition) fallback = fallback.filter((b) => passes(b as Biz, [], priceCondition));
+      if (conditions.length > 0) fallback = fallback.filter((b) => passes(b as Biz, conditions, null));
       if (fallback.length > 0) {
-        businesses = fallback;
-        correctedQuery = short;
-        break;
+        return { businesses: byPlan(fallback), detectedCity, correctedQuery: shortened, detectedPrice };
       }
     }
   }
 
-  // ── No results ──
-  if (businesses.length === 0) {
-    const relatedResults =
-      conditions.length > 0 || priceCondition
-        ? await fetchRelated(client, meta, cleanQuery, activeCity)
-        : undefined;
-    return { businesses: [], detectedCity, correctedQuery, detectedPrice, relatedResults };
+  if (results.length === 0) {
+    const hadFilters = conditions.length > 0 || priceCondition !== null;
+    const relatedResults = hadFilters
+      ? byPlan(await runQuery(client, activeCity, extractKeywords(stripConditions(cleanQuery))))
+      : undefined;
+    return { businesses: [], detectedCity, detectedPrice, relatedResults };
   }
 
-  return { businesses: byPlan(businesses), detectedCity, correctedQuery, detectedPrice };
+  return { businesses: byPlan(results), detectedCity, detectedPrice };
 }
