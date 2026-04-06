@@ -49,33 +49,32 @@ const META_TTL_MS = 10 * 60 * 1000; // 10 minutes
 async function loadMeta(client: ServiceClient): Promise<DbMeta> {
   if (_meta && Date.now() - _meta.loadedAt < META_TTL_MS) return _meta;
 
-  const [catsRes, citiesRes] = await Promise.all([
-    client
-      .from('businesses')
-      .select('category')
-      .not('category', 'is', null)
-      .or('is_active.eq.true,is_active.is.null'),
-    client
-      .from('businesses')
-      .select('city')
-      .not('city', 'is', null)
-      .or('is_active.eq.true,is_active.is.null'),
-  ]);
+  try {
+    const [catsRes, citiesRes] = await Promise.all([
+      client.from('businesses').select('category').or('is_active.eq.true,is_active.is.null'),
+      client.from('businesses').select('city').or('is_active.eq.true,is_active.is.null'),
+    ]);
 
-  const categories = [
-    ...new Set(
-      (catsRes.data || []).map((r: { category: string }) => r.category).filter(Boolean)
-    ),
-  ] as string[];
+    const categories = [
+      ...new Set(
+        (catsRes.data || []).map((r: { category: string }) => r.category).filter(Boolean)
+      ),
+    ] as string[];
 
-  const cities = [
-    ...new Set(
-      (citiesRes.data || []).map((r: { city: string }) => r.city).filter(Boolean)
-    ),
-  ] as string[];
+    const cities = [
+      ...new Set(
+        (citiesRes.data || []).map((r: { city: string }) => r.city).filter(Boolean)
+      ),
+    ] as string[];
 
-  _meta = { categories, cities, loadedAt: Date.now() };
-  return _meta;
+    _meta = { categories, cities, loadedAt: Date.now() };
+  } catch (err) {
+    console.error('loadMeta failed:', err);
+    // Return stale cache if available, or empty (keyword search will still work)
+    if (!_meta) _meta = { categories: [], cities: [], loadedAt: Date.now() };
+  }
+
+  return _meta!;
 }
 
 // ─── Stop words ───────────────────────────────────────────────────────────────
@@ -212,7 +211,7 @@ function detectConditions(query: string): string[] {
 
 // ─── Condition checking ───────────────────────────────────────────────────────
 
-type BizExt = Business & { area?: string; address?: string; landmark?: string };
+type BizExt = Business & { address?: string; landmark?: string };
 
 function buildHaystack(b: BizExt): string {
   return [b.tags, b.amenities, b.description, b.vibe_tags, b.cuisine,
@@ -298,13 +297,15 @@ function byPlan(businesses: Business[]): Business[] {
 // ─── DB fetch helpers ─────────────────────────────────────────────────────────
 
 const SELECT_COLS =
-  'id,name,category,city,area,description,photos,plan,opening_hours,' +
+  'id,name,category,city,description,photos,plan,opening_hours,' +
   'price_range,price_min,is_verified,tags,amenities,vibe_tags,cuisine,' +
   'wifi,ac,meals,gender,custom_fields,phone,whatsapp,address,landmark';
 
 /** ilike OR clause across text columns for a set of keywords. */
 function keywordOrClause(keywords: string[]): string {
-  const TEXT_COLS = ['name', 'description', 'city', 'area', 'tags'];
+  // 'category' is included so keyword fallback finds businesses by category slug
+  // (e.g. if loadMeta returns empty, searching "cafe" still hits category='cafe')
+  const TEXT_COLS = ['name', 'category', 'description', 'city', 'tags', 'address'];
   const parts: string[] = [];
   for (const kw of keywords.slice(0, 12)) {
     const esc = kw.replace(/%/g, '\\%').replace(/_/g, '\\_');
@@ -315,7 +316,7 @@ function keywordOrClause(keywords: string[]): string {
 
 /** Client-side: does this business text contain any of the keywords? */
 function matchesKeywords(b: BizExt, keywords: string[]): boolean {
-  const hay = [b.name, b.area, b.description, b.tags, b.address, b.landmark]
+  const hay = [b.name, b.description, b.tags, b.address, b.landmark]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
