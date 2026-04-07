@@ -342,7 +342,10 @@ async function fetchByCategory(
   if (cats.length === 1) q = q.eq('category', cats[0]);
   else                   q = q.in('category', cats);
 
+  console.log('[fetchByCategory] city:', city, '| cats:', cats);
   const { data, error } = await q;
+  console.log('[fetchByCategory] rows returned:', data?.length ?? 0, '| error:', error);
+  if (data && data.length > 0) console.log('[fetchByCategory] first row category/city:', (data[0] as {category:string,city:string}).category, '/', (data[0] as {category:string,city:string}).city);
   if (error) { console.error('fetchByCategory error:', error); return []; }
 
   const all = ((data as unknown) as BizExt[]) || [];
@@ -496,6 +499,13 @@ export async function searchBusinesses(
     .replace(/\p{M}/gu, '')
     .split(/\s+/)
     .filter((w) => w.length >= 2 && !STOP_WORDS.has(w) && !catSlugSet.has(w));
+
+  console.log('[search] query:', query);
+  console.log('[search] cleanQuery:', cleanQuery);
+  console.log('[search] detectedCity:', detectedCity, '| activeCity:', activeCity);
+  console.log('[search] detectedCats:', detectedCats);
+  console.log('[search] keywords:', keywords);
+  console.log('[search] meta.categories sample:', meta.categories.slice(0, 10));
 
   // ── Edge case: completely empty query ──
   if (!cleanQuery && !activeCity) {
