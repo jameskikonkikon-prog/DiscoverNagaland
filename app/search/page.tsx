@@ -264,7 +264,7 @@ function SearchPageInner() {
                 </p>
                 {relatedResults.length > 0 ? (
                   <>
-                    <p className="zero-results-sub">Here are some related businesses{activeCity ? ` in ${activeCity}` : ''} you might like:</p>
+                    <p className="zero-results-sub">You might also like{activeCity ? ` — businesses in ${activeCity}` : ''}:</p>
                     <div className="results-grid">
                       {relatedResults.map((biz) => {
                         const isPlus = (biz.plan || "").toLowerCase() === "plus";
@@ -310,15 +310,9 @@ function SearchPageInner() {
                   </>
                 ) : (
                   <>
-                    <p className="did-you-mean-label">Did you mean:</p>
+                    <p className="did-you-mean-label">Try searching for:</p>
                     <div className="popular-chips">
-                      {DID_YOU_MEAN.slice(0, 3).map((label) => (
-                        <button key={label} type="button" className="chip-btn" onClick={() => { setQuery(label); doSearch(label, selectedCity); }}>{label}</button>
-                      ))}
-                    </div>
-                    <p className="popular-label">Popular searches:</p>
-                    <div className="popular-chips">
-                      {POPULAR_SEARCHES.map((label) => (
+                      {TRENDING_CHIPS.map((label) => (
                         <button key={label} type="button" className="chip-btn" onClick={() => { setQuery(label); doSearch(label, selectedCity); }}>{label}</button>
                       ))}
                     </div>

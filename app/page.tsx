@@ -210,7 +210,7 @@ export default function HomePage() {
       const { data: allActive } = await supabase
         .from('businesses')
         .select('category, city')
-        .eq('is_active', true);
+        .or('is_active.eq.true,is_active.is.null');
 
       const list = allActive || [];
       setTotalBusinesses(list.length);
