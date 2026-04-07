@@ -39,7 +39,6 @@ function SearchPageInner() {
   const [filterPremium, setFilterPremium] = useState(false);
   const [filterVerified, setFilterVerified] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
 
   const DID_YOU_MEAN = ["Cafés", "Restaurants", "Gyms", "PG & Hostels", "Turfs & Sports", "Study Spaces"];
@@ -47,10 +46,6 @@ function SearchPageInner() {
   const TRENDING_CHIPS = ["Cafes Kohima", "PG rooms", "Gyms", "Turfs", "Hotels Dimapur", "Study space"];
 
   const searchParams = useSearchParams();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     const q = searchParams.get("q") || "";
@@ -162,10 +157,6 @@ function SearchPageInner() {
     return `tel:${biz.phone}`;
   }
 
-  if (!mounted) {
-    return <div style={{ background: '#0a0a0a', minHeight: '100vh' }} />;
-  }
-
   return (
     <>
       <style>{styles}</style>
@@ -179,9 +170,7 @@ function SearchPageInner() {
             </div>
           </Link>
           <div style={{ flex: 1 }} />
-          {!mounted ? (
-            <span className="list-avatar list-avatar-placeholder" aria-hidden="true" />
-          ) : loggedIn ? (
+          {loggedIn ? (
             <>
               <Link href="/account" className="list-btn">My Account</Link>
               <Link href="/account" className="list-avatar" aria-label="My account">

@@ -120,12 +120,14 @@ function detectCategories(query: string, dbCategories: string[]): string[] | nul
 
   for (const cat of dbCategories) {
     const catNorm = normalize(cat);
-    const catParts = catNorm.split(/[_\-]+/).filter((p) => p.length >= 2);
+    // Split on underscores, hyphens, spaces, & and commas so "PG & Hostels" → ["pg","hostels"]
+    const catParts = catNorm.split(/[_\-\s&,]+/).filter((p) => p.length >= 2);
 
     for (const w of words) {
       if (w.length === 2) {
-        // 2-char words: exact full-slug match only (prevents "ac" hitting "coaching")
-        if (catNorm === w) matched.add(cat);
+        // 2-char words: exact full-slug OR exact single-part match
+        // (allows "pg" → "PG & Hostels" but blocks "ac" → "coaching")
+        if (catNorm === w || catParts.some((p) => p === w)) matched.add(cat);
       } else {
         // 3+ char words: match against parts of the slug
         if (
