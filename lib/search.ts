@@ -231,8 +231,7 @@ type ConditionChecker = (b: BizExt, h: string) => boolean;
 const CONDITION_CHECKERS: Record<string, ConditionChecker> = {
   wifi:          (b, h) => b.wifi === true    || inHaystack(h, ['wifi', 'wi-fi']),
   ac:            (b, h) => b.ac === true      || inHaystack(h, ['ac', 'air condition', 'aircondition']),
-  meals:         (b, h) => (b as BizExt & { meals?: boolean }).meals === true
-                          || inHaystack(h, ['meal', 'breakfast included', 'food included']),
+  meals:         (_b, h) => inHaystack(h, ['meal', 'breakfast included', 'food included']),
   girls:         (b, h) => (b.gender || '').toLowerCase().includes('girl')
                           || (b.gender || '').toLowerCase().includes('female')
                           || inHaystack(h, ['girls', 'female', 'ladies', 'women']),
@@ -300,7 +299,7 @@ function byPlan(businesses: Business[]): Business[] {
 const SELECT_COLS =
   'id,name,category,city,area,description,photos,plan,opening_hours,' +
   'price_range,price_min,is_verified,tags,amenities,vibe_tags,cuisine,' +
-  'wifi,ac,meals,gender,custom_fields,phone,whatsapp,address,landmark';
+  'wifi,ac,gender,custom_fields,phone,whatsapp,address,landmark';
 
 /** ilike OR clause across text columns for a set of keywords. */
 function keywordOrClause(keywords: string[]): string {
