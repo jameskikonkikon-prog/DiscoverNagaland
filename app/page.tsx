@@ -161,7 +161,7 @@ export default function HomePage() {
       const { data: planRows } = await supabase
         .from('businesses')
         .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
-        .eq('is_active', true)
+        .or('is_active.eq.true,is_active.is.null')
         .eq('plan', 'plus')
         .order('created_at', { ascending: false })
         .limit(8);
@@ -196,7 +196,7 @@ export default function HomePage() {
       const { data: recent } = await supabase
         .from('businesses')
         .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
-        .eq('is_active', true)
+        .or('is_active.eq.true,is_active.is.null')
         .order('created_at', { ascending: false })
         .limit(18);
       // Mobile "Recently listed" — top 5 by created_at (before plan-sort)
