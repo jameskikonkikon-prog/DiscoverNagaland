@@ -159,7 +159,7 @@ export default function HomePage() {
       const { data: planRows } = await supabase
         .from('businesses')
         .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
-        .or('is_active.eq.true,is_active.is.null')
+        .eq('is_active', true)
         .eq('plan', 'plus')
         .order('created_at', { ascending: false })
         .limit(8);
@@ -194,7 +194,7 @@ export default function HomePage() {
       const { data: recent } = await supabase
         .from('businesses')
         .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
-        .or('is_active.eq.true,is_active.is.null')
+        .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(18);
       // Mobile "Recently listed" — top 5 by created_at (before plan-sort)
@@ -483,19 +483,19 @@ export default function HomePage() {
           {categories.length > 0 && (
             <>
               <div className="sec-head">
-                <span className="sec-title">Browse by Category</span>
-                <button className="sec-more" onClick={() => quickSearch('')}>All →</button>
+                <span className="sec-title">Categories</span>
+                <button className="sec-more" onClick={() => quickSearch('')}>Browse all →</button>
               </div>
-              <div className="cat-grid">
+              <div className="categories-wrap">
                 {categories.map(({ category, count }) => (
                   <button
                     key={category}
-                    className="cat-tile"
+                    className="category-chip"
                     onClick={() => quickSearch(category)}
                   >
-                    <span className="cat-tile-emoji">{getCategoryEmoji(category)}</span>
-                    <span className="cat-tile-name">{category}</span>
-                    <span className="cat-tile-count">{count}</span>
+                    <span className="category-emoji">{getCategoryEmoji(category)}</span>
+                    <span className="category-name">{category}</span>
+                    <span className="category-count">{count}</span>
                   </button>
                 ))}
               </div>
@@ -519,18 +519,13 @@ export default function HomePage() {
                     ) : (
                       getCategoryEmoji(biz.category)
                     )}
+                    {isVerified && <span className="recent-verified-badge">✓ Verified</span>}
                   </div>
                   <div className="recent-info">
-                    <div className="recent-top-row">
-                      <span className="recent-name">{biz.name}</span>
-                      {isVerified && <span className="recent-verified-pill">✓ Verified</span>}
-                    </div>
-                    <div className="recent-cat-row">
-                      <span className="recent-cat-badge">{getCategoryEmoji(biz.category)} {biz.category}</span>
-                      {biz.price_range && <span className="recent-price">{biz.price_range}</span>}
-                    </div>
+                    <div className="recent-name">{biz.name}</div>
                     <div className="recent-meta">
-                      📍 {[biz.area, biz.city].filter(Boolean).join(', ') || biz.city}
+                      {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {isVerified ? '✅ ' : ''}{biz.category}
+                      {biz.price_range ? ` · ${biz.price_range}` : ''}
                     </div>
                   </div>
                   <span className={`rbadge ${badge.cls}`}>{badge.label}</span>
@@ -544,7 +539,7 @@ export default function HomePage() {
         <div className="sidebar">
           {/* LIVE STATS */}
           <div className="sec-head"><span className="sec-title">Platform stats</span></div>
-          <div className="live-row"><div className="live-dot" />Updated live</div>
+          <div className="live-row"><div className="live-dot" />From Supabase</div>
           <div className="stats-grid stats-three">
             <div className="stat s1">
               <div className="stat-icon">🏪</div>
@@ -1088,72 +1083,58 @@ const pageStyles = `
   .tag-green{background:var(--green-bg);color:var(--green);}
   .tag-dim{background:rgba(255,255,255,0.06);color:var(--muted);}
 
-  /* ── RECENT LIST (horizontal scroll) ── */
-  .recent-list{
-    display:flex;flex-direction:row;gap:10px;
-    overflow-x:auto;margin-bottom:28px;
-    padding-bottom:4px;scrollbar-width:none;
-  }
-  .recent-list::-webkit-scrollbar{display:none;}
+  /* ── RECENT LIST ── */
+  .recent-list{display:flex;flex-direction:column;gap:8px;margin-bottom:28px;}
   .recent{
     background:var(--bg2);border:1px solid var(--border);
-    border-radius:12px;padding:12px;
-    display:flex;flex-direction:column;gap:8px;
+    border-radius:10px;padding:12px 14px;
+    display:flex;align-items:center;gap:12px;
     cursor:pointer;transition:all 0.15s;
     text-decoration:none;color:inherit;
-    flex-shrink:0;width:180px;
   }
   .recent:hover{background:var(--bg3);border-color:var(--border2);}
-  .recent-plus{border-top:2px solid var(--red);}
+  .recent-plus{border-color:rgba(192,57,43,0.3);}
+  .recent-plus:hover{border-color:rgba(192,57,43,0.5);}
   .recent-photo{
-    width:100%;height:90px;
-    background:var(--bg3);border-radius:8px;
-    display:grid;place-items:center;font-size:28px;
-    border:1px solid var(--border);
+    width:44px;height:44px;
+    background:var(--bg3);border-radius:10px;
+    display:grid;place-items:center;font-size:20px;
+    flex-shrink:0;border:1px solid var(--border);
     overflow:hidden;position:relative;
   }
-  .recent-photo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:7px;}
-  .recent-info{flex:1;min-width:0;}
-  .recent-top-row{display:flex;align-items:flex-start;justify-content:space-between;gap:4px;margin-bottom:4px;}
-  .recent-name{font-size:12.5px;font-weight:700;color:var(--white);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
-  .recent-verified-pill{
-    flex-shrink:0;font-size:8.5px;font-weight:700;
+  .recent-photo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
+  .recent-verified-badge{
+    position:absolute;bottom:3px;left:3px;
     padding:2px 5px;border-radius:999px;
-    background:rgba(212,175,55,0.12);color:#d4af37;
-    border:1px solid rgba(212,175,55,0.3);
+    background:white;
+    color:#b8860b;
+    border:1.5px solid #d4af37;
+    box-shadow:0 2px 8px rgba(212,175,55,0.3);
+    font-size:8px;font-weight:700;
+    font-family:'Sora',sans-serif;
     white-space:nowrap;
   }
-  .recent-cat-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
-  .recent-cat-badge{
-    font-size:10.5px;font-weight:500;color:var(--off);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
-  .recent-price{font-size:10.5px;color:#25d366;font-weight:600;margin-left:auto;}
-  .recent-meta{font-size:10.5px;color:var(--muted);}
-  .recent-right{display:none;}
-  .rbadge{font-size:9.5px;padding:2px 7px;border-radius:4px;font-weight:700;white-space:nowrap;display:inline-block;margin-top:2px;}
+  .recent-info{flex:1;min-width:0;}
+  .recent-name{font-size:13px;font-weight:600;color:var(--white);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .recent-meta{font-size:11.5px;color:var(--muted);font-weight:300;}
+  .rbadge{font-size:10px;padding:3px 8px;border-radius:4px;font-weight:700;white-space:nowrap;flex-shrink:0;}
   .r-new{background:var(--red-bg);color:var(--red);}
   .r-hot{background:var(--gold-bg);color:var(--gold);}
   .r-verified{background:var(--green-bg);color:var(--green);}
 
-  /* ── CATEGORIES GRID (compact) ── */
-  .cat-grid{
-    display:grid;grid-template-columns:repeat(5,1fr);
-    gap:7px;margin-bottom:28px;
-  }
-  .cat-tile{
-    display:flex;flex-direction:column;align-items:center;
-    gap:3px;padding:9px 6px 8px;
+  /* ── CATEGORIES ── */
+  .categories-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;}
+  .category-chip{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:8px 14px;
     background:var(--bg2);border:1px solid var(--border);
-    border-radius:9px;cursor:pointer;transition:all 0.15s;
-    font-family:'Sora',sans-serif;text-align:center;
+    border-radius:10px;cursor:pointer;transition:all 0.15s;
+    font-family:'Sora',sans-serif;font-size:12px;color:var(--off);
   }
-  .cat-tile:hover{
-    background:var(--bg3);border-color:rgba(192,57,43,0.4);
-  }
-  .cat-tile-emoji{font-size:16px;line-height:1;}
-  .cat-tile-name{font-size:10px;font-weight:600;color:var(--white);line-height:1.3;word-break:break-word;}
-  .cat-tile-count{font-size:9.5px;color:var(--muted);}
+  .category-chip:hover{background:var(--bg3);border-color:var(--border2);color:var(--white);}
+  .category-emoji{font-size:14px;}
+  .category-name{font-weight:500;}
+  .category-count{font-size:11px;color:var(--muted);margin-left:2px;}
 
   /* ── SIDEBAR ── */
   .sidebar{}
