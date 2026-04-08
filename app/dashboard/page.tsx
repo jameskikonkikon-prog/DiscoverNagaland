@@ -82,7 +82,7 @@ export default function DashboardPage() {
   const [userEmail,    setUserEmail]    = useState<string>('')
   const [business,     setBusiness]     = useState<Business | null>(null)
   const [analytics,    setAnalytics]    = useState<Analytics | null>(null)
-  const [activeTab,    setActiveTab]    = useState<'overview' | 'listing' | 'ai' | 'analytics' | 'billing'>('overview')
+  const [activeTab,    setActiveTab]    = useState<'overview' | 'listing' | 'billing'>('overview')
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [loading,      setLoading]      = useState(true)
   const [upgrading,    setUpgrading]    = useState<string | null>(null)
@@ -375,10 +375,8 @@ export default function DashboardPage() {
           <nav className="sidebar-nav">
             <div className="nav-label">Dashboard</div>
             {([
-              { key:'overview',   icon:'📊', label:'Overview'    },
-              { key:'listing',    icon:'🏪', label:'My Listing'  },
-              { key:'ai',         icon:'🤖', label:'AI Tools'    },
-              { key:'analytics',  icon:'📈', label:'Analytics'   },
+              { key:'overview',   icon:'📊', label:'Overview'   },
+              { key:'listing',    icon:'🏪', label:'My Listing' },
             ] as const).map(item => (
               <button key={item.key}
                 className={`nav-item${activeTab === item.key ? ' active' : ''}`}
@@ -439,211 +437,111 @@ export default function DashboardPage() {
           ════════════════════════════════════════════════════════════ */}
           {activeTab === 'overview' && <>
 
-            {/* UPGRADE HOOK — free plan only */}
-            {!isPro && (
-              <div className="upgrade-hook" onClick={() => setActiveTab('billing')}>
-                <div className="hook-left">
-                  <span className="hook-emoji">🚀</span>
-                  <div>
-                    <div className="hook-title">Get more customers with Pro</div>
-                    <div className="hook-sub">
-                      Pro businesses get a <span>Verified badge</span>, appear first in search, and are featured on the homepage.
-                    </div>
-                  </div>
+            {/* STATS ROW — visible to all users */}
+            <div className="stats-row">
+              {[
+                { icon:'📞', label:'Total Calls',       value: leadCalls,  sub:'All time' },
+                { icon:'💬', label:'WhatsApp Clicks',   value: leadWa,     sub:'All time' },
+                { icon:'👁️', label:'Listing Views',     value: leadViews,  sub:'All time' },
+                { icon:'📊', label:'Leads This Month',  value: leadMonth,  sub:'Calls + WhatsApp' },
+              ].map((s, i) => (
+                <div key={i} className="stat-card">
+                  <div className="stat-icon">{s.icon}</div>
+                  <div className="stat-label">{s.label}</div>
+                  <div className="stat-value">{s.value.toLocaleString()}</div>
+                  <div className="stat-change" style={{ color:'var(--muted)' }}>{s.sub}</div>
                 </div>
-                <div className="hook-stats">
-                  <div className="hook-stat"><div className="val">₹499</div><div className="lbl">Per month</div></div>
-                </div>
-                <button className="red-btn">See Plans →</button>
-              </div>
-            )}
-
-            {/* PRO BANNER */}
-            {isPro && (
-              <div className="banner gold-banner">
-                <span>✅</span>
-                <div>
-                  <div className="banner-title">Yana Pro — Verified</div>
-                  <div className="banner-sub">Your listing has a Verified badge and appears first in search results.</div>
-                </div>
-              </div>
-            )}
-
-            {/* STATS ROW */}
-            {isPro ? (
-              <div className="stats-row">
-                <div className="stat-card">
-                  <div className="stat-icon">📞</div>
-                  <div className="stat-label">Total Calls</div>
-                  <div className="stat-value">{leadCalls.toLocaleString()}</div>
-                  <div className="stat-change" style={{ color: 'var(--muted)' }}>All time</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-icon">💬</div>
-                  <div className="stat-label">WhatsApp Clicks</div>
-                  <div className="stat-value">{leadWa.toLocaleString()}</div>
-                  <div className="stat-change" style={{ color: 'var(--muted)' }}>All time</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-icon">📊</div>
-                  <div className="stat-label">Leads This Month</div>
-                  <div className="stat-value">{leadMonth.toLocaleString()}</div>
-                  <div className="stat-change" style={{ color: 'var(--muted)' }}>Calls + WhatsApp</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-icon">👁️</div>
-                  <div className="stat-label">Listing Views</div>
-                  <div className="stat-value">{leadViews.toLocaleString()}</div>
-                  <div className="stat-change" style={{ color: 'var(--muted)' }}>All time</div>
-                </div>
-              </div>
-            ) : (
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', marginBottom: 24, fontSize: 13, color: 'var(--muted)', cursor: 'pointer' }} onClick={() => setActiveTab('billing')}>
-                🔒 <strong style={{ color: 'var(--text)' }}>Upgrade to Pro</strong> to see who&apos;s contacting you — calls, WhatsApp clicks, and listing views.
-              </div>
-            )}
-
-            {/* TWO COL */}
-            <div className="two-col">
-
-              {/* LISTING HEALTH */}
-              <div className="card">
-                <div className="card-header">
-                  <div>
-                    <div className="card-title">Listing Health</div>
-                    <div className="card-sub">Complete your profile to rank higher</div>
-                  </div>
-                  <button className="card-action" onClick={() => setActiveTab('listing')}>Fix Now →</button>
-                </div>
-                <div className="health-wrap">
-                  <div className="health-ring">
-                    <svg width="80" height="80" viewBox="0 0 80 80">
-                      <circle className="ring-bg" cx="40" cy="40" r="30"/>
-                      <circle className="ring-fg" cx="40" cy="40" r="30"
-                        style={{ strokeDashoffset: 188 - (188 * health.score) / 100 }}/>
-                    </svg>
-                    <div className="health-center">
-                      <div className="health-pct">{health.score}%</div>
-                      <div className="health-lbl">Complete</div>
-                    </div>
-                  </div>
-                  <div className="health-tips">
-                    <h4>Improve your listing:</h4>
-                    {health.tips.map((tip, i) => (
-                      <div key={i} className="tip-row" style={tip.done ? { color:'#27ae60' } : {}}>
-                        <div className="tip-dot" style={tip.done ? { background:'#27ae60' } : {}}/>
-                        {tip.text}{tip.done ? ' ✓' : ''}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* AI TOOLS */}
-              <div className="card">
-                <div className="card-header">
-                  <div>
-                    <div className="card-title">AI Tools</div>
-                    <div className="card-sub">Let AI grow your business</div>
-                  </div>
-                </div>
-                <div className="ai-grid">
-                  {[
-                    { icon:'✍️', name:'Write Description', desc: isPro ? 'Unlimited' : 'One free use',  locked: false, badge: null as string | null },
-                    { icon:'📈', name:'Growth Advisor',    desc: isPro ? 'Weekly' : 'One free use',     locked: false, badge: null },
-                    { icon:'💬', name:'Review Analyser',   desc:'Analyse your customer reviews',        locked: !isPro,  badge: 'Pro' },
-                    { icon:'📱', name:'Social Media Helper', desc:'Generate captions in one click',     locked: !isPro,  badge: 'Pro' },
-                    { icon:'📋', name:'Menu / Catalogue QR',       desc:'Format your menu with AI',             locked: !isPro,  badge: 'Pro' },
-                    { icon:'🔍', name:'Competitor Intel',  desc:'Beat the competition',                 locked: !isPro, badge: 'Pro' },
-                  ].map((tool, i) => (
-                    <div key={i} className={`ai-tool${tool.locked ? ' locked' : ''}`}
-                      onClick={() => !tool.locked && setActiveTab('ai')}>
-                      <span className="ai-icon">{tool.icon}</span>
-                      <div>
-                        <div className="ai-name">{tool.name}</div>
-                        <div className="ai-desc">{tool.desc}</div>
-                      </div>
-                      {tool.locked && <span className="lock-badge">🔒 Upgrade</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* LISTING PREVIEW */}
-              <div className="card">
-                <div className="card-header">
-                  <div>
-                    <div className="card-title">Your Listing</div>
-                    <div className="card-sub">What customers see</div>
-                  </div>
-                  <button className="card-action" onClick={() => setActiveTab('listing')}>Edit →</button>
-                </div>
-                {business ? (
-                  <div className="listing-preview">
-                    <div className="biz-name">
-                      {business.name}
-                      {isPro && (
-                        <span className="verified-badge gold">✅ Verified</span>
-                      )}
-                    </div>
-                    <div className="biz-cat">{business.category}{location ? ` · ${location}` : ''}</div>
-                    <div className="listing-fields">
-                      {[
-                        { label:'Phone',       value: business.phone },
-                        { label:'WhatsApp',    value: business.whatsapp },
-                        { label:'Price',       value: business.price_range },
-                        { label:'Hours',       value: business.opening_hours },
-                        { label:'Photos',      value: business.photos?.length ? `${business.photos.length} / ${maxPhotos === Infinity ? '∞' : maxPhotos}` : `0 / ${maxPhotos === Infinity ? '∞' : maxPhotos}` },
-                        { label:'Description', value: business.description ? (business.description.length > 48 ? business.description.slice(0, 48).replace(/\s\S*$/, '') + '…' : business.description) : null },
-                      ].map((f, i) => (
-                        <div key={i} className="lf-row">
-                          <span className="lf-label">{f.label}</span>
-                          <span className={`lf-value${!f.value ? ' missing' : ''}`}>{f.value ?? 'Not added'}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <button className="edit-btn" onClick={() => setActiveTab('listing')}>✏️ Edit Full Listing</button>
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <div style={{ fontSize:32 }}>🏪</div>
-                    <div>No listing yet</div>
-                    <a href="/dashboard/add-listing" className="red-btn" style={{ textDecoration:'none', display:'inline-block', marginTop:12, padding:'8px 18px', fontSize:13 }}>
-                      + Add Your Business
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              {/* WEEKLY ANALYTICS */}
-              <div className="card">
-                <div className="card-header">
-                  <div>
-                    <div className="card-title">Weekly Analytics</div>
-                    <div className="card-sub">Profile views this week</div>
-                  </div>
-                </div>
-                <div className={isPro ? '' : 'locked-wrap'}>
-                  <div className="chart">
-                    {(analytics?.weekly_views ?? Array(7).fill(0)).map((v, i) => (
-                      <div key={i} className={`bar${i===6?' today':''}`}
-                        style={{ height:`${Math.max(6, (v / weekMax) * 100)}%` }}
-                        title={`${weekDays[i]}: ${v} views`}/>
-                    ))}
-                  </div>
-                  <div className="chart-labels">
-                    {weekDays.map(d => <div key={d} className="chart-label">{d}</div>)}
-                  </div>
-                </div>
-                {!isPro && (
-                  <button className="red-btn" style={{ marginTop:14, width:'100%', padding:'10px' }}
-                    onClick={() => setActiveTab('billing')}>
-                    Unlock Analytics →
-                  </button>
-                )}
-              </div>
-
+              ))}
             </div>
+
+            {/* LISTING HEALTH — progress bar + checklist */}
+            <div className="card" style={{ marginBottom:16 }}>
+              <div className="card-header">
+                <div>
+                  <div className="card-title">Listing Health</div>
+                  <div className="card-sub">Complete your profile to rank higher in search</div>
+                </div>
+                <button className="card-action" onClick={() => setActiveTab('listing')}>Fix Now →</button>
+              </div>
+              <div className="health-bar-wrap">
+                <div className="health-bar-track">
+                  <div className="health-bar-fill" style={{ width:`${health.score}%` }} />
+                </div>
+                <span className="health-bar-pct">{health.score}%</span>
+              </div>
+              <div className="health-checklist">
+                {health.tips.map((tip, i) => (
+                  <div key={i} className={`hc-row${tip.done ? ' done' : ''}`}>
+                    <span className="hc-dot">{tip.done ? '✓' : '○'}</span>
+                    <span>{tip.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* PRO FEATURES — active for Pro, quiet locked cards for Free */}
+            <div className="pro-perks-row">
+              {PLANS.pro.features.slice(1).map((feature, i) => {
+                const icons = ['✅', '🏠', '⬆️']
+                return (
+                  <div key={i} className={`perk-card${isPro ? ' perk-active' : ''}`}>
+                    <span className="perk-icon">{icons[i] ?? '⭐'}</span>
+                    <div className="perk-body">
+                      <div className="perk-name">{feature}</div>
+                      {isPro
+                        ? <div className="perk-status">Active</div>
+                        : <button className="perk-upgrade" onClick={() => setActiveTab('billing')}>Upgrade to Pro →</button>
+                      }
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* YOUR LISTING PREVIEW */}
+            <div className="card">
+              <div className="card-header">
+                <div>
+                  <div className="card-title">Your Listing</div>
+                  <div className="card-sub">What customers see</div>
+                </div>
+                <button className="card-action" onClick={() => setActiveTab('listing')}>Edit →</button>
+              </div>
+              {business ? (
+                <div className="listing-preview">
+                  <div className="biz-name">
+                    {business.name}
+                    {isPro && <span className="verified-badge gold">✅ Verified</span>}
+                  </div>
+                  <div className="biz-cat">{business.category}{location ? ` · ${location}` : ''}</div>
+                  <div className="listing-fields">
+                    {[
+                      { label:'Phone',       value: business.phone },
+                      { label:'WhatsApp',    value: business.whatsapp },
+                      { label:'Price',       value: business.price_range },
+                      { label:'Hours',       value: business.opening_hours },
+                      { label:'Photos',      value: business.photos?.length ? `${business.photos.length} / ${maxPhotos === Infinity ? '∞' : maxPhotos}` : `0 / ${maxPhotos === Infinity ? '∞' : maxPhotos}` },
+                      { label:'Description', value: business.description ? (business.description.length > 48 ? business.description.slice(0, 48).replace(/\s\S*$/, '') + '…' : business.description) : null },
+                    ].map((f, i) => (
+                      <div key={i} className="lf-row">
+                        <span className="lf-label">{f.label}</span>
+                        <span className={`lf-value${!f.value ? ' missing' : ''}`}>{f.value ?? 'Not added'}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button className="edit-btn" onClick={() => setActiveTab('listing')}>✏️ Edit Full Listing</button>
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div style={{ fontSize:32 }}>🏪</div>
+                  <div>No listing yet</div>
+                  <a href="/dashboard/add-listing" className="red-btn" style={{ textDecoration:'none', display:'inline-block', marginTop:12, padding:'8px 18px', fontSize:13 }}>
+                    + Add Your Business
+                  </a>
+                </div>
+              )}
+            </div>
+
           </>}
 
           {/* ════════════════════════════════════════════════════════════
@@ -702,120 +600,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ════════════════════════════════════════════════════════════
-              AI TOOLS TAB
-          ════════════════════════════════════════════════════════════ */}
-          {activeTab === 'ai' && (
-            <>
-              <div className="card" style={{ marginBottom:16 }}>
-                <div className="card-header">
-                  <div>
-                    <div className="card-title">AI Tools</div>
-                    <div className="card-sub">Powered by Claude</div>
-                  </div>
-                </div>
-                <div className="ai-grid">
-                  {[
-                    { icon:'✍️', name:'Write Description',  desc:'AI writes your business description',                                        locked:false,   href:'/dashboard/ai-tools/write-description' },
-                    { icon:'📈', name:'Growth Advisor',      desc:'5 personalised tips for your business',                                      locked:false,   href:'/dashboard/ai-tools/growth-advisor' },
-                    { icon:'💬', name:'Review Analyser',     desc:'AI reads your reviews and tells you what to improve',                        locked:!isPro,  href:'/dashboard/ai-tools/review-analyser' },
-                    { icon:'📱', name:'Social Media Helper', desc:'Generate captions for Instagram, Facebook & WhatsApp',                      locked:!isPro,  href:'/dashboard/ai-tools/social-media' },
-                    { icon:'🔍', name:'Competitor Intel',    desc:'Understand your competition in Nagaland',                                    locked:!isPro,  href:'/dashboard/ai-tools/competitor-intel' },
-                    { icon:'📋', name:'Menu / Catalogue QR',         desc:'AI reads your menu and generates a QR code',                                locked:!isPro,  href:'/dashboard/ai-tools/menu-reader' },
-                  ].map((tool, i) =>
-                    tool.locked ? (
-                      <div key={i} className="ai-tool locked">
-                        <span className="ai-icon">{tool.icon}</span>
-                        <div>
-                          <div className="ai-name">{tool.name}</div>
-                          <div className="ai-desc">{tool.desc}</div>
-                        </div>
-                        <span className="lock-badge">🔒 Upgrade</span>
-                      </div>
-                    ) : (
-                      <a key={i} href={tool.href} className="ai-tool" style={{ textDecoration:'none' }}>
-                        <span className="ai-icon">{tool.icon}</span>
-                        <div>
-                          <div className="ai-name">{tool.name}</div>
-                          <div className="ai-desc">{tool.desc}</div>
-                        </div>
-                      </a>
-                    )
-                  )}
-                </div>
-              </div>
-              {!isPro && (
-                <div className="upgrade-hook" onClick={() => setActiveTab('billing')}>
-                  <div className="hook-left">
-                    <span className="hook-emoji">🤖</span>
-                    <div>
-                      <div className="hook-title">Unlock all AI tools</div>
-                      <div className="hook-sub">Upgrade to Pro for full access to all AI tools — <span>₹499/month</span></div>
-                    </div>
-                  </div>
-                  <button className="red-btn">Upgrade →</button>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ════════════════════════════════════════════════════════════
-              ANALYTICS TAB
-          ════════════════════════════════════════════════════════════ */}
-          {activeTab === 'analytics' && (
-            <div className="card">
-              <div className="card-header">
-                <div>
-                  <div className="card-title">Analytics</div>
-                  <div className="card-sub">Views, clicks &amp; engagement</div>
-                </div>
-              </div>
-              {isPro ? (
-                <>
-                  <div className="stats-row" style={{ marginBottom:24 }}>
-                    {[
-                      { icon:'👁️', label:'Views today',       value: analytics?.views_today ?? 0 },
-                      { icon:'💬', label:'WhatsApp clicks',   value: analytics?.whatsapp_today ?? 0 },
-                      { icon:'📞', label:'Call clicks',       value: analytics?.calls_today ?? 0 },
-                      { icon:'🗺️', label:'Maps clicks',       value: analytics?.maps_today ?? 0 },
-                      { icon:'🔍', label:'Search appearances',value: analytics?.search_today ?? 0 },
-                      { icon:'📅', label:'Total views',       value: analytics?.total_views ?? 0 },
-                    ].map((s, i) => (
-                      <div key={i} className="stat-card">
-                        <div className="stat-icon">{s.icon}</div>
-                        <div className="stat-label">{s.label}</div>
-                        <div className="stat-value">{s.value.toLocaleString()}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ fontSize:13, fontWeight:600, marginBottom:10 }}>Profile Views — Last 7 Days</div>
-                  <div className="chart" style={{ height:160 }}>
-                    {(analytics?.weekly_views ?? Array(7).fill(0)).map((v, i) => (
-                      <div key={i} className={`bar${i===6?' today':''}`}
-                        style={{ height:`${Math.max(6, (v / weekMax) * 100)}%`, position:'relative' }}
-                        title={`${weekDays[i]}: ${v} views`}>
-                        <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', fontSize:9, color:'var(--muted)', whiteSpace:'nowrap' }}>
-                          {v}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="chart-labels">
-                    {weekDays.map(d => <div key={d} className="chart-label">{d}</div>)}
-                  </div>
-                </>
-              ) : (
-                <div className="empty-state" style={{ padding:'48px 0' }}>
-                  <div style={{ fontSize:40 }}>🔒</div>
-                  <div style={{ fontSize:15, fontWeight:700, margin:'10px 0 6px' }}>Analytics is a Pro feature</div>
-                  <div style={{ fontSize:13, color:'var(--muted)', marginBottom:20 }}>
-                    Analytics is included in the Pro plan — ₹499/month
-                  </div>
-                  <button className="red-btn" onClick={() => setActiveTab('billing')}>Upgrade to Pro →</button>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* ════════════════════════════════════════════════════════════
               BILLING TAB
@@ -958,13 +742,13 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 .banner-sub{font-size:12px;color:var(--muted);}
 
 /* STATS */
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;transition:all 0.2s;}
-.stat-card:hover{border-color:#333;transform:translateY(-1px);}
-.stat-icon{font-size:20px;margin-bottom:10px;}
-.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
-.stat-value{font-size:28px;font-weight:800;line-height:1;}
-.stat-change{font-size:11px;margin-top:4px;}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 18px;transition:all 0.2s;}
+.stat-card:hover{border-color:#333;}
+.stat-icon{font-size:22px;margin-bottom:12px;}
+.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
+.stat-value{font-size:32px;font-weight:800;line-height:1;letter-spacing:-1px;}
+.stat-change{font-size:11px;margin-top:6px;}
 
 /* GRID */
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
@@ -978,18 +762,24 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 .red-btn:hover{background:#e74c3c;}
 
 /* HEALTH */
-.health-wrap{display:flex;align-items:center;gap:20px;}
-.health-ring{position:relative;width:80px;height:80px;flex-shrink:0;}
-.health-ring svg{transform:rotate(-90deg);}
-.ring-bg{fill:none;stroke:var(--surface3);stroke-width:8;}
-.ring-fg{fill:none;stroke:var(--gold);stroke-width:8;stroke-linecap:round;stroke-dasharray:188;transition:stroke-dashoffset 0.6s ease;}
-.health-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
-.health-pct{font-size:18px;font-weight:800;color:var(--gold);}
-.health-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;}
-.health-tips{flex:1;}
-.health-tips h4{font-size:13px;font-weight:600;margin-bottom:8px;}
-.tip-row{display:flex;align-items:center;gap:8px;font-size:12px;color:#aaa;margin-bottom:6px;}
-.tip-dot{width:6px;height:6px;border-radius:50%;background:var(--red);flex-shrink:0;}
+.health-bar-wrap{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.health-bar-track{flex:1;height:8px;background:var(--surface3);border-radius:99px;overflow:hidden;}
+.health-bar-fill{height:100%;background:linear-gradient(90deg,var(--red),var(--gold));border-radius:99px;transition:width 0.6s ease;}
+.health-bar-pct{font-size:13px;font-weight:700;color:var(--gold);white-space:nowrap;}
+.health-checklist{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.hc-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:4px 0;}
+.hc-row.done{color:#27ae60;}
+.hc-dot{font-size:13px;font-weight:700;width:16px;text-align:center;flex-shrink:0;}
+
+/* PRO PERKS */
+.pro-perks-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
+.perk-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;align-items:flex-start;gap:12px;}
+.perk-card.perk-active{border-color:rgba(212,160,23,0.3);background:linear-gradient(135deg,#1a1500,#111);}
+.perk-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
+.perk-body{flex:1;min-width:0;}
+.perk-name{font-size:12px;font-weight:600;color:#ccc;margin-bottom:4px;line-height:1.3;}
+.perk-status{font-size:11px;color:var(--gold);font-weight:600;}
+.perk-upgrade{background:none;border:none;padding:0;font-size:11px;color:var(--muted);cursor:pointer;font-family:'Sora',sans-serif;text-align:left;text-decoration:underline;text-underline-offset:2px;}
 
 /* AI TOOLS */
 .ai-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
@@ -1041,16 +831,20 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
   .layout{display:block;}
   .sidebar{transform:translateX(-220px);transition:transform 0.25s ease;z-index:200;top:0;}
   .sidebar.open{transform:translateX(0);}
-  .main{margin-left:0;max-width:100vw;padding:16px 14px;}
+  .main{margin-left:0;max-width:100vw;padding:14px 12px;}
   .topbar{display:none;}
   .stats-row{grid-template-columns:repeat(2,1fr);gap:10px;}
   .stats-row .stat-card{grid-column:auto!important;}
+  .stat-card{padding:16px 14px;}
+  .stat-value{font-size:30px;letter-spacing:-0.5px;}
+  .stat-icon{font-size:18px;margin-bottom:8px;}
   .two-col{grid-template-columns:1fr;}
   .plan-grid{grid-template-columns:1fr;}
   .ai-grid{grid-template-columns:1fr;}
+  .pro-perks-row{grid-template-columns:1fr;}
+  .health-checklist{grid-template-columns:1fr;}
   .hook-stats{display:none;}
   .upgrade-hook{flex-direction:column;align-items:flex-start;gap:10px;}
-  .stat-value{font-size:22px;}
   .card{padding:16px;}
   .sk-sidebar{display:none!important;}
   .sk-main{margin-left:0!important;padding:16px!important;}

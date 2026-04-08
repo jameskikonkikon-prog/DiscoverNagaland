@@ -62,7 +62,6 @@ export const PLANS = {
     features: [
       'Everything in Free',
       'Yana Verified badge',
-      'Basic analytics',
       'Featured on homepage',
       'Priority in search rankings',
     ],
