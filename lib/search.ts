@@ -284,12 +284,13 @@ function passesConditions(
 
 // ─── Plan sorting ─────────────────────────────────────────────────────────────
 
-const PLAN_ORDER: Record<string, number> = { plus: 0, pro: 1, basic: 2 };
+// pro = highest priority; free = default; legacy values mapped to equivalent rank
+const PLAN_ORDER: Record<string, number> = { pro: 0, plus: 0, free: 1, basic: 1 };
 
 function byPlan(businesses: Business[]): Business[] {
   return [...businesses].sort((a, b) => {
-    const ra = PLAN_ORDER[(a.plan || 'basic').toLowerCase()] ?? 3;
-    const rb = PLAN_ORDER[(b.plan || 'basic').toLowerCase()] ?? 3;
+    const ra = PLAN_ORDER[(a.plan || 'free').toLowerCase()] ?? 2;
+    const rb = PLAN_ORDER[(b.plan || 'free').toLowerCase()] ?? 2;
     return ra - rb;
   });
 }

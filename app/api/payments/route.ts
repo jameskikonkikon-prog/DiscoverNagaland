@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getServiceClient } from '@/lib/supabase';
-import { PLANS, FOUNDING_MEMBER_LIMIT } from '@/types';
+import { PLANS } from '@/types';
 import Razorpay from 'razorpay';
 
 export async function POST(request: NextRequest) {
@@ -18,8 +18,8 @@ export async function POST(request: NextRequest) {
 
   const { businessId, plan } = await request.json();
 
-  if (!businessId || !plan || !['pro', 'plus'].includes(plan)) {
-    return NextResponse.json({ error: 'Invalid request. Plan must be pro or plus.' }, { status: 400 });
+  if (!businessId || plan !== 'pro') {
+    return NextResponse.json({ error: 'Invalid request. Only the Pro plan can be purchased.' }, { status: 400 });
   }
 
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
@@ -51,55 +51,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Pro plan: check if eligible for founding member (free Pro)
-    if (plan === 'pro') {
-      // Already a founding member (pro with no expiry)
-      if (business.plan === 'pro' && !business.plan_expires_at) {
-        return NextResponse.json({ error: 'You already have founding member Pro access.' }, { status: 400 });
-      }
-
-      // Early Access: first 100 on pro or plus get free Pro
-      const { count } = await serviceClient
-        .from('businesses')
-        .select('*', { count: 'exact', head: true })
-        .in('plan', ['pro', 'plus']);
-
-      if ((count || 0) < FOUNDING_MEMBER_LIMIT) {
-        // Grant free Pro as founding member
-        await serviceClient
-          .from('businesses')
-          .update({
-            plan: 'pro',
-            plan_expires_at: null, // no expiry for founding members
-          })
-          .eq('id', businessId);
-
-        return NextResponse.json({ foundingMember: true, spotsRemaining: FOUNDING_MEMBER_LIMIT - (count || 0) - 1 });
-      }
-
-      // No founding spots left — require payment
+    if (business.plan === 'pro' && business.plan_expires_at && new Date(business.plan_expires_at) > new Date()) {
+      return NextResponse.json({ error: 'You already have an active Pro subscription.' }, { status: 400 });
     }
 
-    // Calculate amount: differential pricing for Pro → Plus
-    let amount = PLANS[plan as 'pro' | 'plus'].priceInPaise;
-    let description = `${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan - Monthly`;
+    const amount = PLANS.pro.priceInPaise;
+    const description = 'Pro Plan — ₹499/month';
 
-    if (plan === 'plus' && business.plan === 'pro' && business.plan_expires_at) {
-      const expiresAt = new Date(business.plan_expires_at).getTime();
-      const now = Date.now();
-      const totalPeriod = 30 * 24 * 60 * 60 * 1000;
-      const remaining = Math.max(0, expiresAt - now);
-      const fractionRemaining = remaining / totalPeriod;
-
-      if (fractionRemaining > 0.01) {
-        const proCredit = Math.round(PLANS.pro.priceInPaise * fractionRemaining);
-        const plusFull = PLANS.plus.priceInPaise;
-        amount = Math.max(plusFull - proCredit, 100);
-        description = `Plus Plan Upgrade (Pro credit applied)`;
-      }
-    }
-
-    // Create Razorpay order
     const order = await razorpay.orders.create({
       amount,
       currency: 'INR',

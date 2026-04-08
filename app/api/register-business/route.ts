@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getServiceClient } from '@/lib/supabase';
-import { FOUNDING_MEMBER_LIMIT } from '@/types';
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,14 +42,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = getServiceClient();
 
-    // Check founding member spots
-    const { count } = await supabase
-      .from('businesses')
-      .select('*', { count: 'exact', head: true })
-      .eq('plan', 'pro')
-      .is('plan_expires_at', null);
-    const isFoundingMember = (count || 0) < FOUNDING_MEMBER_LIMIT;
-
     const { data, error } = await supabase.from('businesses').insert({
       name,
       slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
@@ -68,7 +59,7 @@ export async function POST(req: NextRequest) {
       amenities,
       photos,
       owner_id: user.id,
-      plan: isFoundingMember ? 'pro' : 'basic',
+      plan: 'free',
       is_active: true,
       is_verified: false,
     }).select().single();

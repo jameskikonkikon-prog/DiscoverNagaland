@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
-import { PLANS } from '@/types'
+import { PLANS, normalizePlan } from '@/types'
 
 declare global {
   interface Window {
@@ -13,7 +13,7 @@ declare global {
 }
 
 // ── TYPES ──────────────────────────────────────────────────────────────────
-type Plan = 'basic' | 'pro' | 'plus'
+type Plan = 'free' | 'pro'
 
 interface Business {
   id: string
@@ -82,8 +82,6 @@ export default function DashboardPage() {
   const [userEmail,    setUserEmail]    = useState<string>('')
   const [business,     setBusiness]     = useState<Business | null>(null)
   const [analytics,    setAnalytics]    = useState<Analytics | null>(null)
-  const [foundingLeft, setFoundingLeft] = useState<number>(100)
-  const [earlyAccessFull, setEarlyAccessFull] = useState<boolean>(false)
   const [activeTab,    setActiveTab]    = useState<'overview' | 'listing' | 'ai' | 'analytics' | 'billing'>('overview')
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [loading,      setLoading]      = useState(true)
@@ -177,12 +175,6 @@ export default function DashboardPage() {
         ).length)
       }
 
-      // Early Access spots from API (live from Supabase)
-      const spotsRes = await fetch('/api/founding-members')
-      const spotsData = await spotsRes.json().catch(() => ({}))
-      setFoundingLeft(Math.max(0, spotsData.remaining ?? spotsData.spotsRemaining ?? 100))
-      setEarlyAccessFull(!!spotsData.isFull)
-
       setLoading(false)
     }
     load()
@@ -206,16 +198,16 @@ export default function DashboardPage() {
     })
   }, [])
 
-  const handleUpgrade = useCallback(async (targetPlan: 'pro' | 'plus') => {
+  const handleUpgrade = useCallback(async () => {
     if (!business) return
-    setUpgrading(targetPlan)
+    setUpgrading('pro')
     setPaymentMsg(null)
 
     try {
       const res = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId: business.id, plan: targetPlan }),
+        body: JSON.stringify({ businessId: business.id, plan: 'pro' }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -224,15 +216,6 @@ export default function DashboardPage() {
         return
       }
 
-      // Founding member — already upgraded on server, update local state
-      if (data.foundingMember) {
-        setBusiness(prev => prev ? { ...prev, plan: 'pro', plan_expires_at: null } : prev)
-        setPaymentMsg({ text: `Founding member Pro activated! You're in the first ${100 - data.spotsRemaining}.`, ok: true })
-        setUpgrading(null)
-        return
-      }
-
-      // Regular payment via Razorpay
       await ensureRazorpayScript()
       const rzp = new window.Razorpay({
         key: data.key,
@@ -240,7 +223,7 @@ export default function DashboardPage() {
         currency: 'INR',
         order_id: data.order.id,
         name: 'Yana Nagaland',
-        description: data.description || `${targetPlan.charAt(0).toUpperCase() + targetPlan.slice(1)} Plan`,
+        description: 'Pro Plan — ₹499/month',
         theme: { color: '#c0392b' },
         handler: async (response: Record<string, string>) => {
           setPaymentMsg({ text: 'Verifying payment…', ok: true })
@@ -248,13 +231,13 @@ export default function DashboardPage() {
             const verifyRes = await fetch('/api/payments/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...response, businessId: business.id, plan: targetPlan }),
+              body: JSON.stringify({ ...response, businessId: business.id, plan: 'pro' }),
             })
             const verifyData = await verifyRes.json()
             if (!verifyRes.ok) throw new Error(verifyData.error || 'Verification failed')
             const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            setBusiness(prev => prev ? { ...prev, plan: targetPlan, plan_expires_at: expiresAt } : prev)
-            setPaymentMsg({ text: `Upgraded to ${targetPlan.charAt(0).toUpperCase() + targetPlan.slice(1)}!`, ok: true })
+            setBusiness(prev => prev ? { ...prev, plan: 'pro', plan_expires_at: expiresAt } : prev)
+            setPaymentMsg({ text: 'Upgraded to Pro!', ok: true })
           } catch (verifyErr) {
             setPaymentMsg({ text: verifyErr instanceof Error ? verifyErr.message : 'Verification failed. Contact support.', ok: false })
           }
@@ -270,11 +253,10 @@ export default function DashboardPage() {
   }, [business, ensureRazorpayScript])
 
   // ── HELPERS ───────────────────────────────────────────────────────────────
-  const plan    = (business?.plan ?? 'basic') as 'basic' | 'pro' | 'plus'
-  const isPro   = plan === 'pro' || plan === 'plus'
-  const isPlus  = plan === 'plus'
-  const health  = calcHealth(business)
-  const maxPhotos = typeof PLANS[plan]?.maxPhotos === 'number' ? PLANS[plan].maxPhotos : (plan === 'plus' ? Infinity : plan === 'pro' ? 10 : 2)
+  const plan      = normalizePlan(business?.plan)
+  const isPro     = plan === 'pro'
+  const health    = calcHealth(business)
+  const maxPhotos = PLANS[plan]?.maxPhotos ?? 5
   const canAddMorePhotos = (business?.photos?.length ?? 0) < maxPhotos
 
   const delta = (today: number, yesterday: number) => {
@@ -415,17 +397,15 @@ export default function DashboardPage() {
 
           <div className="sidebar-bottom">
             <div className="plan-pill">
-              <span className={`badge badge-${plan}`}>{plan}</span>
+              <span className={`badge badge-${plan}`}>{PLANS[plan].name}</span>
               <div className="plan-info">
                 <div className="plan-name">
-                  {plan === 'basic' ? 'Free Plan' : plan === 'pro' ? 'Pro Plan' : 'Plus Plan'}
+                  {isPro ? 'Pro Plan' : 'Free Plan'}
                 </div>
                 <div className="plan-sub">
-                  {plan === 'basic'
-                    ? 'Upgrade for more'
-                    : plan === 'pro'
+                  {isPro
                     ? `Expires ${business?.plan_expires_at ? new Date(business.plan_expires_at).toLocaleDateString() : '—'}`
-                    : 'All features unlocked'}
+                    : 'Upgrade for more'}
                 </div>
               </div>
             </div>
@@ -459,45 +439,32 @@ export default function DashboardPage() {
           ════════════════════════════════════════════════════════════ */}
           {activeTab === 'overview' && <>
 
-            {/* UPGRADE HOOK — basic only */}
-            {plan === 'basic' && (
+            {/* UPGRADE HOOK — free plan only */}
+            {!isPro && (
               <div className="upgrade-hook" onClick={() => setActiveTab('billing')}>
                 <div className="hook-left">
                   <span className="hook-emoji">🚀</span>
                   <div>
-                    <div className="hook-title">You're invisible to half your customers</div>
+                    <div className="hook-title">Get more customers with Pro</div>
                     <div className="hook-sub">
-                      Pro businesses rank <span>4x higher</span> in search.{' '}
-                      {earlyAccessFull ? <span>Pro now ₹299/month</span> : <span>Only {foundingLeft} Early Access spots left — Get Pro free for your first month</span>}
+                      Pro businesses get a <span>Verified badge</span>, appear first in search, and are featured on the homepage.
                     </div>
                   </div>
                 </div>
                 <div className="hook-stats">
-                  <div className="hook-stat"><div className="val">4x</div><div className="lbl">More clicks</div></div>
-                  <div className="hook-stat"><div className="val">{earlyAccessFull ? '₹299' : 'Free'}</div><div className="lbl">Right now</div></div>
+                  <div className="hook-stat"><div className="val">₹499</div><div className="lbl">Per month</div></div>
                 </div>
                 <button className="red-btn">See Plans →</button>
               </div>
             )}
 
-            {/* FOUNDING BANNER — pro */}
-            {plan === 'pro' && (
-              <div className="banner green-banner">
-                <span>🎖️</span>
-                <div>
-                  <div className="banner-title">Founding Member</div>
-                  <div className="banner-sub">You're one of the first 100 businesses on Yana Nagaland.</div>
-                </div>
-              </div>
-            )}
-
-            {/* PLUS BANNER */}
-            {isPlus && (
+            {/* PRO BANNER */}
+            {isPro && (
               <div className="banner gold-banner">
-                <span>⭐</span>
+                <span>✅</span>
                 <div>
-                  <div className="banner-title">Plus — Gold Verified</div>
-                  <div className="banner-sub">Your listing appears first in every search result.</div>
+                  <div className="banner-title">Yana Pro — Verified</div>
+                  <div className="banner-sub">Your listing has a Verified badge and appears first in search results.</div>
                 </div>
               </div>
             )}
@@ -587,7 +554,7 @@ export default function DashboardPage() {
                     { icon:'💬', name:'Review Analyser',   desc:'Analyse your customer reviews',        locked: !isPro,  badge: 'Pro' },
                     { icon:'📱', name:'Social Media Helper', desc:'Generate captions in one click',     locked: !isPro,  badge: 'Pro' },
                     { icon:'📋', name:'Menu / Catalogue QR',       desc:'Format your menu with AI',             locked: !isPro,  badge: 'Pro' },
-                    { icon:'🔍', name:'Competitor Intel',  desc:'Beat the competition',                 locked: !isPlus, badge: 'Plus' },
+                    { icon:'🔍', name:'Competitor Intel',  desc:'Beat the competition',                 locked: !isPro, badge: 'Pro' },
                   ].map((tool, i) => (
                     <div key={i} className={`ai-tool${tool.locked ? ' locked' : ''}`}
                       onClick={() => !tool.locked && setActiveTab('ai')}>
@@ -615,8 +582,8 @@ export default function DashboardPage() {
                   <div className="listing-preview">
                     <div className="biz-name">
                       {business.name}
-                      {isPlus && (
-                        <span className="verified-badge gold">⭐ Verified</span>
+                      {isPro && (
+                        <span className="verified-badge gold">✅ Verified</span>
                       )}
                     </div>
                     <div className="biz-cat">{business.category}{location ? ` · ${location}` : ''}</div>
@@ -753,8 +720,8 @@ export default function DashboardPage() {
                     { icon:'📈', name:'Growth Advisor',      desc:'5 personalised tips for your business',                                      locked:false,   href:'/dashboard/ai-tools/growth-advisor' },
                     { icon:'💬', name:'Review Analyser',     desc:'AI reads your reviews and tells you what to improve',                        locked:!isPro,  href:'/dashboard/ai-tools/review-analyser' },
                     { icon:'📱', name:'Social Media Helper', desc:'Generate captions for Instagram, Facebook & WhatsApp',                      locked:!isPro,  href:'/dashboard/ai-tools/social-media' },
-                    { icon:'🔍', name:'Competitor Intel',    desc:'Understand your competition in Nagaland',                                    locked:!isPlus, href:'/dashboard/ai-tools/competitor-intel' },
-                    { icon:'📋', name:'Menu / Catalogue QR',         desc:'AI reads your menu and generates a QR code',                                locked:!isPlus, href:'/dashboard/ai-tools/menu-reader' },
+                    { icon:'🔍', name:'Competitor Intel',    desc:'Understand your competition in Nagaland',                                    locked:!isPro,  href:'/dashboard/ai-tools/competitor-intel' },
+                    { icon:'📋', name:'Menu / Catalogue QR',         desc:'AI reads your menu and generates a QR code',                                locked:!isPro,  href:'/dashboard/ai-tools/menu-reader' },
                   ].map((tool, i) =>
                     tool.locked ? (
                       <div key={i} className="ai-tool locked">
@@ -783,10 +750,10 @@ export default function DashboardPage() {
                     <span className="hook-emoji">🤖</span>
                     <div>
                       <div className="hook-title">Unlock all AI tools</div>
-                      <div className="hook-sub">Pro gives unlimited AI. {earlyAccessFull ? <span>Pro now ₹299/month</span> : <span>Only {foundingLeft} Early Access spots left.</span>}</div>
+                      <div className="hook-sub">Upgrade to Pro for full access to all AI tools — <span>₹499/month</span></div>
                     </div>
                   </div>
-                  <button className="red-btn">{earlyAccessFull ? 'Upgrade →' : 'Upgrade Free →'}</button>
+                  <button className="red-btn">Upgrade →</button>
                 </div>
               )}
             </>
@@ -842,9 +809,9 @@ export default function DashboardPage() {
                   <div style={{ fontSize:40 }}>🔒</div>
                   <div style={{ fontSize:15, fontWeight:700, margin:'10px 0 6px' }}>Analytics is a Pro feature</div>
                   <div style={{ fontSize:13, color:'var(--muted)', marginBottom:20 }}>
-                    {earlyAccessFull ? 'Pro now ₹299/month' : `Only ${foundingLeft} Early Access spots left — Get Pro free for your first month`}
+                    Analytics is included in the Pro plan — ₹499/month
                   </div>
-                  <button className="red-btn" onClick={() => setActiveTab('billing')}>{earlyAccessFull ? 'Upgrade →' : 'Upgrade Free →'}</button>
+                  <button className="red-btn" onClick={() => setActiveTab('billing')}>Upgrade to Pro →</button>
                 </div>
               )}
             </div>
@@ -857,12 +824,12 @@ export default function DashboardPage() {
             <>
               <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Plan &amp; Billing</div>
               <div style={{ fontSize:13, color:'var(--muted)', marginBottom:24 }}>
-                You're on the{' '}
-                <strong style={{ color: isPlus ? 'var(--gold)' : isPro ? 'var(--red)' : '#888' }}>
-                  {plan.toUpperCase()}
+                You&apos;re on the{' '}
+                <strong style={{ color: isPro ? 'var(--gold)' : '#888' }}>
+                  {PLANS[plan].name}
                 </strong>{' '}
                 plan
-                {business?.plan_expires_at && !isPlus
+                {isPro && business?.plan_expires_at
                   ? ` · expires ${new Date(business.plan_expires_at).toLocaleDateString()}`
                   : ''}
               </div>
@@ -877,72 +844,47 @@ export default function DashboardPage() {
                 </div>
               )}
               <div className="plan-grid">
-                {([
-                  {
-                    key: 'basic',
-                    name: 'Basic',
-                    price: 'Free',
-                    sub: 'Forever',
-                    border: '1px solid var(--border)',
-                    features: ['Full listing', '2 photos', 'WhatsApp & Call', 'AI description once', 'AI growth advisor once'],
-                  },
-                  {
-                    key: 'pro',
-                    name: 'Pro',
-                    price: earlyAccessFull ? '₹299' : (foundingLeft > 0 ? 'Free*' : '₹299'),
-                    sub: earlyAccessFull ? '/month' : (foundingLeft > 0 ? 'founding members' : '/month'),
-                    border: '1px solid var(--red)',
-                    popular: true,
-                    features: ['Everything in Basic', '10 photos', 'Higher search ranking', 'Weekly analytics', 'AI description unlimited', 'AI menu / catalogue QR', 'AI growth advisor weekly'],
-                  },
-                  {
-                    key: 'plus',
-                    name: 'Plus',
-                    price: '₹499',
-                    sub: '/month',
-                    border: '1px solid var(--gold)',
-                    features: ['Everything in Pro', 'Unlimited photos', 'Always first in search', 'Gold verified badge', 'Featured on homepage', 'AI competitor intel', 'AI business report'],
-                  },
-                ] as const).map(p => (
-                  <div key={p.key} className="card" style={{ border: p.key === 'pro' ? '1px solid var(--red)' : p.key === 'plus' ? '1px solid var(--gold)' : '1px solid var(--border)', background: plan === p.key ? 'var(--surface2)' : undefined }}>
-                    {p.popular && <div style={{ fontSize:10, fontWeight:800, letterSpacing:1, color: 'var(--red)', marginBottom:8 }}>MOST POPULAR</div>}
-                    <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>{p.name}</div>
-                    <div style={{ fontSize:26, fontWeight:800, marginBottom: p.key === 'pro' ? 2 : 6, color: p.key === 'basic' ? '#888' : p.key === 'pro' ? 'var(--red)' : 'var(--gold)' }}>
-                      {p.price} <span style={{ fontSize:12, fontWeight:400, color: 'var(--muted)' }}>{p.sub}</span>
-                    </div>
-                    {p.key === 'pro' && (
-                      <div style={{ fontSize:11, color: 'var(--muted)', marginBottom:6 }}>₹199/mo after early access</div>
-                    )}
-                    {p.key === 'pro' && !earlyAccessFull && (
-                      <div style={{ marginBottom:12, fontSize:11, color: foundingLeft < 20 ? 'var(--red)' : 'var(--muted)', fontWeight:600 }}>
-                        🔥 Only {foundingLeft} Early Access spots left — Get Pro free for your first month
-                      </div>
-                    )}
-                    {p.key === 'pro' && earlyAccessFull && (
-                      <div style={{ marginBottom:12, fontSize:11, color: 'var(--muted)', fontWeight:600 }}>
-                        Early Access full — Pro now ₹299/month
-                      </div>
-                    )}
-                    <div style={{ borderBottom: '1px solid var(--border)', marginBottom: 12 }} />
-                    {p.features.map((f, i) => (
-                      <div key={i} style={{ fontSize: 12, color: '#ccc', marginBottom: 6 }}>✓ {f}</div>
-                    ))}
-                    <div style={{ marginTop: 16 }}>
-                      {plan === p.key ? (
-                        <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--green)', fontWeight: 700 }}>✓ Current Plan</div>
-                      ) : p.key === 'basic' ? null : (
-                        <button
-                          className="red-btn"
-                          style={{ width: '100%', padding: '10px', fontSize: 13 }}
-                          onClick={() => handleUpgrade(p.key as 'pro' | 'plus')}
-                          disabled={!!upgrading}
-                        >
-                          {upgrading === p.key ? 'Processing…' : (p.key === 'pro' && foundingLeft > 0 && !earlyAccessFull ? 'Claim Free Pro →' : 'Upgrade →')}
-                        </button>
-                      )}
-                    </div>
+                {/* FREE PLAN */}
+                <div className="card" style={{ border: !isPro ? '1px solid var(--red)' : '1px solid var(--border)', background: !isPro ? 'var(--surface2)' : undefined }}>
+                  <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Free</div>
+                  <div style={{ fontSize:26, fontWeight:800, marginBottom:6, color:'#888' }}>
+                    Free <span style={{ fontSize:12, fontWeight:400, color:'var(--muted)' }}>forever</span>
                   </div>
-                ))}
+                  <div style={{ borderBottom:'1px solid var(--border)', marginBottom:12 }} />
+                  {PLANS.free.features.map((f, i) => (
+                    <div key={i} style={{ fontSize:12, color:'#ccc', marginBottom:6 }}>✓ {f}</div>
+                  ))}
+                  <div style={{ marginTop:16 }}>
+                    {!isPro && <div style={{ textAlign:'center', fontSize:12, color:'var(--green)', fontWeight:700 }}>✓ Current Plan</div>}
+                  </div>
+                </div>
+
+                {/* PRO PLAN */}
+                <div className="card" style={{ border: isPro ? '1px solid var(--gold)' : '1px solid var(--red)', background: isPro ? 'var(--surface2)' : undefined }}>
+                  <div style={{ fontSize:10, fontWeight:800, letterSpacing:1, color:'var(--red)', marginBottom:8 }}>RECOMMENDED</div>
+                  <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Pro</div>
+                  <div style={{ fontSize:26, fontWeight:800, marginBottom:6, color:'var(--gold)' }}>
+                    ₹499 <span style={{ fontSize:12, fontWeight:400, color:'var(--muted)' }}>/month</span>
+                  </div>
+                  <div style={{ borderBottom:'1px solid var(--border)', marginBottom:12 }} />
+                  {PLANS.pro.features.map((f, i) => (
+                    <div key={i} style={{ fontSize:12, color:'#ccc', marginBottom:6 }}>✓ {f}</div>
+                  ))}
+                  <div style={{ marginTop:16 }}>
+                    {isPro ? (
+                      <div style={{ textAlign:'center', fontSize:12, color:'var(--green)', fontWeight:700 }}>✓ Current Plan</div>
+                    ) : (
+                      <button
+                        className="red-btn"
+                        style={{ width:'100%', padding:'10px', fontSize:13 }}
+                        onClick={handleUpgrade}
+                        disabled={!!upgrading}
+                      >
+                        {upgrading === 'pro' ? 'Processing…' : 'Upgrade to Pro →'}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </>
           )}
@@ -983,9 +925,8 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 .sidebar-bottom{padding:16px 12px;border-top:1px solid var(--border);}
 .plan-pill{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
 .badge{font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:0.5px;}
-.badge-basic{background:#333;color:#888;}
-.badge-pro{background:var(--red-soft);color:var(--red);border:1px solid rgba(192,57,43,0.3);}
-.badge-plus{background:var(--gold-soft);color:var(--gold);border:1px solid rgba(212,160,23,0.3);}
+.badge-free{background:#333;color:#888;}
+.badge-pro{background:var(--gold-soft);color:var(--gold);border:1px solid rgba(212,160,23,0.3);}
 .plan-info{flex:1;}
 .plan-name{font-size:12px;font-weight:600;}
 .plan-sub{font-size:10px;color:var(--muted);}
@@ -1027,7 +968,7 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 
 /* GRID */
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
-.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.plan-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;}
 .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
 .card-title{font-size:14px;font-weight:700;}

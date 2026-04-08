@@ -267,7 +267,7 @@ function SearchPageInner() {
                     <p className="zero-results-sub">You might also like{activeCity ? ` — businesses in ${activeCity}` : ''}:</p>
                     <div className="results-grid">
                       {relatedResults.map((biz) => {
-                        const isPlus = (biz.plan || "").toLowerCase() === "plus";
+                        const isPlus = !!biz.is_verified;
                         return (
                           <div key={biz.id} className={`biz-card${isPlus ? " biz-card-plus" : ""}`}>
                             <Link href={`/business/${biz.id}`} className="biz-card-link">

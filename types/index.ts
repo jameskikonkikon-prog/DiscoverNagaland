@@ -34,60 +34,62 @@ export const CATEGORIES = [
   'other',
 ] as const;
 
+/** @deprecated No longer used by the UI. Kept only to avoid breaking existing API routes until they are updated. */
 export const FOUNDING_MEMBER_LIMIT = 100;
 
+// ── Plan definitions — single source of truth ────────────────────────────────
+// All plan names, prices, photo limits, and feature lists live here.
+// Every part of the app that references plans pulls from this config.
+
 export const PLANS = {
-  basic: {
-    name: 'Basic',
+  free: {
+    name: 'Free',
     price: 0,
     priceInPaise: 0,
-    maxPhotos: 2,
-    maxVideos: 0,
+    maxPhotos: 5,
     features: [
-      'Full listing with all details',
-      '2 photos, no videos',
+      'Listed on Yana',
       'WhatsApp & Call buttons',
-      'Normal search position',
+      '5 photos',
+      'Opening hours',
     ],
   },
   pro: {
     name: 'Pro',
-    price: 299,
-    priceInPaise: 29900,
-    maxPhotos: 10,
-    maxVideos: 3,
-    features: [
-      'Everything in Basic',
-      '10 photos, 3 videos',
-      'AI-written description',
-      'AI menu/price list reader',
-      'View count & WhatsApp click analytics',
-      'Listing health score',
-      'Higher search ranking',
-    ],
-  },
-  plus: {
-    name: 'Plus',
     price: 499,
     priceInPaise: 49900,
     maxPhotos: Infinity,
-    maxVideos: Infinity,
     features: [
-      'Everything in Pro',
-      'Unlimited photos & videos',
-      'Verified Owner badge',
-      'Always appears first in search',
-      'Featured on homepage weekly',
-      'Vacancy alerts to saved users',
-      'QR code for your listing',
-      'Monthly performance report',
+      'Everything in Free',
+      'Yana Verified badge',
+      'Basic analytics',
+      'Featured on homepage',
+      'Priority in search rankings',
     ],
   },
 };
 
+export type PlanType = 'free' | 'pro';
+
+/**
+ * Maps legacy DB plan values to current plan keys.
+ * Use this wherever the DB plan value is read, until the migration has run.
+ *
+ * Migration rules:
+ *   old 'plus'  → new 'pro'   (keeps all Pro entitlements)
+ *   old 'basic' → new 'free'
+ *   old 'pro'   → new 'free'  (old Pro plan no longer exists)
+ */
+export function normalizePlan(plan: string | null | undefined): PlanType {
+  if (plan === 'plus') return 'pro';
+  if (plan === 'pro') return 'free';   // legacy — old Pro maps to Free after migration
+  if (plan === 'basic') return 'free';
+  if (plan === 'free' || plan === 'pro') return plan as PlanType;
+  return 'free';
+}
+
 export type City = typeof CITIES[number];
 export type Category = typeof CATEGORIES[number];
-export type PlanType = 'basic' | 'pro' | 'plus';
 
 export interface Business {
   id: string;
@@ -104,7 +106,7 @@ export interface Business {
   opening_hours?: string;
   photos?: string[];
   videos?: string[];
-  plan: PlanType;
+  plan: string;
   plan_expires_at?: string;
   trial_ends_at?: string;
   is_verified: boolean;
@@ -147,7 +149,7 @@ export interface Payment {
   razorpay_payment_id?: string;
   razorpay_subscription_id?: string;
   amount: number;
-  plan: PlanType;
+  plan: string;
   status: 'created' | 'paid' | 'failed';
   created_at: string;
 }

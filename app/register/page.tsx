@@ -390,7 +390,6 @@ export default function RegisterPage() {
   const [photos, setPhotos] = useState<File[]>([]);
   const [menuFile, setMenuFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [isFoundingMember, setIsFoundingMember] = useState(false);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
@@ -399,18 +398,6 @@ export default function RegisterPage() {
   const [otpError, setOtpError] = useState('');
   const [otpResending, setOtpResending] = useState(false);
   const [otpResent, setOtpResent] = useState(false);
-  const [foundingSpots, setFoundingSpots] = useState<number | null>(null);
-  const [earlyAccessFull, setEarlyAccessFull] = useState(false);
-
-  useEffect(() => {
-    fetch('/api/founding-members')
-      .then(r => r.json())
-      .then(data => {
-        setFoundingSpots(data.spotsRemaining ?? data.remaining ?? null);
-        setEarlyAccessFull(!!data.isFull);
-      })
-      .catch(() => {});
-  }, []);
 
   const update = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
   const updateCustom = (key: string, val: string | string[]) => setCustomFields(f => ({ ...f, [key]: val }));
@@ -629,18 +616,6 @@ export default function RegisterPage() {
             <span className="brand-naga">Nagaland</span>
           </a>
           <p>List Your Business — It&apos;s Free</p>
-          {foundingSpots !== null && (
-            <div style={{
-              marginTop: '8px',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              color: earlyAccessFull ? 'var(--muted)' : foundingSpots < 20 ? 'var(--red)' : '#4ade80',
-            }}>
-              {earlyAccessFull
-                ? 'Early Access full — Pro now ₹299/month'
-                : `🔥 Only ${foundingSpots} Early Access spots left — Get Pro free for your first month`}
-            </div>
-          )}
         </div>
 
         {/* STEPPER */}

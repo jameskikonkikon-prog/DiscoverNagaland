@@ -6,7 +6,7 @@ import crypto from 'crypto';
 export async function POST(request: NextRequest) {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = await request.json();
 
-  if (!['pro', 'plus'].includes(plan)) {
+  if (plan !== 'pro') {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
   }
 
@@ -45,21 +45,16 @@ export async function POST(request: NextRequest) {
   // Calculate plan expiry (30 days from now)
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Upgrade business plan using the stored business_id only
-  const updateData: Record<string, unknown> = {
-    plan,
-    plan_expires_at: expiresAt,
-    grace_period_ends_at: null,
-  };
-
-  // Plus plan gets verified badge
-  if (plan === 'plus') {
-    updateData.is_verified = true;
-  }
-
+  // Upgrade business to Pro — all Pro users get the verified badge
   await serviceClient
     .from('businesses')
-    .update(updateData)
+    .update({
+      plan: 'pro',
+      plan_expires_at: expiresAt,
+      is_verified: true,
+      featured: true,
+      grace_period_ends_at: null,
+    })
     .eq('id', storedBusinessId);
 
   return NextResponse.json({ success: true });

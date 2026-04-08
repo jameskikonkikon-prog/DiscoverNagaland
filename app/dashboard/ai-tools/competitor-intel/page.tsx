@@ -43,7 +43,7 @@ export default function CompetitorIntelPage() {
     return () => { mounted = false; };
   }, [supabase, router]);
 
-  const isPlus = business?.plan === 'plus';
+  const isPlus = business?.plan === 'pro' || business?.plan === 'plus';
 
   async function analyse() {
     if (!business) return;
@@ -89,13 +89,13 @@ export default function CompetitorIntelPage() {
       <div style={s.page}><div style={s.container}><div style={s.card}>
         <div style={s.titleRow}>
           <Link href="/dashboard" style={s.back}>←</Link>
-          <div><div style={s.title}>🔍 Competitor Intel</div><div style={s.sub}>Upgrade to Plus to unlock this tool.</div></div>
+          <div><div style={s.title}>🔍 Competitor Intel</div><div style={s.sub}>Upgrade to Pro to unlock this tool.</div></div>
         </div>
         <div style={s.lockBox}>
           <div style={s.lockIcon}>🔒</div>
-          <div style={s.lockTitle}>Plus Feature</div>
+          <div style={s.lockTitle}>Pro Feature</div>
           <div style={s.lockSub}>Get a full AI analysis of your competitive landscape in Nagaland — who your competitors are, how to stand out, and what opportunities exist in your category.</div>
-          <Link href="/dashboard" style={s.upgradeBtn}>Upgrade to Plus →</Link>
+          <Link href="/dashboard" style={s.upgradeBtn}>Upgrade to Pro →</Link>
         </div>
       </div></div></div>
     );

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { PLANS } from '@/types';
+import { PLANS, normalizePlan } from '@/types';
 
 type Business = {
   id: string;
@@ -21,7 +21,7 @@ type Business = {
   tags: string | null;
   website: string | null;
   photos: string[] | null;
-  plan: 'basic' | 'pro' | 'plus';
+  plan: string;
 };
 
 const CATEGORIES = [
@@ -108,7 +108,7 @@ export default function SettingsPage() {
     const files = Array.from(e.target.files ?? []);
     e.target.value = '';
     if (!files.length) return;
-    const plan = (business?.plan ?? 'basic') as 'basic' | 'pro' | 'plus';
+    const plan = normalizePlan(business?.plan);
     const maxPhotos = PLANS[plan]?.maxPhotos ?? 2;
     if (photos.length >= maxPhotos) {
       setUploadError(`Your plan allows max ${maxPhotos === Infinity ? 'unlimited' : maxPhotos} photos`);
@@ -326,7 +326,7 @@ export default function SettingsPage() {
 
             {/* PHOTOS */}
             {(() => {
-              const plan = (business?.plan ?? 'basic') as 'basic' | 'pro' | 'plus';
+              const plan = normalizePlan(business?.plan);
               const mx = PLANS[plan]?.maxPhotos ?? 2;
               const mxLabel = mx === Infinity ? '∞' : mx;
               return (

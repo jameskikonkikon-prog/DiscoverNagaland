@@ -89,8 +89,6 @@ export default function HomePage() {
   const [totalBusinesses, setTotalBusinesses] = useState(0);
   const [totalCities, setTotalCities] = useState(0);
   const [totalCategories, setTotalCategories] = useState(0);
-  const [earlyAccessSpots, setEarlyAccessSpots] = useState<number | null>(null);
-  const [earlyAccessFull, setEarlyAccessFull] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [bizName, setBizName] = useState<string | null>(null);
@@ -227,10 +225,6 @@ export default function HomePage() {
           .sort((a, b) => b.count - a.count)
       );
 
-      const spotsRes = await fetch('/api/founding-members');
-      const spotsData = await spotsRes.json().catch(() => ({}));
-      setEarlyAccessSpots(spotsData.spotsRemaining ?? spotsData.remaining ?? null);
-      setEarlyAccessFull(!!spotsData.isFull);
     }
     fetchData();
   }, []);
@@ -457,10 +451,9 @@ export default function HomePage() {
           </div>
           <div className="featured-grid">
             {featuredBusinesses.map((biz, i) => {
-              const planVal = (biz.plan ?? '').toString().trim().toLowerCase();
-              const isPlus = planVal === 'plus';
+              const isVerified = !!biz.is_verified;
               return (
-              <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}${isPlus ? ' feat-plus' : ''}`}>
+              <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}${isVerified ? ' feat-plus' : ''}`}>
                 <div className="feat-photo">
                   {biz.photos && biz.photos[0] ? (
                     <>
@@ -470,12 +463,12 @@ export default function HomePage() {
                   ) : (
                     getCategoryEmoji(biz.category)
                   )}
-                  {isPlus && <span className="feat-verified-badge">✓ Verified Business</span>}
+                  {isVerified && <span className="feat-verified-badge">✓ Verified Business</span>}
                 </div>
                 <div className="feat-body">
                   <div className="feat-name">{biz.name}</div>
                   <div className="feat-detail">
-                    {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {isPlus ? '⭐ ' : ''}{biz.category}
+                    {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {isVerified ? '✅ ' : ''}{biz.category}
                   </div>
                   <span className={`feat-tag ${getTagClass(i)}`}>
                     {biz.rating != null ? `⭐ ${biz.rating}` : biz.price_range || (biz.is_verified ? '✓ Verified' : biz.category)}
@@ -517,9 +510,9 @@ export default function HomePage() {
           <div className="recent-list">
             {recentBusinesses.map((biz) => {
               const badge = getRecentBadge(biz);
-              const isPlus = (biz.plan || '').toLowerCase() === 'plus';
+              const isVerified = !!biz.is_verified;
               return (
-                <a key={biz.id} href={`/business/${biz.id}`} className={`recent${isPlus ? ' recent-plus' : ''}`}>
+                <a key={biz.id} href={`/business/${biz.id}`} className={`recent${isVerified ? ' recent-plus' : ''}`}>
                   <div className="recent-photo">
                     {biz.photos && biz.photos[0] ? (
                       <img src={biz.photos[0]} alt={biz.name} />
@@ -530,7 +523,7 @@ export default function HomePage() {
                   <div className="recent-info">
                     <div className="recent-top-row">
                       <span className="recent-name">{biz.name}</span>
-                      {isPlus && <span className="recent-verified-pill">✓ Verified</span>}
+                      {isVerified && <span className="recent-verified-pill">✓ Verified</span>}
                     </div>
                     <div className="recent-cat-row">
                       <span className="recent-cat-badge">{getCategoryEmoji(biz.category)} {biz.category}</span>
@@ -574,14 +567,6 @@ export default function HomePage() {
           <div className="cta-box">
             <div className="cta-icon">🏪</div>
             <div className="cta-title">Own a business?</div>
-            {earlyAccessSpots !== null && !earlyAccessFull && (
-              <div className={`cta-urgency ${earlyAccessSpots < 20 ? 'cta-urgency-red' : ''}`}>
-                🔥 Only {earlyAccessSpots} Early Access spots left — Get Pro free for your first month
-              </div>
-            )}
-            {earlyAccessFull && (
-              <div className="cta-urgency">Early Access full — Pro now ₹299/month</div>
-            )}
             <div className="cta-sub">Get found by thousands searching in Nagaland.</div>
             <a href="/register" className="cta-btn">List your business free</a>
             <span className="cta-free">No credit card · No contract · Cancel anytime</span>
@@ -792,7 +777,7 @@ export default function HomePage() {
           </div>
           <div className="m-feat-scroll">
             {featuredBusinesses.length > 0 ? featuredBusinesses.map(biz => {
-              const isPlus = (biz.plan || '').toLowerCase() === 'plus';
+              const isVerified = !!biz.is_verified;
               return (
                 <a key={biz.id} href={`/business/${biz.id}`} className="m-feat-card">
                   <div className="m-feat-photo">
@@ -805,7 +790,7 @@ export default function HomePage() {
                     ) : (
                       <span className="m-feat-emoji">{getCategoryEmoji(biz.category)}</span>
                     )}
-                    {isPlus && <span className="m-feat-badge">✓ Verified</span>}
+                    {isVerified && <span className="m-feat-badge">✓ Verified</span>}
                     <div className="m-feat-info-overlay">
                       <div className="m-feat-name">{biz.name}</div>
                       <div className="m-feat-meta">{[biz.area, biz.city].filter(Boolean).join(' · ')} · {biz.category}</div>
