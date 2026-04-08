@@ -160,7 +160,7 @@ export default function HomePage() {
         .from('businesses')
         .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
         .eq('is_active', true)
-        .eq('plan', 'plus')
+        .eq('featured', true)
         .order('created_at', { ascending: false })
         .limit(8);
       featuredList = (planRows || []) as Business[];
@@ -200,7 +200,7 @@ export default function HomePage() {
       // Mobile "Recently listed" — top 5 by created_at (before plan-sort)
       setRecentlyAdded(((recent || []) as Business[]).slice(0, 5));
       const sorted = ((recent || []) as Business[]).sort((a, b) => {
-        const rank = (p: string | undefined) => p === 'plus' ? 0 : p === 'pro' ? 1 : 2;
+        const rank = (p: string | undefined) => (p === 'pro' || p === 'plus') ? 0 : 1;
         return rank(a.plan) - rank(b.plan);
       });
       setRecentBusinesses(sorted.slice(0, 6));
