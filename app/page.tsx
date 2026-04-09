@@ -240,31 +240,12 @@ export default function HomePage() {
         if (!isMounted) return;
         setLoggedIn(!!data.session);
         if (data.session?.user?.id) {
-          const { data: biz } = await supabaseBrowser
-            .from('businesses')
-            .select('id, name, plan')
-            .eq('owner_id', data.session.user.id)
-            .eq('is_active', true)
-            .limit(1)
-            .single();
-          if (isMounted && biz) {
-            setBizName(biz.name);
-            setOwnerPlan(biz.plan || 'free');
-            const { data: analyticsRows } = await supabaseBrowser
-              .from('business_analytics')
-              .select('profile_views, call_clicks, whatsapp_clicks')
-              .eq('business_id', biz.id);
-            if (isMounted && analyticsRows?.length) {
-              const totals = analyticsRows.reduce(
-                (acc, r) => ({
-                  views: acc.views + (r.profile_views || 0),
-                  calls: acc.calls + (r.call_clicks || 0),
-                  whatsapp: acc.whatsapp + (r.whatsapp_clicks || 0),
-                }),
-                { views: 0, calls: 0, whatsapp: 0 }
-              );
-              setOwnerStats(totals);
-            }
+          const res = await fetch('/api/owner-stats');
+          if (isMounted && res.ok) {
+            const stats = await res.json();
+            setBizName(stats.name);
+            setOwnerPlan(stats.plan || 'free');
+            setOwnerStats({ views: stats.views, calls: stats.calls, whatsapp: stats.whatsapp });
           }
         }
       })
@@ -276,31 +257,12 @@ export default function HomePage() {
       if (!isMounted) return;
       setLoggedIn(!!session);
       if (session?.user?.id) {
-        const { data: biz } = await supabaseBrowser
-          .from('businesses')
-          .select('id, name, plan')
-          .eq('owner_id', session.user.id)
-          .eq('is_active', true)
-          .limit(1)
-          .single();
-        if (isMounted && biz) {
-          setBizName(biz.name);
-          setOwnerPlan(biz.plan || 'free');
-          const { data: analyticsRows } = await supabaseBrowser
-            .from('business_analytics')
-            .select('profile_views, call_clicks, whatsapp_clicks')
-            .eq('business_id', biz.id);
-          if (isMounted && analyticsRows?.length) {
-            const totals = analyticsRows.reduce(
-              (acc, r) => ({
-                views: acc.views + (r.profile_views || 0),
-                calls: acc.calls + (r.call_clicks || 0),
-                whatsapp: acc.whatsapp + (r.whatsapp_clicks || 0),
-              }),
-              { views: 0, calls: 0, whatsapp: 0 }
-            );
-            setOwnerStats(totals);
-          }
+        const res = await fetch('/api/owner-stats');
+        if (isMounted && res.ok) {
+          const stats = await res.json();
+          setBizName(stats.name);
+          setOwnerPlan(stats.plan || 'free');
+          setOwnerStats({ views: stats.views, calls: stats.calls, whatsapp: stats.whatsapp });
         }
       } else {
         setBizName(null);
@@ -961,22 +923,34 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* REAL ESTATE CARD */}
+        <div className="m-re-card">
+          <div className="m-re-card-left">
+            <div className="m-re-card-tag">🏘️ Real Estate</div>
+            <div className="m-re-card-title">Looking for property?</div>
+            <div className="m-re-card-sub">Land, houses and rentals across Nagaland</div>
+          </div>
+          <a href="/real-estate" className="m-re-card-btn">Explore →</a>
+        </div>
+
         {/* FOOTER */}
         <footer className="m-footer">
           <div className="m-footer-links">
-            <a href="/about" className="m-footer-link">About</a>
-            <span className="m-footer-dot">·</span>
-            <a href="/privacy" className="m-footer-link">Privacy</a>
-            <span className="m-footer-dot">·</span>
-            <a href="/terms" className="m-footer-link">Terms</a>
-            <span className="m-footer-dot">·</span>
-            <a href="/contact" className="m-footer-link">Contact</a>
+            <a href="/search" className="m-footer-link">Directory</a>
             <span className="m-footer-dot">·</span>
             <a href="/real-estate" className="m-footer-link">Real Estate</a>
             <span className="m-footer-dot">·</span>
-            <a href="/register" className="m-footer-link">List Business</a>
+            <a href="/privacy" className="m-footer-link">Privacy Policy</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/terms" className="m-footer-link">Terms of Service</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/refund" className="m-footer-link">Refund Policy</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/contact" className="m-footer-link">Contact Us</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/about" className="m-footer-link">About</a>
           </div>
-          <div className="m-footer-copy">© 2026 Yana Nagaland · Dimapur · Kohima</div>
+          <div className="m-footer-copy">© 2026 Yana Nagaland. All rights reserved.</div>
         </footer>
 
         {/* BOTTOM NAV */}
@@ -1919,44 +1893,75 @@ const pageStyles = `
   }
   .m-biz-cta-btn:hover{background:#c0392b;}
 
+  /* ── REAL ESTATE CARD ── */
+  .m-re-card{
+    margin:28px 18px 0;
+    background:linear-gradient(135deg,#130a08,#0f0a06);
+    border:1px solid rgba(229,56,59,0.22);border-radius:16px;
+    padding:20px 16px 20px 18px;
+    display:flex;align-items:center;gap:14px;
+  }
+  .m-re-card-left{flex:1;}
+  .m-re-card-tag{
+    font-family:'Sora',sans-serif;font-size:11px;font-weight:700;
+    letter-spacing:0.8px;text-transform:uppercase;color:#e5383b;margin-bottom:7px;
+  }
+  .m-re-card-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:800;color:#fff;margin-bottom:5px;}
+  .m-re-card-sub{font-family:'Sora',sans-serif;font-size:13px;color:#555;line-height:1.5;}
+  .m-re-card-btn{
+    flex-shrink:0;background:#e5383b;color:#fff;border:none;border-radius:10px;
+    font-family:'Sora',sans-serif;font-size:14px;font-weight:700;
+    padding:12px 16px;text-decoration:none;transition:background 0.15s;white-space:nowrap;
+  }
+  .m-re-card-btn:hover{background:#c0392b;}
+
   /* ── BOTTOM NAV ── */
   .m-bottom-nav{
     position:fixed;bottom:0;left:0;right:0;z-index:200;
-    height:60px;
-    background:rgba(8,8,8,0.97);
-    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-    border-top:1px solid #141414;
-    display:flex;align-items:center;justify-content:space-around;
-    padding:0 4px;
-    padding-bottom:env(safe-area-inset-bottom);
+    height:64px;
+    background:rgba(6,6,6,0.98);
+    backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+    border-top:1px solid #1a1a1a;
+    display:flex;align-items:flex-end;justify-content:space-around;
+    padding:0 4px 10px;
+    padding-bottom:max(10px, env(safe-area-inset-bottom));
   }
   .m-bnav-item{
     display:flex;flex-direction:column;align-items:center;gap:3px;
-    flex:1;padding:6px 0;
+    flex:1;padding:4px 0 0;
     font-family:'Sora',sans-serif;font-size:10px;color:#3a3a3a;
     text-decoration:none;transition:color 0.15s;cursor:pointer;
     background:none;border:none;
   }
-  .m-bnav-item:active,.m-bnav-active{color:#fff!important;}
+  .m-bnav-item:active,.m-bnav-active{color:#e5e5e5!important;}
   .m-bnav-item svg{transition:stroke 0.15s;}
   .m-bnav-item:active svg,.m-bnav-active svg{stroke:#e5383b;}
   .m-bnav-ai{
-    display:flex;flex-direction:column;align-items:center;gap:3px;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
     flex:1;padding:0;
-    font-family:'Sora',sans-serif;font-size:10px;color:#aaa;
-    background:none;border:none;cursor:pointer;position:relative;
-    margin-top:-18px;
+    font-family:'Sora',sans-serif;font-size:10px;color:#888;
+    background:none;border:none;cursor:pointer;
+    /* Lift the button above the nav bar */
+    position:relative;
+    margin-bottom:6px;
+    transform:translateY(-18px);
   }
   .m-bnav-ai-star{
-    width:52px;height:52px;border-radius:50%;
-    background:#c0392b;
+    width:58px;height:58px;border-radius:50%;
+    background:linear-gradient(145deg,#e5383b,#a50000);
     display:flex;align-items:center;justify-content:center;
-    font-size:22px;color:#fff;
-    box-shadow:0 4px 18px rgba(192,57,43,0.55);
+    font-size:24px;color:#fff;
+    /* Strong shadow to make it pop */
+    box-shadow:0 -4px 0 rgba(6,6,6,0.98),
+               0 4px 20px rgba(192,57,43,0.7),
+               0 0 0 3px rgba(229,56,59,0.25);
     flex-shrink:0;
-    transition:background 0.15s,transform 0.1s;
+    transition:transform 0.12s,box-shadow 0.12s;
   }
-  .m-bnav-ai:active .m-bnav-ai-star{background:#a93226;transform:scale(0.93);}
-  .m-bnav-ai-label{font-size:10px;color:#aaa;margin-top:2px;}
+  .m-bnav-ai:active .m-bnav-ai-star{
+    transform:scale(0.9);
+    box-shadow:0 -4px 0 rgba(6,6,6,0.98),0 2px 10px rgba(192,57,43,0.5),0 0 0 3px rgba(229,56,59,0.2);
+  }
+  .m-bnav-ai-label{font-size:10px;color:#888;line-height:1;}
 
 `;
