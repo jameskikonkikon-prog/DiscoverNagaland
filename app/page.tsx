@@ -92,6 +92,8 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [bizName, setBizName] = useState<string | null>(null);
+  const [ownerPlan, setOwnerPlan] = useState<string>('free');
+  const [ownerStats, setOwnerStats] = useState<{ views: number; calls: number; whatsapp: number }>({ views: 0, calls: 0, whatsapp: 0 });
   const placeholderIndex = useRef(0);
   const router = useRouter();
 
@@ -240,12 +242,30 @@ export default function HomePage() {
         if (data.session?.user?.id) {
           const { data: biz } = await supabaseBrowser
             .from('businesses')
-            .select('name')
+            .select('id, name, plan')
             .eq('owner_id', data.session.user.id)
             .eq('is_active', true)
             .limit(1)
             .single();
-          if (isMounted && biz?.name) setBizName(biz.name);
+          if (isMounted && biz) {
+            setBizName(biz.name);
+            setOwnerPlan(biz.plan || 'free');
+            const { data: analyticsRows } = await supabaseBrowser
+              .from('business_analytics')
+              .select('profile_views, call_clicks, whatsapp_clicks')
+              .eq('business_id', biz.id);
+            if (isMounted && analyticsRows?.length) {
+              const totals = analyticsRows.reduce(
+                (acc, r) => ({
+                  views: acc.views + (r.profile_views || 0),
+                  calls: acc.calls + (r.call_clicks || 0),
+                  whatsapp: acc.whatsapp + (r.whatsapp_clicks || 0),
+                }),
+                { views: 0, calls: 0, whatsapp: 0 }
+              );
+              setOwnerStats(totals);
+            }
+          }
         }
       })
       .catch(() => {
@@ -258,14 +278,34 @@ export default function HomePage() {
       if (session?.user?.id) {
         const { data: biz } = await supabaseBrowser
           .from('businesses')
-          .select('name')
+          .select('id, name, plan')
           .eq('owner_id', session.user.id)
           .eq('is_active', true)
           .limit(1)
           .single();
-        if (isMounted && biz?.name) setBizName(biz.name);
+        if (isMounted && biz) {
+          setBizName(biz.name);
+          setOwnerPlan(biz.plan || 'free');
+          const { data: analyticsRows } = await supabaseBrowser
+            .from('business_analytics')
+            .select('profile_views, call_clicks, whatsapp_clicks')
+            .eq('business_id', biz.id);
+          if (isMounted && analyticsRows?.length) {
+            const totals = analyticsRows.reduce(
+              (acc, r) => ({
+                views: acc.views + (r.profile_views || 0),
+                calls: acc.calls + (r.call_clicks || 0),
+                whatsapp: acc.whatsapp + (r.whatsapp_clicks || 0),
+              }),
+              { views: 0, calls: 0, whatsapp: 0 }
+            );
+            setOwnerStats(totals);
+          }
+        }
       } else {
         setBizName(null);
+        setOwnerPlan('free');
+        setOwnerStats({ views: 0, calls: 0, whatsapp: 0 });
       }
     });
     return () => {
@@ -311,6 +351,8 @@ export default function HomePage() {
       setChatLoading(false);
     }
   }, [chatLoading, chatHistory]);
+
+  const isPro = ownerPlan === 'pro' || ownerPlan === 'plus';
 
   function getFeatAccent(index: number): string {
     return ['red', 'gold', 'green', 'dim'][index % 4];
@@ -713,15 +755,17 @@ export default function HomePage() {
               <span className="m-brand-naga">Nagaland</span>
             </div>
           </a>
-          {loggedIn ? (
-            <a href="/dashboard" className="m-avatar" title="Go to Dashboard">
-              {bizName ? getInitials(bizName) : '··'}
-            </a>
-          ) : (
+          {!mounted ? (
+            <span style={{ width: 36, height: 36, display: 'inline-block' }} />
+          ) : loggedIn ? (
             <div className="m-topbar-right">
-              <a href="/login" className="m-signin">Sign In</a>
-              <a href="/register" className="m-topbar-cta">List your business</a>
+              <span className={`m-plan-pill${isPro ? ' m-plan-pro' : ''}`}>{isPro ? 'PRO' : 'FREE'}</span>
+              <a href="/dashboard" className="m-avatar" title="Dashboard">
+                {bizName ? getInitials(bizName) : '··'}
+              </a>
             </div>
+          ) : (
+            <a href="/login" className="m-signin-btn">Sign in</a>
           )}
         </header>
 
@@ -762,7 +806,46 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="m-divider" />
+        {/* OWNER STATS CARD (logged in only) */}
+        {mounted && loggedIn && bizName && (
+          <div className="m-owner-card">
+            <div className="m-owner-top">
+              <div className="m-owner-name">{bizName}</div>
+              <a href="/dashboard" className="m-owner-dash-link">Dashboard →</a>
+            </div>
+            <div className="m-owner-stats">
+              <div className="m-owner-stat">
+                <div className="m-owner-stat-val">{ownerStats.calls}</div>
+                <div className="m-owner-stat-lbl">Calls</div>
+              </div>
+              <div className="m-owner-stat-div" />
+              <div className="m-owner-stat">
+                <div className="m-owner-stat-val">{ownerStats.whatsapp}</div>
+                <div className="m-owner-stat-lbl">WhatsApp</div>
+              </div>
+              <div className="m-owner-stat-div" />
+              <div className="m-owner-stat">
+                <div className="m-owner-stat-val">{ownerStats.views}</div>
+                <div className="m-owner-stat-lbl">Views</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* UPGRADE STRIP (logged in, free plan only) */}
+        {mounted && loggedIn && !isPro && bizName && (
+          <div className="m-upgrade-strip">
+            <div className="m-upgrade-left">
+              <div className="m-upgrade-head">Upgrade to Pro — ₹499/mo</div>
+              <div className="m-upgrade-perks">
+                <span>· Verified badge</span>
+                <span>· Featured on homepage</span>
+                <span>· Priority in search</span>
+              </div>
+            </div>
+            <a href="/dashboard?tab=billing" className="m-upgrade-btn">Upgrade →</a>
+          </div>
+        )}
 
         {/* FEATURED THIS WEEK */}
         <div className="m-section">
@@ -824,17 +907,61 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* REAL ESTATE BANNER */}
-        <div className="m-re-banner">
-          <div className="m-re-left">
-            <div className="m-re-tag">🏘️ Real Estate</div>
-            <div className="m-re-title">Looking for property?</div>
-            <div className="m-re-sub">Land, houses &amp; rentals across Nagaland</div>
+        {/* BROWSE CATEGORIES */}
+        {categories.length > 0 && (
+          <div className="m-section">
+            <div className="m-sec-head">
+              <span className="m-sec-title">Browse categories</span>
+            </div>
+            <div className="m-cat-scroll">
+              {categories.map(({ category, count }) => (
+                <button key={category} className="m-cat-chip" onClick={() => quickSearch(category)}>
+                  <span className="m-cat-emoji">{getCategoryEmoji(category)}</span>
+                  <span className="m-cat-name">{category}</span>
+                  <span className="m-cat-count">{count}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <a href="/real-estate" className="m-re-btn">Explore →</a>
+        )}
+
+        {/* PLATFORM STATS */}
+        <div className="m-section">
+          <div className="m-sec-head">
+            <span className="m-sec-title">Platform stats</span>
+          </div>
+          <div className="m-stats-row">
+            <div className="m-stat-box s1">
+              <div className="m-stat-icon">🏪</div>
+              <div className="m-stat-val">{totalBusinesses}</div>
+              <div className="m-stat-lbl">Businesses</div>
+            </div>
+            <div className="m-stat-box s2">
+              <div className="m-stat-icon">📍</div>
+              <div className="m-stat-val">{totalCities}</div>
+              <div className="m-stat-lbl">Cities</div>
+            </div>
+            <div className="m-stat-box s3">
+              <div className="m-stat-icon">📂</div>
+              <div className="m-stat-val">{totalCategories}</div>
+              <div className="m-stat-lbl">Categories</div>
+            </div>
+          </div>
         </div>
 
-        {/* COMPACT FOOTER */}
+        {/* OWN A BUSINESS CTA (logged out only) */}
+        {mounted && !loggedIn && (
+          <div className="m-biz-cta">
+            <span className="m-biz-cta-icon">🏪</span>
+            <div className="m-biz-cta-body">
+              <div className="m-biz-cta-title">Own a business?</div>
+              <div className="m-biz-cta-sub">Get found for free. No credit card required.</div>
+            </div>
+            <a href="/register" className="m-biz-cta-btn">List free →</a>
+          </div>
+        )}
+
+        {/* FOOTER */}
         <footer className="m-footer">
           <div className="m-footer-links">
             <a href="/about" className="m-footer-link">About</a>
@@ -844,9 +971,47 @@ export default function HomePage() {
             <a href="/terms" className="m-footer-link">Terms</a>
             <span className="m-footer-dot">·</span>
             <a href="/contact" className="m-footer-link">Contact</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/real-estate" className="m-footer-link">Real Estate</a>
+            <span className="m-footer-dot">·</span>
+            <a href="/register" className="m-footer-link">List Business</a>
           </div>
           <div className="m-footer-copy">© 2026 Yana Nagaland · Dimapur · Kohima</div>
         </footer>
+
+        {/* BOTTOM NAV */}
+        <nav className="m-bottom-nav">
+          <a href="/" className="m-bnav-item m-bnav-active">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            <span>Home</span>
+          </a>
+          <a href="/search" className="m-bnav-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span>Search</span>
+          </a>
+          <button className="m-bnav-ai" onClick={() => { setChatOpen(o => !o); setHintVisible(false); }} aria-label="Ask Yana AI">
+            <span className="m-bnav-ai-star">✦</span>
+            <span className="m-bnav-ai-label">Yana AI</span>
+          </button>
+          <a href="/real-estate" className="m-bnav-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+            </svg>
+            <span>Real Estate</span>
+          </a>
+          <a href="/dashboard" className="m-bnav-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            <span>Dashboard</span>
+          </a>
+        </nav>
 
       </div>{/* /mobile-only */}
 
@@ -1407,10 +1572,11 @@ const pageStyles = `
     .nav-cta-btn{display:none!important;}
     /* Hide global layout footer — mobile has its own compact footer */
     .yana-global-footer{display:none!important;}
-    /* Reposition AI chat above bottom nav */
-    .ai-float{right:16px;bottom:86px;}
-    .ai-hint{right:16px;bottom:158px;}
-    .ai-chat{right:16px;bottom:150px;width:calc(100vw - 32px);}
+    /* AI float button hidden on mobile — bottom nav has the AI button */
+    .ai-float{display:none!important;}
+    .ai-hint{display:none!important;}
+    /* AI chat sheet slides up from above bottom nav */
+    .ai-chat{right:8px;left:8px;bottom:68px;width:auto;max-height:72vh;border-radius:18px;}
   }
 
   /* Desktop sidebar collapse */
@@ -1619,12 +1785,178 @@ const pageStyles = `
   .m-re-btn:hover{background:#c0392b;}
 
   /* Compact footer */
-  .m-footer{margin-top:32px;padding:20px 18px 80px;border-top:1px solid #141414;text-align:center;}
+  .m-footer{margin-top:32px;padding:20px 18px 100px;border-top:1px solid #141414;text-align:center;}
   .m-footer-links{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 5px;margin-bottom:7px;}
   .m-footer-link{font-family:'Sora',sans-serif;font-size:12px;color:#2e2e2e;text-decoration:none;transition:color 0.15s;}
   .m-footer-link:hover{color:#666;}
   .m-footer-dot{font-size:12px;color:#222;}
   .m-footer-copy{font-family:'Sora',sans-serif;font-size:11px;color:#222;}
 
+  /* ── PLAN PILL ── */
+  .m-plan-pill{
+    font-family:'Sora',sans-serif;font-size:10px;font-weight:800;
+    letter-spacing:1px;padding:4px 9px;border-radius:999px;
+    background:#1a1a1a;border:1.5px solid #2a2a2a;color:#555;
+  }
+  .m-plan-pill.m-plan-pro{
+    background:rgba(192,57,43,0.12);border-color:rgba(192,57,43,0.4);color:#e5383b;
+  }
+
+  /* ── SIGN IN BTN (logged out nav) ── */
+  .m-signin-btn{
+    background:#e5383b;color:#fff;border:none;border-radius:20px;
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:700;
+    padding:9px 18px;cursor:pointer;text-decoration:none;
+    white-space:nowrap;letter-spacing:0.2px;transition:background 0.15s;
+  }
+  .m-signin-btn:hover{background:#c0392b;}
+
+  /* ── OWNER STATS CARD ── */
+  .m-owner-card{
+    margin:20px 18px 0;
+    background:#0f0f0f;border:1px solid #1e1e1e;border-radius:16px;
+    padding:18px 18px 16px;
+  }
+  .m-owner-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .m-owner-name{
+    font-family:'Sora',sans-serif;font-size:15px;font-weight:800;color:#fff;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;
+  }
+  .m-owner-dash-link{
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:#e5383b;
+    text-decoration:none;white-space:nowrap;flex-shrink:0;
+  }
+  .m-owner-stats{display:flex;align-items:center;gap:0;}
+  .m-owner-stat{flex:1;text-align:center;}
+  .m-owner-stat-div{width:1px;height:32px;background:#1e1e1e;flex-shrink:0;}
+  .m-owner-stat-val{
+    font-family:'Playfair Display',serif;font-size:26px;font-weight:700;
+    color:#fff;line-height:1;margin-bottom:4px;
+  }
+  .m-owner-stat-lbl{font-family:'Sora',sans-serif;font-size:11px;color:#444;}
+
+  /* ── UPGRADE STRIP ── */
+  .m-upgrade-strip{
+    margin:14px 18px 0;
+    background:linear-gradient(135deg,#160404,#0f0505);
+    border:1px solid rgba(229,56,59,0.25);border-radius:14px;
+    padding:16px 16px 16px 18px;
+    display:flex;align-items:center;gap:14px;
+  }
+  .m-upgrade-left{flex:1;min-width:0;}
+  .m-upgrade-head{
+    font-family:'Sora',sans-serif;font-size:14px;font-weight:800;color:#fff;
+    margin-bottom:6px;
+  }
+  .m-upgrade-perks{
+    display:flex;flex-direction:column;gap:2px;
+  }
+  .m-upgrade-perks span{
+    font-family:'Sora',sans-serif;font-size:12px;color:#555;line-height:1.5;
+  }
+  .m-upgrade-btn{
+    flex-shrink:0;background:#e5383b;color:#fff;border:none;border-radius:10px;
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:700;
+    padding:11px 16px;text-decoration:none;transition:background 0.15s;white-space:nowrap;
+  }
+  .m-upgrade-btn:hover{background:#c0392b;}
+
+  /* ── BROWSE CATEGORIES HORIZONTAL SCROLL ── */
+  .m-cat-scroll{
+    display:flex;gap:10px;overflow-x:auto;padding:0 18px 8px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  .m-cat-scroll::-webkit-scrollbar{display:none;}
+  .m-cat-chip{
+    flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:5px;
+    background:#111;border:1px solid #1e1e1e;border-radius:14px;
+    padding:14px 16px;cursor:pointer;transition:all 0.15s;
+    font-family:'Sora',sans-serif;min-width:76px;
+  }
+  .m-cat-chip:active{background:#1a1a1a;border-color:#333;}
+  .m-cat-emoji{font-size:26px;line-height:1;}
+  .m-cat-name{font-size:12px;font-weight:600;color:#ccc;white-space:nowrap;text-transform:capitalize;}
+  .m-cat-count{font-size:10px;color:#444;}
+
+  /* ── PLATFORM STATS ── */
+  .m-stats-row{
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;
+    padding:0 18px;
+  }
+  .m-stat-box{
+    background:#0f0f0f;border:1px solid #1a1a1a;border-radius:14px;
+    padding:18px 12px 14px;text-align:center;position:relative;overflow:hidden;
+  }
+  .m-stat-box::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  }
+  .m-stat-box.s1::before{background:linear-gradient(90deg,#e5383b,transparent);}
+  .m-stat-box.s2::before{background:linear-gradient(90deg,#d4a017,transparent);}
+  .m-stat-box.s3::before{background:linear-gradient(90deg,#25d366,transparent);}
+  .m-stat-icon{font-size:20px;margin-bottom:8px;}
+  .m-stat-val{
+    font-family:'Playfair Display',serif;font-size:24px;font-weight:700;
+    color:#fff;line-height:1;margin-bottom:5px;
+  }
+  .m-stat-lbl{font-family:'Sora',sans-serif;font-size:10px;color:#444;}
+
+  /* ── OWN A BUSINESS CTA ── */
+  .m-biz-cta{
+    margin:28px 18px 0;
+    background:linear-gradient(135deg,#130a08,#0f0a06);
+    border:1px solid rgba(229,56,59,0.2);border-radius:16px;
+    padding:18px 16px 18px 18px;
+    display:flex;align-items:center;gap:14px;
+  }
+  .m-biz-cta-icon{font-size:28px;flex-shrink:0;}
+  .m-biz-cta-body{flex:1;min-width:0;}
+  .m-biz-cta-title{font-family:'Sora',sans-serif;font-size:15px;font-weight:800;color:#fff;margin-bottom:4px;}
+  .m-biz-cta-sub{font-family:'Sora',sans-serif;font-size:12px;color:#555;line-height:1.5;}
+  .m-biz-cta-btn{
+    flex-shrink:0;background:#e5383b;color:#fff;border:none;border-radius:10px;
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:700;
+    padding:11px 14px;text-decoration:none;transition:background 0.15s;white-space:nowrap;
+  }
+  .m-biz-cta-btn:hover{background:#c0392b;}
+
+  /* ── BOTTOM NAV ── */
+  .m-bottom-nav{
+    position:fixed;bottom:0;left:0;right:0;z-index:200;
+    height:60px;
+    background:rgba(8,8,8,0.97);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-top:1px solid #141414;
+    display:flex;align-items:center;justify-content:space-around;
+    padding:0 4px;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .m-bnav-item{
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    flex:1;padding:6px 0;
+    font-family:'Sora',sans-serif;font-size:10px;color:#3a3a3a;
+    text-decoration:none;transition:color 0.15s;cursor:pointer;
+    background:none;border:none;
+  }
+  .m-bnav-item:active,.m-bnav-active{color:#fff!important;}
+  .m-bnav-item svg{transition:stroke 0.15s;}
+  .m-bnav-item:active svg,.m-bnav-active svg{stroke:#e5383b;}
+  .m-bnav-ai{
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    flex:1;padding:0;
+    font-family:'Sora',sans-serif;font-size:10px;color:#aaa;
+    background:none;border:none;cursor:pointer;position:relative;
+    margin-top:-18px;
+  }
+  .m-bnav-ai-star{
+    width:52px;height:52px;border-radius:50%;
+    background:#c0392b;
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;color:#fff;
+    box-shadow:0 4px 18px rgba(192,57,43,0.55);
+    flex-shrink:0;
+    transition:background 0.15s,transform 0.1s;
+  }
+  .m-bnav-ai:active .m-bnav-ai-star{background:#a93226;transform:scale(0.93);}
+  .m-bnav-ai-label{font-size:10px;color:#aaa;margin-top:2px;}
 
 `;
