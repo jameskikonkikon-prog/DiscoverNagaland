@@ -437,31 +437,92 @@ export default function DashboardPage() {
           ════════════════════════════════════════════════════════════ */}
           {activeTab === 'overview' && <>
 
-            {/* STATS ROW — visible to all users */}
-            <div className="stats-row">
+            {/* ── PROFILE HEADER (FB-style) ──────────────────────────── */}
+            {business ? (
+              <div className="fb-header">
+                {/* Cover banner */}
+                <div className="fb-cover">
+                  {business.photos?.[0]
+                    ? <img src={business.photos[0]} className="fb-cover-img" alt="Cover" />
+                    : <div className="fb-cover-placeholder" />
+                  }
+                  <div className="fb-cover-gradient" />
+                  <div className="fb-cover-actions">
+                    <button className="fb-cover-btn" onClick={() => setActiveTab('listing')}>Edit cover</button>
+                    <a href={`/business/${business.slug}`} target="_blank" rel="noreferrer" className="fb-cover-btn fb-cover-btn-red">View listing →</a>
+                  </div>
+                </div>
+                {/* Avatar + business info */}
+                <div className="fb-profile-row">
+                  <div className="fb-avatar">
+                    {business.name?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                  <div className="fb-biz-info">
+                    <div className="fb-biz-name">
+                      {business.name}
+                      {isPro && (business.is_verified || business.verified) && (
+                        <span className="fb-verified">✓ Verified</span>
+                      )}
+                    </div>
+                    <div className="fb-biz-meta">
+                      {[business.category, business.city].filter(Boolean).join(' · ')}
+                    </div>
+                    <div className="fb-tags">
+                      {business.opening_hours && (() => {
+                        const h = new Date().getHours();
+                        const open = h >= 7 && h < 22;
+                        return (
+                          <span className={`fb-tag ${open ? 'fb-tag-open' : 'fb-tag-closed'}`}>
+                            {open ? '● Open' : '● Closed'}
+                          </span>
+                        );
+                      })()}
+                      {business.opening_hours && (
+                        <span className="fb-tag">{business.opening_hours}</span>
+                      )}
+                      <span className={`fb-tag ${isPro ? 'fb-tag-pro' : 'fb-tag-free'}`}>
+                        {isPro ? 'PRO' : 'FREE'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="card" style={{ marginBottom:16 }}>
+                <div className="empty-state">
+                  <div style={{ fontSize:32 }}>🏪</div>
+                  <div>No listing yet</div>
+                  <a href="/dashboard/add-listing" className="red-btn" style={{ textDecoration:'none', display:'inline-block', marginTop:12, padding:'8px 18px', fontSize:13 }}>
+                    + Add Your Business
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* ── STATS ROW ──────────────────────────────────────────── */}
+            <div className="stats-row" style={{ marginBottom:16 }}>
               {[
-                { icon:'📞', label:'Total Calls',       value: leadCalls,  sub:'All time' },
-                { icon:'💬', label:'WhatsApp Clicks',   value: leadWa,     sub:'All time' },
-                { icon:'👁️', label:'Listing Views',     value: leadViews,  sub:'All time' },
-                { icon:'📊', label:'Leads This Month',  value: leadMonth,  sub:'Calls + WhatsApp' },
+                { icon:'📞', label:'Calls',     value: leadCalls  },
+                { icon:'💬', label:'WhatsApp',  value: leadWa     },
+                { icon:'👁️', label:'Views',     value: leadViews  },
+                { icon:'📊', label:'Leads',     value: leadMonth  },
               ].map((s, i) => (
                 <div key={i} className="stat-card">
                   <div className="stat-icon">{s.icon}</div>
-                  <div className="stat-label">{s.label}</div>
                   <div className="stat-value">{s.value.toLocaleString()}</div>
-                  <div className="stat-change" style={{ color:'var(--muted)' }}>{s.sub}</div>
+                  <div className="stat-label">{s.label}</div>
                 </div>
               ))}
             </div>
 
-            {/* LISTING HEALTH — progress bar + checklist */}
+            {/* ── LISTING HEALTH ─────────────────────────────────────── */}
             <div className="card" style={{ marginBottom:16 }}>
               <div className="card-header">
                 <div>
                   <div className="card-title">Listing Health</div>
                   <div className="card-sub">Complete your profile to rank higher in search</div>
                 </div>
-                <button className="card-action" onClick={() => setActiveTab('listing')}>Fix Now →</button>
+                <button className="card-action" onClick={() => setActiveTab('listing')}>Fix now →</button>
               </div>
               <div className="health-bar-wrap">
                 <div className="health-bar-track">
@@ -469,59 +530,45 @@ export default function DashboardPage() {
                 </div>
                 <span className="health-bar-pct">{health.score}%</span>
               </div>
-              <div className="health-checklist">
-                {health.tips.map((tip, i) => (
-                  <div key={i} className={`hc-row${tip.done ? ' done' : ''}`}>
-                    <span className="hc-dot">{tip.done ? '✓' : '○'}</span>
-                    <span>{tip.text}</span>
-                  </div>
-                ))}
-              </div>
             </div>
 
-            {/* PRO FEATURES — active for Pro, quiet locked cards for Free */}
-            <div className="pro-perks-row">
-              {PLANS.pro.features.slice(1).map((feature, i) => {
-                const icons = ['✅', '🏠', '⬆️']
-                return (
-                  <div key={i} className={`perk-card${isPro ? ' perk-active' : ''}`}>
-                    <span className="perk-icon">{icons[i] ?? '⭐'}</span>
-                    <div className="perk-body">
-                      <div className="perk-name">{feature}</div>
-                      {isPro
-                        ? <div className="perk-status">Active</div>
-                        : <button className="perk-upgrade" onClick={() => setActiveTab('billing')}>Upgrade to Pro →</button>
-                      }
-                    </div>
+            {/* ── PRO PERKS ──────────────────────────────────────────── */}
+            <div className="pro-perks-row" style={{ marginBottom:16 }}>
+              {[
+                { icon: isPro ? '✅' : '🔒', name:'Yana Verified',  desc:'Verified badge on your listing' },
+                { icon: isPro ? '🏠' : '🔒', name:'Featured',       desc:'Shown on homepage to more people' },
+                { icon: isPro ? '⬆️' : '🔒', name:'Priority',       desc:'Rank higher in search results' },
+              ].map((p, i) => (
+                <div key={i} className={`perk-card${isPro ? ' perk-active' : ''}`}>
+                  <span className="perk-icon">{p.icon}</span>
+                  <div className="perk-body">
+                    <div className="perk-name">{p.name}</div>
+                    {isPro
+                      ? <div className="perk-status">Active ✓</div>
+                      : <button className="perk-upgrade" onClick={() => setActiveTab('billing')}>Upgrade to unlock →</button>
+                    }
                   </div>
-                )
-              })}
-            </div>
-
-            {/* YOUR LISTING PREVIEW */}
-            <div className="card">
-              <div className="card-header">
-                <div>
-                  <div className="card-title">Your Listing</div>
-                  <div className="card-sub">What customers see</div>
                 </div>
-                <button className="card-action" onClick={() => setActiveTab('listing')}>Edit →</button>
-              </div>
-              {business ? (
-                <div className="listing-preview">
-                  <div className="biz-name">
-                    {business.name}
-                    {isPro && <span className="verified-badge gold">✅ Verified</span>}
+              ))}
+            </div>
+
+            {/* ── LISTING PREVIEW ────────────────────────────────────── */}
+            {business && (
+              <div className="card">
+                <div className="card-header">
+                  <div>
+                    <div className="card-title">Your Listing</div>
+                    <div className="card-sub">What customers see on your profile</div>
                   </div>
-                  <div className="biz-cat">{business.category}{location ? ` · ${location}` : ''}</div>
+                </div>
+                <div className="listing-preview">
                   <div className="listing-fields">
                     {[
-                      { label:'Phone',       value: business.phone },
-                      { label:'WhatsApp',    value: business.whatsapp },
-                      { label:'Price',       value: business.price_range },
-                      { label:'Hours',       value: business.opening_hours },
-                      { label:'Photos',      value: business.photos?.length ? `${business.photos.length} / ${maxPhotos === Infinity ? '∞' : maxPhotos}` : `0 / ${maxPhotos === Infinity ? '∞' : maxPhotos}` },
-                      { label:'Description', value: business.description ? (business.description.length > 48 ? business.description.slice(0, 48).replace(/\s\S*$/, '') + '…' : business.description) : null },
+                      { label:'Phone',    value: business.phone },
+                      { label:'WhatsApp', value: business.whatsapp },
+                      { label:'Hours',    value: business.opening_hours },
+                      { label:'Photos',   value: business.photos?.length ? `${business.photos.length} photo${business.photos.length !== 1 ? 's' : ''}` : null },
+                      { label:'Price',    value: business.price_range },
                     ].map((f, i) => (
                       <div key={i} className="lf-row">
                         <span className="lf-label">{f.label}</span>
@@ -531,16 +578,8 @@ export default function DashboardPage() {
                   </div>
                   <button className="edit-btn" onClick={() => setActiveTab('listing')}>✏️ Edit Full Listing</button>
                 </div>
-              ) : (
-                <div className="empty-state">
-                  <div style={{ fontSize:32 }}>🏪</div>
-                  <div>No listing yet</div>
-                  <a href="/dashboard/add-listing" className="red-btn" style={{ textDecoration:'none', display:'inline-block', marginTop:12, padding:'8px 18px', fontSize:13 }}>
-                    + Add Your Business
-                  </a>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
           </>}
 
@@ -849,5 +888,36 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
   .sk-sidebar{display:none!important;}
   .sk-main{margin-left:0!important;padding:16px!important;}
   .sk-stats{grid-template-columns:repeat(2,1fr)!important;}
+}
+
+/* ── FB-STYLE PROFILE HEADER ──────────────────────────────────── */
+.fb-header{margin-bottom:16px;}
+.fb-cover{position:relative;height:120px;border-radius:14px 14px 0 0;overflow:hidden;background:#1a1a1a;}
+.fb-cover-img{width:100%;height:100%;object-fit:cover;display:block;}
+.fb-cover-placeholder{width:100%;height:100%;background:linear-gradient(135deg,#200808 0%,#110808 50%,#0a0a0a 100%);}
+.fb-cover-gradient{position:absolute;bottom:0;left:0;right:0;height:64px;background:linear-gradient(to top,rgba(0,0,0,0.72),transparent);pointer-events:none;}
+.fb-cover-actions{position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:1;}
+.fb-cover-btn{background:rgba(0,0,0,0.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);color:#ccc;font-size:11px;font-weight:600;padding:5px 11px;border-radius:7px;cursor:pointer;font-family:'Sora',sans-serif;text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;}
+.fb-cover-btn:hover{border-color:rgba(255,255,255,0.25);color:#fff;}
+.fb-cover-btn-red{color:var(--red)!important;border-color:rgba(192,57,43,0.4)!important;}
+.fb-cover-btn-red:hover{border-color:rgba(192,57,43,0.7)!important;}
+.fb-profile-row{display:flex;align-items:flex-end;gap:14px;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 14px 14px;padding:0 16px 16px;}
+.fb-avatar{width:64px;height:64px;border-radius:13px;background:var(--red);border:3px solid var(--surface);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:#fff;flex-shrink:0;margin-top:-30px;box-shadow:0 2px 14px rgba(0,0,0,0.55);letter-spacing:-1px;}
+.fb-biz-info{flex:1;min-width:0;padding-top:10px;}
+.fb-biz-name{font-size:17px;font-weight:800;display:flex;align-items:center;gap:7px;flex-wrap:wrap;line-height:1.2;}
+.fb-verified{background:rgba(39,174,96,0.12);color:#27ae60;border:1px solid rgba(39,174,96,0.28);font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:0.2px;}
+.fb-biz-meta{font-size:12px;color:var(--muted);margin:4px 0 9px;text-transform:capitalize;}
+.fb-tags{display:flex;flex-wrap:wrap;gap:5px;}
+.fb-tag{font-size:11px;padding:3px 9px;border-radius:20px;background:var(--surface3);color:#aaa;border:1px solid var(--border);font-weight:600;line-height:1.4;}
+.fb-tag-open{background:rgba(39,174,96,0.1);color:#27ae60;border-color:rgba(39,174,96,0.28);}
+.fb-tag-closed{background:rgba(192,57,43,0.1);color:var(--red);border-color:rgba(192,57,43,0.25);}
+.fb-tag-pro{background:rgba(212,160,23,0.1);color:var(--gold);border-color:rgba(212,160,23,0.3);}
+.fb-tag-free{background:#181818;color:#666;border-color:#2a2a2a;}
+@media(max-width:768px){
+  .fb-cover{height:100px;border-radius:10px 10px 0 0;}
+  .fb-profile-row{padding:0 12px 14px;border-radius:0 0 10px 10px;}
+  .fb-avatar{width:54px;height:54px;font-size:22px;margin-top:-26px;border-radius:11px;}
+  .fb-biz-name{font-size:15px;}
+  .fb-cover-btn{font-size:10px;padding:4px 9px;}
 }
 `
