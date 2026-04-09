@@ -968,10 +968,6 @@ export default function HomePage() {
             </svg>
             <span>Search</span>
           </a>
-          <button className="m-bnav-ai" onClick={() => { setChatOpen(o => !o); setHintVisible(false); }} aria-label="Ask Yana AI">
-            <span className="m-bnav-ai-star">✦</span>
-            <span className="m-bnav-ai-label">Yana AI</span>
-          </button>
           <a href="/real-estate" className="m-bnav-item">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
@@ -986,6 +982,16 @@ export default function HomePage() {
             <span>Dashboard</span>
           </a>
         </nav>
+
+        {/* MOBILE AI FLOAT PILL */}
+        <button
+          className={`m-ai-float${chatOpen ? ' m-ai-float-open' : ''}`}
+          onClick={() => { setChatOpen(o => !o); setHintVisible(false); }}
+          aria-label="Ask Yana AI"
+        >
+          <span className="m-ai-float-dot" />
+          <span className="m-ai-float-label">Ask Yana AI</span>
+        </button>
 
       </div>{/* /mobile-only */}
 
@@ -1546,11 +1552,11 @@ const pageStyles = `
     .nav-cta-btn{display:none!important;}
     /* Hide global layout footer — mobile has its own compact footer */
     .yana-global-footer{display:none!important;}
-    /* AI float button hidden on mobile — bottom nav has the AI button */
+    /* Desktop AI float hidden on mobile — replaced by .m-ai-float pill */
     .ai-float{display:none!important;}
     .ai-hint{display:none!important;}
-    /* AI chat sheet slides up from above bottom nav */
-    .ai-chat{right:8px;left:8px;bottom:68px;width:auto;max-height:72vh;border-radius:18px;}
+    /* Chat opens above the mobile pill (pill sits at 76px, pill height ~44px → 128px) */
+    .ai-chat{right:8px;left:8px;bottom:128px;width:auto;max-height:68vh;border-radius:18px;}
   }
 
   /* Desktop sidebar collapse */
@@ -1915,6 +1921,38 @@ const pageStyles = `
   }
   .m-re-card-btn:hover{background:#c0392b;}
 
+  /* ── MOBILE AI FLOAT PILL ── */
+  .m-ai-float{
+    /* sits 12px above the 64px bottom nav */
+    position:fixed;bottom:76px;right:16px;z-index:199;
+    display:flex;align-items:center;gap:8px;
+    background:#0a0a0a;
+    border:1.5px solid rgba(192,57,43,0.5);
+    border-radius:999px;
+    padding:11px 18px 11px 14px;
+    cursor:pointer;
+    font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:#fff;
+    box-shadow:0 4px 20px rgba(0,0,0,0.6),0 0 0 0 rgba(192,57,43,0.4);
+    animation:mAiGlow 2.4s infinite;
+    transition:background 0.15s,border-color 0.15s;
+  }
+  .m-ai-float:active{transform:scale(0.95);}
+  .m-ai-float-open{
+    background:rgba(192,57,43,0.14)!important;
+    border-color:rgba(192,57,43,0.75)!important;
+  }
+  .m-ai-float-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:#25d366;flex-shrink:0;
+    box-shadow:0 0 0 2px rgba(37,211,102,0.25),0 0 6px rgba(37,211,102,0.6);
+    animation:blink 2s infinite;
+  }
+  .m-ai-float-label{letter-spacing:0.2px;white-space:nowrap;}
+  @keyframes mAiGlow{
+    0%,100%{box-shadow:0 4px 20px rgba(0,0,0,0.6),0 0 0 0 rgba(192,57,43,0.4);}
+    50%{box-shadow:0 4px 20px rgba(0,0,0,0.6),0 0 0 8px rgba(192,57,43,0);}
+  }
+
   /* ── BOTTOM NAV ── */
   .m-bottom-nav{
     position:fixed;bottom:0;left:0;right:0;z-index:200;
@@ -1936,32 +1974,5 @@ const pageStyles = `
   .m-bnav-item:active,.m-bnav-active{color:#e5e5e5!important;}
   .m-bnav-item svg{transition:stroke 0.15s;}
   .m-bnav-item:active svg,.m-bnav-active svg{stroke:#e5383b;}
-  .m-bnav-ai{
-    display:flex;flex-direction:column;align-items:center;gap:4px;
-    flex:1;padding:0;
-    font-family:'Sora',sans-serif;font-size:10px;color:#888;
-    background:none;border:none;cursor:pointer;
-    /* Lift the button above the nav bar */
-    position:relative;
-    margin-bottom:6px;
-    transform:translateY(-18px);
-  }
-  .m-bnav-ai-star{
-    width:58px;height:58px;border-radius:50%;
-    background:linear-gradient(145deg,#e5383b,#a50000);
-    display:flex;align-items:center;justify-content:center;
-    font-size:24px;color:#fff;
-    /* Strong shadow to make it pop */
-    box-shadow:0 -4px 0 rgba(6,6,6,0.98),
-               0 4px 20px rgba(192,57,43,0.7),
-               0 0 0 3px rgba(229,56,59,0.25);
-    flex-shrink:0;
-    transition:transform 0.12s,box-shadow 0.12s;
-  }
-  .m-bnav-ai:active .m-bnav-ai-star{
-    transform:scale(0.9);
-    box-shadow:0 -4px 0 rgba(6,6,6,0.98),0 2px 10px rgba(192,57,43,0.5),0 0 0 3px rgba(229,56,59,0.2);
-  }
-  .m-bnav-ai-label{font-size:10px;color:#888;line-height:1;}
 
 `;
