@@ -643,63 +643,83 @@ export default function DashboardPage() {
           {/* ════════════════════════════════════════════════════════════
               BILLING TAB
           ════════════════════════════════════════════════════════════ */}
-          {activeTab === 'billing' && (
-            <>
-              <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Plan &amp; Billing</div>
-              <div style={{ fontSize:13, color:'var(--muted)', marginBottom:24 }}>
-                You&apos;re on the{' '}
-                <strong style={{ color: isPro ? 'var(--gold)' : '#888' }}>
-                  {PLANS[plan].name}
-                </strong>{' '}
-                plan
-                {isPro && business?.plan_expires_at
-                  ? ` · expires ${new Date(business.plan_expires_at).toLocaleDateString()}`
-                  : ''}
-              </div>
-              {paymentMsg && (
-                <div style={{
-                  background: paymentMsg.ok ? 'rgba(39,174,96,0.1)' : 'rgba(192,57,43,0.1)',
-                  border: `1px solid ${paymentMsg.ok ? 'rgba(39,174,96,0.3)' : 'rgba(192,57,43,0.3)'}`,
-                  borderRadius:10, padding:'12px 16px', marginBottom:20,
-                  fontSize:13, color: paymentMsg.ok ? 'var(--green)' : 'var(--red)', fontWeight:600,
-                }}>
-                  {paymentMsg.ok ? '✓ ' : '✗ '}{paymentMsg.text}
-                </div>
-              )}
-              <div className="plan-grid">
-                {/* FREE PLAN */}
-                <div className="card" style={{ border: !isPro ? '1px solid var(--red)' : '1px solid var(--border)', background: !isPro ? 'var(--surface2)' : undefined }}>
-                  <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Free</div>
-                  <div style={{ fontSize:26, fontWeight:800, marginBottom:6, color:'#888' }}>
-                    Free <span style={{ fontSize:12, fontWeight:400, color:'var(--muted)' }}>forever</span>
-                  </div>
-                  <div style={{ borderBottom:'1px solid var(--border)', marginBottom:12 }} />
-                  {PLANS.free.features.map((f, i) => (
-                    <div key={i} style={{ fontSize:12, color:'#ccc', marginBottom:6 }}>✓ {f}</div>
-                  ))}
-                  <div style={{ marginTop:16 }}>
-                    {!isPro && <div style={{ textAlign:'center', fontSize:12, color:'var(--green)', fontWeight:700 }}>✓ Current Plan</div>}
-                  </div>
+          {activeTab === 'billing' && (() => {
+            // Feature comparison rows — derived from PLANS config
+            const compRows = [
+              ...PLANS.free.features.map(f => ({ name: f, free: true, pro: true })),
+              { name: 'Stats & analytics', free: true, pro: true },
+              ...PLANS.pro.features
+                .filter(f => f !== 'Everything in Free')
+                .map(f => ({ name: f, free: false, pro: true })),
+            ]
+            return (
+              <>
+                {/* Current plan indicator */}
+                <div className="billing-current">
+                  <span className="billing-current-label">Current plan</span>
+                  <span className={`badge badge-${plan}`}>{PLANS[plan].name}</span>
+                  {isPro && business?.plan_expires_at && (
+                    <span style={{ fontSize:11, color:'var(--muted)', marginLeft:'auto' }}>
+                      Expires {new Date(business.plan_expires_at).toLocaleDateString()}
+                    </span>
+                  )}
                 </div>
 
-                {/* PRO PLAN */}
-                <div className="card" style={{ border: isPro ? '1px solid var(--gold)' : '1px solid var(--red)', background: isPro ? 'var(--surface2)' : undefined }}>
-                  <div style={{ fontSize:10, fontWeight:800, letterSpacing:1, color:'var(--red)', marginBottom:8 }}>RECOMMENDED</div>
-                  <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Pro</div>
-                  <div style={{ fontSize:26, fontWeight:800, marginBottom:6, color:'var(--gold)' }}>
-                    ₹499 <span style={{ fontSize:12, fontWeight:400, color:'var(--muted)' }}>/month</span>
+                {paymentMsg && (
+                  <div style={{
+                    background: paymentMsg.ok ? 'rgba(39,174,96,0.1)' : 'rgba(192,57,43,0.1)',
+                    border: `1px solid ${paymentMsg.ok ? 'rgba(39,174,96,0.3)' : 'rgba(192,57,43,0.3)'}`,
+                    borderRadius:10, padding:'12px 16px', marginBottom:16,
+                    fontSize:13, color: paymentMsg.ok ? 'var(--green)' : 'var(--red)', fontWeight:600,
+                  }}>
+                    {paymentMsg.ok ? '✓ ' : '✗ '}{paymentMsg.text}
                   </div>
-                  <div style={{ borderBottom:'1px solid var(--border)', marginBottom:12 }} />
-                  {PLANS.pro.features.map((f, i) => (
-                    <div key={i} style={{ fontSize:12, color:'#ccc', marginBottom:6 }}>✓ {f}</div>
-                  ))}
-                  <div style={{ marginTop:16 }}>
+                )}
+
+                {/* Side-by-side plan cards */}
+                <div className="plan-grid">
+                  {/* FREE */}
+                  <div className={`billing-card${!isPro ? ' billing-card-current' : ''}`}>
+                    <div className="billing-plan-name" style={{ color:'#aaa' }}>{PLANS.free.name}</div>
+                    <div className="billing-price" style={{ color:'#888' }}>
+                      Free <span className="billing-price-sub">forever</span>
+                    </div>
+                    <hr className="billing-divider" />
+                    <div className="billing-features">
+                      {PLANS.free.features.map((f, i) => (
+                        <div key={i} className="billing-feature">
+                          <span className="billing-feature-check">✓</span>{f}
+                        </div>
+                      ))}
+                    </div>
+                    <button className="billing-btn billing-btn-current" disabled>
+                      {!isPro ? '✓ Current plan' : 'Free plan'}
+                    </button>
+                  </div>
+
+                  {/* PRO */}
+                  <div className={`billing-card billing-card-pro${isPro ? ' billing-card-pro-active' : ''}`}>
+                    <div className="billing-rec">Recommended</div>
+                    <div className="billing-plan-name" style={{ color:'#fff' }}>{PLANS.pro.name}</div>
+                    <div className="billing-price" style={{ color:'var(--gold)' }}>
+                      ₹{PLANS.pro.price.toLocaleString()}
+                      <span className="billing-price-sub"> /mo</span>
+                    </div>
+                    <hr className="billing-divider" />
+                    <div className="billing-features">
+                      {PLANS.pro.features.map((f, i) => (
+                        <div key={i} className="billing-feature">
+                          <span className="billing-feature-check">✓</span>{f}
+                        </div>
+                      ))}
+                    </div>
                     {isPro ? (
-                      <div style={{ textAlign:'center', fontSize:12, color:'var(--green)', fontWeight:700 }}>✓ Current Plan</div>
+                      <button className="billing-btn billing-btn-pro-current" disabled>
+                        ✓ Current plan
+                      </button>
                     ) : (
                       <button
-                        className="red-btn"
-                        style={{ width:'100%', padding:'10px', fontSize:13 }}
+                        className="billing-btn billing-btn-upgrade"
                         onClick={handleUpgrade}
                         disabled={!!upgrading}
                       >
@@ -708,9 +728,32 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
-              </div>
-            </>
-          )}
+
+                {/* Feature comparison table */}
+                <div className="comp-wrap">
+                  <div className="comp-title">Compare plans</div>
+                  <table className="comp-table">
+                    <thead>
+                      <tr>
+                        <th>Feature</th>
+                        <th>{PLANS.free.name}</th>
+                        <th>{PLANS.pro.name}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {compRows.map((row, i) => (
+                        <tr key={i}>
+                          <td>{row.name}</td>
+                          <td><span className={row.free ? 'comp-yes' : 'comp-no'}>{row.free ? '✓' : '✗'}</span></td>
+                          <td><span className={row.pro ? 'comp-yes' : 'comp-no'}>{row.pro ? '✓' : '✗'}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )
+          })()}
 
         </main>
       </div>
@@ -791,7 +834,42 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 
 /* GRID */
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
-.plan-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+.plan-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+
+/* BILLING */
+.billing-current{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;}
+.billing-current-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;flex-shrink:0;}
+.billing-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 14px;display:flex;flex-direction:column;}
+.billing-card-current{border-color:rgba(212,160,23,0.35);background:linear-gradient(135deg,#111,#0f0f0f);}
+.billing-card-pro{border-color:var(--red);}
+.billing-card-pro-active{border-color:var(--gold);background:linear-gradient(135deg,#1a1500,#111);}
+.billing-rec{font-size:9px;font-weight:800;letter-spacing:1.5px;color:var(--red);text-transform:uppercase;margin-bottom:8px;}
+.billing-plan-name{font-size:15px;font-weight:800;margin-bottom:4px;}
+.billing-price{font-size:22px;font-weight:800;line-height:1.1;margin-bottom:4px;}
+.billing-price-sub{font-size:11px;font-weight:400;color:var(--muted);}
+.billing-divider{border:none;border-top:1px solid var(--border);margin:12px 0;}
+.billing-features{display:flex;flex-direction:column;gap:6px;flex:1;margin-bottom:2px;}
+.billing-feature{font-size:11px;color:#bbb;display:flex;align-items:flex-start;gap:5px;line-height:1.45;}
+.billing-feature-check{color:var(--green);font-size:11px;flex-shrink:0;margin-top:1px;}
+.billing-btn{margin-top:14px;width:100%;padding:9px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Sora',sans-serif;border:none;white-space:nowrap;}
+.billing-btn-current{background:var(--surface2);color:var(--muted);cursor:default;border:1px solid var(--border);}
+.billing-btn-upgrade{background:var(--red);color:#fff;transition:opacity 0.2s;}
+.billing-btn-upgrade:hover:not(:disabled){opacity:0.85;}
+.billing-btn-upgrade:disabled{opacity:0.5;cursor:not-allowed;}
+.billing-btn-pro-current{background:rgba(39,174,96,0.1);color:var(--green);border:1px solid rgba(39,174,96,0.2);cursor:default;}
+
+/* COMPARISON TABLE */
+.comp-wrap{margin-top:20px;}
+.comp-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin-bottom:10px;}
+.comp-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.comp-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);background:var(--surface2);}
+.comp-table th:first-child{text-align:left;}
+.comp-table td{font-size:12px;color:#bbb;padding:9px 12px;border-bottom:1px solid var(--border);text-align:center;vertical-align:middle;}
+.comp-table td:first-child{text-align:left;color:var(--text);font-weight:500;}
+.comp-table tr:last-child td{border-bottom:none;}
+.comp-table tr:nth-child(even) td{background:rgba(255,255,255,0.015);}
+.comp-yes{color:var(--green);font-size:13px;font-weight:700;}
+.comp-no{color:var(--muted2);font-size:13px;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;}
 .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
 .card-title{font-size:14px;font-weight:700;}
@@ -878,7 +956,13 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
   .stat-value{font-size:30px;letter-spacing:-0.5px;}
   .stat-icon{font-size:18px;margin-bottom:8px;}
   .two-col{grid-template-columns:1fr;}
-  .plan-grid{grid-template-columns:1fr;}
+  .plan-grid{gap:8px;}
+  .billing-card{padding:12px 10px;}
+  .billing-plan-name{font-size:13px;}
+  .billing-price{font-size:18px;}
+  .billing-feature{font-size:10px;}
+  .billing-btn{font-size:11px;padding:8px;}
+  .comp-table th,.comp-table td{padding:8px 8px;font-size:11px;}
   .ai-grid{grid-template-columns:1fr;}
   .pro-perks-row{grid-template-columns:1fr;}
   .health-checklist{grid-template-columns:1fr;}
