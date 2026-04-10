@@ -206,7 +206,7 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
     if (days === 0) return 'Today';
     if (days === 1) return 'Yesterday';
     if (days < 7) return `${days} days ago`;
-    if (days < 30) return `${Math.floor(days / 7)} week(s) ago`;
+    if (days < 30) { const w = Math.floor(days / 7); return `${w} week${w !== 1 ? 's' : ''} ago`; }
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
@@ -879,10 +879,12 @@ const styles = `
   .icon-btn-circle { width: 52px; height: 52px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; color: var(--text); transition: all 0.2s; }
   .icon-btn:hover .icon-btn-circle { border-color: rgba(255,255,255,0.22); background: var(--surface3); }
   .icon-btn-label { font-size: 11px; font-weight: 500; color: var(--text2); text-align: center; white-space: nowrap; }
-  .icon-btn-call { background: rgba(192,57,43,0.12); border-color: rgba(192,57,43,0.3); color: var(--red); }
-  .icon-btn:hover .icon-btn-call { background: rgba(192,57,43,0.22); }
-  .icon-btn-wa { background: rgba(37,211,102,0.1); border-color: rgba(37,211,102,0.25); color: #25D366; }
-  .icon-btn:hover .icon-btn-wa { background: rgba(37,211,102,0.18); }
+  .icon-btn-call { background: var(--red); border-color: var(--red); color: #fff; width: 62px; height: 62px; box-shadow: 0 4px 16px rgba(192,57,43,0.4); }
+  .icon-btn-call svg { width: 26px; height: 26px; }
+  .icon-btn:hover .icon-btn-call { background: #e74c3c; border-color: #e74c3c; box-shadow: 0 6px 20px rgba(192,57,43,0.55); }
+  .icon-btn-wa { background: #25D366; border-color: #25D366; color: #fff; width: 62px; height: 62px; box-shadow: 0 4px 16px rgba(37,211,102,0.35); }
+  .icon-btn-wa svg { width: 26px; height: 26px; }
+  .icon-btn:hover .icon-btn-wa { background: #20ba5a; border-color: #20ba5a; box-shadow: 0 6px 20px rgba(37,211,102,0.5); }
   .icon-btn-insta { background: linear-gradient(135deg, #f09433, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888); border-color: rgba(224,64,80,0.35); color: #fff; }
   .icon-btn-fb { background: #1877f2; border-color: rgba(24,119,242,0.4); color: #fff; }
 
