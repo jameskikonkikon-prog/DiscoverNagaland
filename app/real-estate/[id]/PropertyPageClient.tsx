@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 
 type Property = {
@@ -14,7 +14,7 @@ type Property = {
   landmark?: string;
   price?: number;
   price_unit?: string;
-  area?: number;
+  area?: number | string;
   area_unit?: string;
   description?: string;
   photos?: string[];
@@ -25,6 +25,10 @@ type Property = {
   is_featured?: boolean;
   created_at?: string;
   last_verified_at?: string;
+  // Future DB columns — not yet in schema
+  beds?: number;
+  baths?: number;
+  floor?: string | number;
 };
 
 type Props = {
@@ -33,77 +37,62 @@ type Props = {
   isLoggedIn: boolean;
 };
 
-function getPropertyEmoji(type?: string): string {
-  const t = (type || '').toLowerCase();
-  if (t.includes('apartment') || t.includes('flat')) return '🏢';
-  if (t.includes('villa') || t.includes('bungalow')) return '🏡';
-  if (t.includes('house')) return '🏠';
-  if (t.includes('land') || t.includes('plot')) return '🌿';
-  if (t.includes('office')) return '🏢';
-  if (t.includes('shop') || t.includes('commercial')) return '🏪';
-  return '🏘️';
-}
-
 function formatPrice(price?: number): string | null {
   if (!price) return null;
-  if (price >= 10000000) {
-    const v = price / 10000000;
+  if (price >= 10_000_000) {
+    const v = price / 10_000_000;
     return `₹${v % 1 === 0 ? v.toFixed(0) : parseFloat(v.toFixed(2)).toString()} Cr`;
   }
-  if (price >= 100000) {
-    const v = price / 100000;
+  if (price >= 100_000) {
+    const v = price / 100_000;
     return `₹${v % 1 === 0 ? v.toFixed(0) : parseFloat(v.toFixed(1)).toString()} L`;
   }
   if (price >= 1000) {
     return `₹${(price / 1000).toFixed(0)}k`;
   }
-  return `₹${price.toLocaleString()}`;
+  return `₹${price.toLocaleString('en-IN')}`;
 }
 
-function getListingLabel(type?: string): string {
+function priceTypeLabel(priceUnit?: string): string {
+  if (!priceUnit) return 'Total Price';
+  const u = priceUnit.toLowerCase();
+  if (u.includes('sqft') || u.includes('sq ft') || u.includes('sq.ft')) return 'Per Sq Ft';
+  if (u.includes('month') || u.includes('mo')) return 'Per Month';
+  if (u.includes('year') || u.includes('yr')) return 'Per Year';
+  if (u.includes('acre')) return 'Per Acre';
+  return priceUnit;
+}
+
+function getListingBadgeLabel(type?: string): string {
   const t = (type || '').toLowerCase();
-  if (t.includes('rent')) return 'For Rent';
-  if (t.includes('sale')) return 'For Sale';
-  return type || '';
+  if (t.includes('rent')) return 'FOR RENT';
+  if (t.includes('sale')) return 'FOR SALE';
+  return (type || '').toUpperCase();
+}
+
+function isRentType(type?: string): boolean {
+  return (type || '').toLowerCase().includes('rent');
 }
 
 export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Props) {
   const [failedPhotos, setFailedPhotos] = useState<Set<number>>(new Set());
   const [showAllPhotos, setShowAllPhotos] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [navScrolled, setNavScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setNavScrolled(window.scrollY > 100);
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  const [descExpanded, setDescExpanded] = useState(false);
 
   const handlePhotoError = useCallback((index: number) => {
     setFailedPhotos(prev => new Set(prev).add(index));
   }, []);
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const photos = property.photos?.length ? property.photos : [];
-  const validIndices = photos.map((_, i) => i).filter(i => !failedPhotos.has(i));
-  const allPhotosFailed = photos.length > 0 && validIndices.length === 0;
-
-  const propertyEmoji = getPropertyEmoji(property.property_type);
+  const validPhotos = photos.filter((_, i) => !failedPhotos.has(i));
+  const isRent = isRentType(property.listing_type);
+  const badgeLabel = getListingBadgeLabel(property.listing_type);
   const priceLabel = formatPrice(property.price);
-  const listingLabel = getListingLabel(property.listing_type);
-  const isRent = listingLabel === 'For Rent';
+  const pTypeLabel = priceTypeLabel(property.price_unit);
 
-  const locationParts = [property.locality, property.city].filter(Boolean);
-  const locationLine = locationParts.join(', ');
-
+  const locationLine = [property.locality, property.city].filter(Boolean).join(', ');
   const mapsQuery = [property.title, property.locality, property.landmark, property.city, 'Nagaland'].filter(Boolean).join(' ');
   const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(mapsQuery)}`;
-
   const waText = encodeURIComponent(`Hi! I'm interested in your property listed on Yana Nagaland: ${property.title}`);
   const waUrl = property.whatsapp ? `https://wa.me/${property.whatsapp.replace(/\D/g, '')}?text=${waText}` : '';
 
@@ -115,100 +104,78 @@ export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Pr
       fetch('/api/track', { method: 'POST', body: data, headers: { 'Content-Type': 'application/json' } }).catch(() => {});
     }
   };
-  const shareText = typeof window !== 'undefined' ? encodeURIComponent(`Check out this property on Yana Nagaland: ${window.location.href}`) : '';
-  const shareWaUrl = `https://wa.me/?text=${shareText}`;
+
+  // Specs — only render boxes with actual data
+  const specs: { icon: string; label: string; value: string }[] = [];
+  if (property.beds) specs.push({ icon: '🛏', label: 'Beds', value: String(property.beds) });
+  if (property.baths) specs.push({ icon: '🚿', label: 'Baths', value: String(property.baths) });
+  if (property.area) {
+    const areaVal = Number(property.area);
+    specs.push({ icon: '📐', label: 'Sqft', value: `${isNaN(areaVal) ? property.area : areaVal.toLocaleString('en-IN')} ${property.area_unit || 'sq ft'}` });
+  }
+  if (property.floor) specs.push({ icon: '🏗', label: 'Floor', value: String(property.floor) });
 
   const renderGallery = () => {
-    if (photos.length === 0 || allPhotosFailed) {
+    if (validPhotos.length === 0) {
       return (
-        <div className="gallery-placeholder">
-          <span>{propertyEmoji}</span>
-          <p>No photos yet</p>
+        <div className="gal-placeholder">
+          <span className="gal-icon">🏘️</span>
+          <span className="gal-none">No photos yet</span>
         </div>
       );
     }
-
-    if (validIndices.length === 0) {
-      return (
-        <div className="gallery-placeholder">
-          <span>{propertyEmoji}</span>
-          <p>No photos yet</p>
-        </div>
-      );
-    }
-
-    if (validIndices.length === 1) {
-      return (
-        <div className="gallery-single">
-          <img
-            src={photos[validIndices[0]]}
-            alt={property.title}
-            className="gallery-img-single"
-            onError={() => handlePhotoError(validIndices[0])}
-          />
-          <div className="gallery-grad" />
-        </div>
-      );
-    }
-
-    if (validIndices.length === 2) {
-      return (
-        <div className="gallery-duo">
-          {validIndices.map(idx => (
-            <div key={idx} className="gallery-duo-item">
-              <img
-                src={photos[idx]}
-                alt={property.title}
-                className="gallery-img-fill"
-                onError={() => handlePhotoError(idx)}
-              />
-            </div>
-          ))}
-          <div className="gallery-grad" />
-        </div>
-      );
-    }
-
-    const mainIdx = validIndices[0];
-    const rightIdx1 = validIndices[1];
-    const rightIdx2 = validIndices[2];
 
     return (
-      <div className="gallery-grid">
-        <div className="gallery-main">
+      <div className="gal-grid">
+        {/* Main photo */}
+        <div className="gal-main">
           <img
-            src={photos[mainIdx]}
+            src={validPhotos[0]}
             alt={property.title}
-            className="gallery-img-fill"
-            onError={() => handlePhotoError(mainIdx)}
+            className="gal-img"
+            onError={() => handlePhotoError(photos.indexOf(validPhotos[0]))}
           />
         </div>
-        <div className="gallery-side">
-          <div className="gallery-side-item">
-            <img
-              src={photos[rightIdx1]}
-              alt={`${property.title} photo`}
-              className="gallery-img-fill"
-              onError={() => handlePhotoError(rightIdx1)}
-            />
+
+        {/* Two stacked on right — only if 2+ photos */}
+        {validPhotos.length >= 2 && (
+          <div className="gal-side">
+            <div className="gal-side-item">
+              <img
+                src={validPhotos[1]}
+                alt={`${property.title} 2`}
+                className="gal-img"
+                onError={() => handlePhotoError(photos.indexOf(validPhotos[1]))}
+              />
+            </div>
+            {validPhotos.length >= 3 ? (
+              <div className="gal-side-item">
+                <img
+                  src={validPhotos[2]}
+                  alt={`${property.title} 3`}
+                  className="gal-img"
+                  onError={() => handlePhotoError(photos.indexOf(validPhotos[2]))}
+                />
+              </div>
+            ) : (
+              <div className="gal-side-item gal-side-empty" />
+            )}
           </div>
-          <div className="gallery-side-item">
-            <img
-              src={photos[rightIdx2]}
-              alt={`${property.title} photo`}
-              className="gallery-img-fill"
-              onError={() => handlePhotoError(rightIdx2)}
-            />
-          </div>
+        )}
+
+        {/* FOR SALE / FOR RENT badge */}
+        <div className={`gal-badge ${isRent ? 'gal-badge-rent' : 'gal-badge-sale'}`}>
+          {badgeLabel}
         </div>
-        <div className="gallery-grad" />
-        {validIndices.length >= 4 && (
+
+        {/* See all photos */}
+        {validPhotos.length >= 3 && (
           <button
             type="button"
-            className="view-all-photos-btn"
+            className="gal-see-all"
             onClick={() => setShowAllPhotos(true)}
           >
-            View all {validIndices.length} photos
+            See all {validPhotos.length} photos
           </button>
         )}
       </div>
@@ -217,222 +184,199 @@ export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Pr
 
   return (
     <>
-      <style>{styles}</style>
-      <main className="prop-page">
+      <style>{css}</style>
+      <div className="pp">
 
-        {/* Nav */}
-        <nav className={`nav ${navScrolled ? 'scrolled' : ''}`}>
-          <Link href="/" className="nav-logo">Yana<span>Nagaland</span></Link>
-          <div className="nav-center">{property.title} · {property.city}</div>
-          <div className="nav-right">
-            <Link href="/real-estate" className="nav-link">← Properties</Link>
-            {isLoggedIn ? (
-              <Link href="/real-estate/dashboard" className="nav-cta">My Listings</Link>
-            ) : (
-              <Link href="/real-estate/dashboard" className="nav-cta">List Property</Link>
-            )}
+        {/* ── Top bar ── */}
+        <nav className="topbar">
+          <Link href="/real-estate" className="topbar-back">← Properties</Link>
+          <div className="topbar-center">
+            {[property.property_type, property.city].filter(Boolean).join(' · ')}
           </div>
+          {isLoggedIn ? (
+            <Link href="/real-estate/dashboard" className="topbar-action">My Listings</Link>
+          ) : (
+            <Link href="/real-estate/dashboard" className="topbar-action">List Property</Link>
+          )}
         </nav>
 
-        {/* Gallery */}
-        <div className="gallery">
+        {/* ── Gallery ── */}
+        <div className="gal-wrap">
           {renderGallery()}
         </div>
 
-        <div className="content">
-
-          {/* Left column */}
-          <div className="left">
-
-            {/* Header */}
-            <div className="hero-text fade-up">
-              <div className="header-pills">
-                {property.property_type && (
-                  <span className="type-tag">{propertyEmoji} {property.property_type}</span>
-                )}
-                {listingLabel && (
-                  <span className={`listing-tag ${isRent ? 'rent' : 'sale'}`}>{listingLabel}</span>
-                )}
-                {property.is_featured && (
-                  <span className="featured-chip">⭐ Featured</span>
-                )}
-              </div>
-              <div className="prop-title">{property.title}</div>
-              {locationLine && (
-                <div className="location-line">
-                  <span>📍</span>
-                  <span>{locationLine}, Nagaland</span>
-                </div>
-              )}
-              {priceLabel && (
-                <div className="price-row">
-                  <span className="price-value">{priceLabel}</span>
-                  {property.price_unit && (
-                    <span className="price-unit">/{property.price_unit}</span>
-                  )}
-                </div>
-              )}
+        {/* ── Property head ── */}
+        <div className="phead">
+          {property.property_type && (
+            <div className="phead-badge">{property.property_type.toUpperCase()}</div>
+          )}
+          <div className="phead-title">{property.title}</div>
+          {locationLine && (
+            <div className="phead-loc">
+              <span className="phead-pin">📍</span>
+              {locationLine}{property.city && !locationLine.includes(property.city) ? `, ${property.city}` : ''}, Nagaland
             </div>
-
-            {/* Mobile CTAs */}
-            <div className="mobile-cta fade-up-2">
-              {property.phone && (
-                <a href={`tel:${property.phone}`} className="m-call" onClick={() => track('call')}>📞 Call Owner</a>
-              )}
-              {property.whatsapp && (
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="m-wa" onClick={() => track('whatsapp')}>💬 WhatsApp</a>
-              )}
+          )}
+          {priceLabel && (
+            <div className="phead-price-row">
+              <span className="phead-price">{priceLabel}</span>
+              <span className="phead-price-type">{pTypeLabel}</span>
             </div>
+          )}
+        </div>
 
-            {/* Property Details card */}
-            <div className="card fade-up-3">
-              <div className="card-head">Property Details</div>
-              <div className="details-grid">
-                {property.property_type && (
-                  <div className="detail-item">
-                    <div className="detail-label">Type</div>
-                    <div className="detail-value">{property.property_type}</div>
-                  </div>
-                )}
-                {listingLabel && (
-                  <div className="detail-item">
-                    <div className="detail-label">Listing</div>
-                    <div className="detail-value">{listingLabel}</div>
-                  </div>
-                )}
-                {property.area && (
-                  <div className="detail-item">
-                    <div className="detail-label">Area</div>
-                    <div className="detail-value">{property.area.toLocaleString()} {property.area_unit || 'sq ft'}</div>
-                  </div>
-                )}
-                {priceLabel && (
-                  <div className="detail-item">
-                    <div className="detail-label">Price</div>
-                    <div className="detail-value price-highlight">{priceLabel}{property.price_unit ? `/${property.price_unit}` : ''}</div>
-                  </div>
-                )}
-                {property.city && (
-                  <div className="detail-item">
-                    <div className="detail-label">City</div>
-                    <div className="detail-value">{property.city}</div>
-                  </div>
-                )}
-                {property.locality && (
-                  <div className="detail-item">
-                    <div className="detail-label">Locality</div>
-                    <div className="detail-value">{property.locality}</div>
-                  </div>
-                )}
+        {/* ── Quick specs strip ── */}
+        {specs.length > 0 && (
+          <div className="specs-strip">
+            {specs.map(s => (
+              <div key={s.label} className="spec-box">
+                <span className="spec-icon">{s.icon}</span>
+                <span className="spec-val">{s.value}</span>
+                <span className="spec-label">{s.label}</span>
               </div>
-            </div>
-
-            {/* Description card */}
-            {property.description && (
-              <div className="card fade-up-3">
-                <div className="card-head">About This Property</div>
-                <p className="about-text">{property.description}</p>
-              </div>
-            )}
-
-            {/* Location card */}
-            <div className="card fade-up-4">
-              <div className="card-head">Location</div>
-              <div className="hi-row">
-                <div className="hi-icon">📍</div>
-                <div className="hi-content">
-                  {property.locality && <div className="hi-value">{property.locality}</div>}
-                  {property.landmark && <div className="hi-sub">Near {property.landmark}</div>}
-                  <div className="hi-sub">{property.city}, Nagaland</div>
-                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="hi-link">Open in Google Maps →</a>
-                </div>
-              </div>
-            </div>
-
+            ))}
           </div>
+        )}
 
-          {/* Sidebar */}
-          <div className="sidebar">
+        {/* ── Contact action icons ── */}
+        <div className="contact-icons">
+          {property.phone && (
+            <a
+              href={`tel:${property.phone}`}
+              className="ci-btn"
+              onClick={() => track('call')}
+            >
+              <span className="ci-circle ci-call">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.13 6.13l1.07-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              </span>
+              <span className="ci-label">Call</span>
+            </a>
+          )}
+          {property.whatsapp && (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ci-btn"
+              onClick={() => track('whatsapp')}
+            >
+              <span className="ci-circle ci-wa">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+              </span>
+              <span className="ci-label">WhatsApp</span>
+            </a>
+          )}
+        </div>
 
-            {/* Contact card */}
-            <div className="sidebar-card">
-              <div className="sc-label">Contact Owner</div>
-              {property.posted_by_name && (
-                <div className="posted-by">
-                  <div className="posted-avatar">{property.posted_by_name[0]?.toUpperCase()}</div>
-                  <div className="posted-info">
-                    <div className="posted-name">{property.posted_by_name}</div>
-                    <div className="posted-role">Property Owner</div>
-                  </div>
-                </div>
-              )}
-              {property.phone && (
-                <a href={`tel:${property.phone}`} className="btn-primary" onClick={() => track('call')}>📞 Call {property.phone}</a>
-              )}
-              {property.whatsapp && (
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn-wa" onClick={() => track('whatsapp')}>💬 Chat on WhatsApp</a>
-              )}
+        {/* ── About this property ── */}
+        {property.description && (
+          <div className="section">
+            <div className="section-title">About this property</div>
+            <div className={`about-text ${descExpanded ? 'about-expanded' : 'about-clamped'}`}>
+              {property.description}
             </div>
+            {!descExpanded && (
+              <button className="read-more" onClick={() => setDescExpanded(true)}>
+                Read more →
+              </button>
+            )}
+          </div>
+        )}
 
-            {/* Share card */}
-            <div className="sidebar-card">
-              <div className="sc-label">Share</div>
-              <div className="share-row">
-                <a href={shareWaUrl} target="_blank" rel="noopener noreferrer" className="share-btn">💬 WhatsApp</a>
-                <button type="button" className="share-btn" onClick={copyLink}>
-                  {copied ? '✓ Copied!' : '🔗 Copy Link'}
-                </button>
-              </div>
-            </div>
-
-            {/* Map card */}
-            <div className="sidebar-card">
-              <div className="sc-label">Location</div>
-              <div
-                className="map-box"
-                onClick={() => window.open(mapsUrl, '_blank')}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => e.key === 'Enter' && window.open(mapsUrl, '_blank')}
-              >
-                <div className="map-grid" />
-                <span className="map-pin">📍</span>
-              </div>
-              <div className="loc-name">{property.locality || property.city}</div>
-              {property.landmark && <div className="loc-sub">Near {property.landmark}</div>}
-              <div className="loc-sub">{property.city}, Nagaland</div>
-              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="btn-ghost">🗺️ Open in Google Maps</a>
-            </div>
-
-            {/* Owner edit card */}
-            {isOwner && (
-              <div className="sidebar-card owner-card">
-                <div className="sc-label">Your Listing</div>
-                <div className="owner-sub">You own this property listing.</div>
-                <Link href={`/real-estate/dashboard/edit/${property.id}`} className="btn-ghost">✏️ Edit This Listing</Link>
+        {/* ── Property details grid ── */}
+        <div className="section">
+          <div className="section-title">Property details</div>
+          <div className="details-grid">
+            {property.property_type && (
+              <div className="det-card">
+                <div className="det-label">Type</div>
+                <div className="det-val">{property.property_type}</div>
               </div>
             )}
-
+            {property.listing_type && (
+              <div className="det-card">
+                <div className="det-label">Listing</div>
+                <div className="det-val">{isRent ? 'For Rent' : 'For Sale'}</div>
+              </div>
+            )}
+            {priceLabel && (
+              <div className="det-card">
+                <div className="det-label">Price</div>
+                <div className="det-val">{priceLabel}{property.price_unit ? `/${property.price_unit}` : ''}</div>
+              </div>
+            )}
+            {property.city && (
+              <div className="det-card">
+                <div className="det-label">City</div>
+                <div className="det-val">{property.city}</div>
+              </div>
+            )}
           </div>
         </div>
-      </main>
 
-      {/* All photos lightbox */}
-      {showAllPhotos && (
-        <div className="photos-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAllPhotos(false); }}>
-          <div className="photos-modal">
-            <div className="photos-modal-header">
-              <div className="photos-modal-title">All Photos</div>
-              <button className="cm-close" onClick={() => setShowAllPhotos(false)} aria-label="Close">✕</button>
+        {/* ── Location ── */}
+        <div className="section">
+          <div className="section-title">Location</div>
+          <div className="loc-row">
+            <span className="loc-pin">📍</span>
+            <div className="loc-text">
+              {property.locality && <div className="loc-main">{property.locality}</div>}
+              {property.landmark && <div className="loc-sub">Near {property.landmark}</div>}
+              <div className="loc-sub">{property.city}, Nagaland</div>
             </div>
-            <div className="photos-modal-grid">
-              {photos.map((p, i) => !failedPhotos.has(i) && (
+          </div>
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="maps-link">
+            Open in Google Maps →
+          </a>
+        </div>
+
+        {/* ── Owner edit ── */}
+        {isOwner && (
+          <div className="section owner-section">
+            <div className="section-title">Your listing</div>
+            <Link href={`/real-estate/dashboard/edit/${property.id}`} className="edit-link">
+              ✏️ Edit this listing
+            </Link>
+          </div>
+        )}
+
+        {/* Bottom padding so content doesn't hide behind fixed CTAs */}
+        <div style={{ height: 100 }} />
+
+        {/* ── Fixed bottom CTAs ── */}
+        <div className="fixed-cta">
+          {property.phone && property.whatsapp ? (
+            <>
+              <a href={`tel:${property.phone}`} className="cta-btn cta-call" onClick={() => track('call')}>Call Owner</a>
+              <a href={waUrl} target="_blank" rel="noopener noreferrer" className="cta-btn cta-wa" onClick={() => track('whatsapp')}>WhatsApp</a>
+            </>
+          ) : property.phone ? (
+            <a href={`tel:${property.phone}`} className="cta-btn cta-call cta-full" onClick={() => track('call')}>Call Owner</a>
+          ) : property.whatsapp ? (
+            <a href={waUrl} target="_blank" rel="noopener noreferrer" className="cta-btn cta-wa cta-full" onClick={() => track('whatsapp')}>WhatsApp</a>
+          ) : null}
+        </div>
+      </div>
+
+      {/* ── All photos lightbox ── */}
+      {showAllPhotos && (
+        <div
+          className="lb-overlay"
+          onClick={e => { if (e.target === e.currentTarget) setShowAllPhotos(false); }}
+        >
+          <div className="lb-modal">
+            <div className="lb-header">
+              <span className="lb-title">All Photos ({validPhotos.length})</span>
+              <button className="lb-close" onClick={() => setShowAllPhotos(false)}>✕</button>
+            </div>
+            <div className="lb-grid">
+              {validPhotos.map((src, i) => (
                 <img
                   key={i}
-                  src={p}
+                  src={src}
                   alt={`${property.title} photo ${i + 1}`}
-                  className="photos-modal-img"
-                  onError={() => handlePhotoError(i)}
+                  className="lb-img"
+                  onError={() => handlePhotoError(photos.indexOf(src))}
                 />
               ))}
             </div>
@@ -443,239 +387,260 @@ export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Pr
   );
 }
 
-const styles = `
+const css = `
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg:#0a0a0a;
-    --surface:#0f0f0f;
-    --surface2:#141414;
-    --surface3:#1a1a1a;
-    --border:rgba(255,255,255,0.06);
-    --border2:rgba(255,255,255,0.1);
-    --red:#c0392b;
-    --red-soft:rgba(192,57,43,0.1);
-    --red-border:rgba(192,57,43,0.25);
-    --green:#25D366;
-    --text:#f5f5f5;
-    --text2:#999;
-    --text3:#555;
-    --sale:#c0392b;
-    --sale-soft:rgba(192,57,43,0.12);
-    --rent:#1a6b3c;
-    --rent-soft:rgba(26,107,60,0.12);
-    --rent-border:rgba(37,211,102,0.2);
+    --bg: #0a0a0a;
+    --surface: #111;
+    --surface2: #181818;
+    --border: rgba(255,255,255,0.07);
+    --red: #c0392b;
+    --green: #25D366;
+    --text: #f0f0f0;
+    --text2: #888;
+    --text3: #444;
   }
-  html { scroll-behavior: smooth; }
-  body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  .fade-up  { animation: fadeUp 0.6s cubic-bezier(0.22,1,0.36,1) both; }
-  .fade-up-2 { animation: fadeUp 0.6s 0.1s cubic-bezier(0.22,1,0.36,1) both; }
-  .fade-up-3 { animation: fadeUp 0.6s 0.2s cubic-bezier(0.22,1,0.36,1) both; }
-  .fade-up-4 { animation: fadeUp 0.6s 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+  .pp { max-width: 480px; margin: 0 auto; padding-bottom: 0; }
 
-  .prop-page { min-height: 100vh; }
-
-  /* Nav */
-  .nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-    height: 56px;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 40px;
-    background: rgba(10,10,10,0.8);
-    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  /* ── Top bar ── */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: 52px;
+    display: flex; align-items: center;
+    background: rgba(10,10,10,0.92);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border);
-    transition: background 0.3s;
+    padding: 0 14px;
+    gap: 8px;
   }
-  .nav.scrolled { background: rgba(10,10,10,0.95); }
-  .nav-logo { font-size: 17px; font-weight: 800; letter-spacing: -0.5px; text-decoration: none; color: var(--text); }
-  .nav-logo span { color: var(--red); }
-  .nav-center {
-    position: absolute; left: 50%; transform: translateX(-50%);
-    font-size: 13px; font-weight: 500; color: var(--text2);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;
+  .topbar-back {
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    text-decoration: none; white-space: nowrap;
+    flex-shrink: 0;
   }
-  .nav-right { display: flex; align-items: center; gap: 8px; }
-  .nav-link { font-size: 12px; font-weight: 600; color: var(--text2); text-decoration: none; padding: 6px 14px; border-radius: 8px; transition: color 0.2s; }
-  .nav-link:hover { color: var(--text); }
-  .nav-cta { font-size: 12px; font-weight: 700; color: #fff; text-decoration: none; padding: 7px 16px; border-radius: 8px; background: var(--red); transition: opacity 0.2s; }
-  .nav-cta:hover { opacity: 0.85; }
-
-  /* Gallery */
-  .gallery {
-    margin-top: 56px; position: relative;
-    height: 420px; max-height: 480px; min-height: 300px;
-    background: var(--surface2); overflow: hidden;
+  .topbar-back:hover { color: var(--text); }
+  .topbar-center {
+    flex: 1; text-align: center;
+    font-size: 12px; font-weight: 600; color: var(--text2);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .gallery-grad {
-    position: absolute; inset: 0;
-    background: linear-gradient(to bottom, rgba(10,10,10,0) 0%, rgba(10,10,10,0) 60%, rgba(10,10,10,0.6) 85%, rgba(10,10,10,1) 100%);
-    pointer-events: none; z-index: 2;
-  }
-  .gallery-placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; color: var(--text3); font-size: 3.5rem; }
-  .gallery-placeholder p { font-size: 0.9rem; }
-
-  .gallery-single { width: 100%; height: 100%; position: relative; }
-  .gallery-img-single { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-  .gallery-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; height: 100%; position: relative; }
-  .gallery-duo-item { overflow: hidden; }
-  .gallery-img-fill { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s cubic-bezier(0.22,1,0.36,1); }
-  .gallery-duo-item:hover .gallery-img-fill { transform: scale(1.03); }
-
-  .gallery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; height: 100%; position: relative; }
-  .gallery-main { overflow: hidden; }
-  .gallery-main:hover .gallery-img-fill { transform: scale(1.03); }
-  .gallery-side { display: grid; grid-template-rows: 1fr 1fr; gap: 3px; }
-  .gallery-side-item { overflow: hidden; }
-  .gallery-side-item:hover .gallery-img-fill { transform: scale(1.03); }
-
-  .view-all-photos-btn {
-    position: absolute; bottom: 20px; right: 20px; z-index: 3;
-    padding: 8px 18px; border-radius: 8px;
-    background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15);
-    backdrop-filter: blur(8px); color: #fff; font-size: 12px; font-weight: 600;
-    cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s;
-  }
-  .view-all-photos-btn:hover { background: rgba(0,0,0,0.85); border-color: rgba(255,255,255,0.3); }
-
-  /* Content layout */
-  .content {
-    max-width: 1100px; margin: 0 auto;
-    padding: 0 40px 100px;
-    display: grid; grid-template-columns: 1fr 320px; gap: 32px;
-    align-items: start;
+  .topbar-action {
+    flex-shrink: 0;
+    font-size: 12px; font-weight: 700; color: #fff;
+    background: var(--red); padding: 7px 14px; border-radius: 8px;
+    text-decoration: none; white-space: nowrap;
   }
 
-  /* Header */
-  .hero-text { padding: 32px 0 28px; margin-bottom: 24px; }
-  .header-pills { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-
-  .type-tag {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase;
-    color: var(--text2); background: var(--surface2); border: 1px solid var(--border2);
-    padding: 4px 12px; border-radius: 20px;
+  /* ── Gallery ── */
+  .gal-wrap {
+    margin-top: 52px;
+    height: 56vw; min-height: 220px; max-height: 340px;
+    background: var(--surface2);
+    position: relative; overflow: hidden;
   }
-  .listing-tag {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
-    padding: 4px 12px; border-radius: 20px;
+  .gal-placeholder {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    color: var(--text3);
   }
-  .listing-tag.sale { color: #fff; background: var(--red); }
-  .listing-tag.rent { color: var(--green); background: #0e2b1a; border: 1px solid var(--rent-border); }
-  .featured-chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px;
-    background: rgba(255,215,0,0.1); color: #d4af37; border: 1px solid rgba(212,175,55,0.25);
+  .gal-icon { font-size: 3rem; }
+  .gal-none { font-size: 13px; }
+
+  .gal-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 2px; height: 100%; position: relative;
+  }
+  .gal-main { overflow: hidden; }
+  .gal-side { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; }
+  .gal-side-item { overflow: hidden; }
+  .gal-side-empty { background: var(--surface2); }
+  .gal-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .gal-badge {
+    position: absolute; top: 10px; left: 10px; z-index: 4;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+    padding: 4px 10px; border-radius: 4px;
+  }
+  .gal-badge-sale { background: var(--red); color: #fff; }
+  .gal-badge-rent { background: #0d2b1a; color: var(--green); border: 1px solid rgba(37,211,102,0.3); }
+
+  .gal-see-all {
+    position: absolute; bottom: 10px; right: 10px; z-index: 4;
+    font-size: 11px; font-weight: 600; color: #fff;
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
+    padding: 6px 12px; cursor: pointer;
+    font-family: 'Sora', sans-serif;
   }
 
-  .prop-title { font-size: 36px; font-weight: 800; letter-spacing: -1px; line-height: 1.15; margin-bottom: 10px; }
-  .location-line { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
-  .price-row { display: flex; align-items: baseline; gap: 4px; margin-top: 6px; }
-  .price-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); }
-  .price-unit { font-size: 14px; color: var(--text2); font-weight: 400; }
-
-  /* Mobile CTAs */
-  .mobile-cta { display: none; gap: 10px; margin-bottom: 24px; }
-  .m-call, .m-wa { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 12px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: opacity 0.2s; }
-  .m-call { background: var(--red); color: #fff; }
-  .m-wa { background: #0e2b1a; color: var(--green); border: 1px solid var(--rent-border); }
-  .m-call:hover, .m-wa:hover { opacity: 0.85; }
-
-  /* Cards */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 20px;
+  /* ── Property head ── */
+  .phead { padding: 16px 16px 0; }
+  .phead-badge {
+    display: inline-block;
+    font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+    color: var(--text3); background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 3px 8px; margin-bottom: 8px;
   }
-  .card-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); margin-bottom: 18px; }
+  .phead-title {
+    font-size: 15px; font-weight: 700; line-height: 1.4;
+    margin-bottom: 6px;
+  }
+  .phead-loc {
+    font-size: 12px; color: var(--text2);
+    display: flex; align-items: flex-start; gap: 4px;
+    margin-bottom: 10px;
+  }
+  .phead-pin { flex-shrink: 0; }
+  .phead-price-row {
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .phead-price { font-size: 17px; font-weight: 800; }
+  .phead-price-type {
+    font-size: 11px; color: var(--text2);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 7px; font-weight: 500;
+  }
 
-  /* Property details grid */
-  .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border-radius: 10px; overflow: hidden; }
-  .detail-item { background: var(--surface2); padding: 14px 16px; }
-  .detail-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); margin-bottom: 5px; }
-  .detail-value { font-size: 14px; font-weight: 600; color: var(--text); }
-  .detail-value.price-highlight { color: var(--text); font-size: 15px; }
+  /* ── Specs strip ── */
+  .specs-strip {
+    margin: 16px 16px 0;
+    display: flex; gap: 8px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; padding-bottom: 2px;
+  }
+  .specs-strip::-webkit-scrollbar { display: none; }
+  .spec-box {
+    flex-shrink: 0;
+    min-width: 72px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .spec-icon { font-size: 18px; line-height: 1; }
+  .spec-val { font-size: 12px; font-weight: 700; text-align: center; }
+  .spec-label { font-size: 10px; color: var(--text2); font-weight: 500; }
 
-  /* About */
-  .about-text { font-size: 15px; line-height: 1.85; color: var(--text2); font-weight: 300; }
+  /* ── Contact action icons ── */
+  .contact-icons {
+    margin: 20px 16px 0;
+    display: flex; gap: 20px;
+  }
+  .ci-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    text-decoration: none;
+  }
+  .ci-circle {
+    width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s, opacity 0.15s;
+  }
+  .ci-circle:active { transform: scale(0.93); opacity: 0.85; }
+  .ci-call { background: var(--red); color: #fff; }
+  .ci-wa { background: #1a3d26; color: var(--green); }
+  .ci-label { font-size: 11px; font-weight: 600; color: var(--text2); }
 
-  /* Location info */
-  .hi-row { display: flex; gap: 14px; padding: 14px 0; }
-  .hi-row:first-of-type { padding-top: 0; }
-  .hi-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-  .hi-content { flex: 1; }
-  .hi-value { font-size: 14px; font-weight: 600; color: var(--text); }
-  .hi-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
-  .hi-link { font-size: 12px; color: var(--red); text-decoration: none; font-weight: 600; margin-top: 6px; display: inline-block; transition: opacity 0.2s; }
-  .hi-link:hover { opacity: 0.7; }
+  /* ── Sections ── */
+  .section { margin: 24px 16px 0; }
+  .section-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--text3); margin-bottom: 12px;
+  }
 
-  /* Sidebar */
-  .sidebar { position: sticky; top: 76px; }
-  .sidebar-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 14px; }
-  .sc-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); margin-bottom: 16px; }
+  /* ── About ── */
+  .about-clamped {
+    font-size: 14px; line-height: 1.75; color: var(--text2); font-weight: 300;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .about-expanded {
+    font-size: 14px; line-height: 1.75; color: var(--text2); font-weight: 300;
+  }
+  .read-more {
+    background: none; border: none; color: var(--red);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    padding: 6px 0 0; font-family: 'Sora', sans-serif;
+    display: block;
+  }
 
-  /* Posted by */
-  .posted-by { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
-  .posted-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--surface3); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: var(--text2); flex-shrink: 0; }
-  .posted-name { font-size: 14px; font-weight: 600; color: var(--text); }
-  .posted-role { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  /* ── Details grid ── */
+  .details-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .det-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .det-label { font-size: 10px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .det-val { font-size: 13px; font-weight: 700; }
 
-  /* Sidebar buttons */
-  .btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border-radius: 12px; background: var(--red); color: #fff; font-size: 13px; font-weight: 700; text-decoration: none; border: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: opacity 0.2s; margin-bottom: 8px; letter-spacing: 0.2px; }
-  .btn-primary:hover { opacity: 0.85; }
-  .btn-wa { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border-radius: 12px; background: #0e2b1a; color: var(--green); border: 1px solid var(--rent-border); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; margin-bottom: 8px; }
-  .btn-wa:hover { background: #1a3d24; }
-  .btn-ghost { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border-radius: 12px; background: transparent; color: var(--text2); border: 1px solid var(--border); font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; }
-  .btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+  /* ── Location ── */
+  .loc-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+  .loc-pin { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .loc-main { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .loc-sub { font-size: 12px; color: var(--text2); margin-bottom: 2px; }
+  .maps-link {
+    font-size: 13px; font-weight: 600; color: var(--red);
+    text-decoration: none; display: inline-block;
+  }
 
-  /* Share */
-  .share-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .share-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border-radius: 10px; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; transition: all 0.2s; text-decoration: none; }
-  .share-btn:hover { border-color: var(--border2); color: var(--text); }
+  /* ── Owner section ── */
+  .owner-section { border-left: 2px solid var(--red); padding-left: 14px; }
+  .edit-link {
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    text-decoration: none; display: inline-block;
+  }
 
-  /* Map */
-  .map-box { background: var(--surface2); border-radius: 10px; height: 110px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; border: 1px solid var(--border); cursor: pointer; transition: border-color 0.2s; overflow: hidden; position: relative; }
-  .map-box:hover { border-color: var(--border2); }
-  .map-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 20px 20px; }
-  .map-pin { font-size: 28px; position: relative; z-index: 1; }
-  .loc-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
-  .loc-sub { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+  /* ── Fixed bottom CTAs ── */
+  .fixed-cta {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    display: flex;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    padding: 10px 16px 10px;
+    /* Safe area for phones with home bar */
+    padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+  }
+  .cta-btn {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center;
+    height: 48px; border-radius: 10px;
+    font-size: 14px; font-weight: 700;
+    text-decoration: none; font-family: 'Sora', sans-serif;
+    transition: opacity 0.15s;
+  }
+  .cta-btn:active { opacity: 0.8; }
+  .cta-call { background: var(--red); color: #fff; margin-right: 6px; }
+  .cta-wa { background: #1a3d26; color: var(--green); margin-left: 6px; }
+  .cta-full { flex: 1; margin: 0; }
 
-  /* Owner card */
-  .owner-card { border-left: 2px solid var(--red); }
-  .owner-sub { font-size: 12px; color: var(--text2); margin-bottom: 14px; line-height: 1.5; }
+  /* ── Lightbox ── */
+  .lb-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,0.88); backdrop-filter: blur(8px);
+    display: flex; align-items: flex-end;
+    animation: fadeIn 0.15s ease;
+  }
+  .lb-modal {
+    width: 100%; max-height: 90vh; overflow-y: auto;
+    background: var(--surface); border-radius: 20px 20px 0 0;
+    padding: 20px 16px;
+  }
+  .lb-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .lb-title { font-size: 14px; font-weight: 700; }
+  .lb-close { background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer; padding: 4px 8px; font-family: 'Sora', sans-serif; }
+  .lb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .lb-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; }
 
-  /* Photos lightbox */
-  .photos-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.15s ease; overflow-y: auto; }
-  .photos-modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px; width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; animation: fadeUp 0.2s cubic-bezier(0.22,1,0.36,1) both; }
-  .photos-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-  .photos-modal-title { font-size: 15px; font-weight: 800; }
-  .photos-modal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-  .photos-modal-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; }
-  .cm-close { background: none; border: none; color: var(--text2); font-size: 16px; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1; transition: color 0.15s; font-family: 'Sora', sans-serif; }
-  .cm-close:hover { color: var(--text); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-  /* Mobile */
-  @media (max-width: 900px) {
-    .content { grid-template-columns: 1fr; padding: 0 20px 80px; }
-    .sidebar { display: none; }
-    .mobile-cta { display: flex; }
-    .prop-title { font-size: 26px; }
-    .price-value { font-size: 22px; }
-    .gallery { height: 50vw; min-height: 220px; }
-    .gallery-grid { grid-template-columns: 1fr; }
-    .gallery-side { display: none; }
-    .gallery-duo { grid-template-columns: 1fr; }
-    .gallery-duo-item:nth-child(2) { display: none; }
-    .details-grid { grid-template-columns: 1fr; }
-    .nav { padding: 0 20px; }
-    .nav-center { display: none; }
-    .photos-modal-grid { grid-template-columns: 1fr 1fr; }
+  /* ── Desktop upgrade ── */
+  @media (min-width: 600px) {
+    .pp { border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+    .gal-wrap { max-height: 400px; height: 50vw; }
+    .fixed-cta { max-width: 480px; left: 50%; transform: translateX(-50%); }
   }
 `;
