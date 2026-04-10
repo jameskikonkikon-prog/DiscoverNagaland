@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
 
 interface Property {
   id: string
@@ -25,20 +26,45 @@ interface Property {
   created_at: string
 }
 
-const FILTERS = [
-  { label: 'All', value: '' },
-  { label: 'Land', value: 'land' },
-  { label: 'House', value: 'house' },
-  { label: 'Apartment', value: 'apartment' },
-  { label: 'Commercial', value: 'commercial' },
-  { label: 'Rental', value: 'rental' },
+const PROP_TYPES = [
+  { icon: '🌿', label: 'Land',       value: 'land'       },
+  { icon: '🏠', label: 'House',      value: 'house'      },
+  { icon: '🏢', label: 'Apartment',  value: 'apartment'  },
+  { icon: '🏪', label: 'Commercial', value: 'commercial' },
+  { icon: '🏡', label: 'Villa',      value: 'villa'      },
 ]
 
+function fmtPrice(price: number, unit: string | null, listingType: string): string {
+  let base: string
+  if (price >= 10000000) base = `₹${(price / 10000000).toFixed(2)} Cr`
+  else if (price >= 100000) base = `₹${(price / 100000).toFixed(1)} L`
+  else base = `₹${price.toLocaleString('en-IN')}`
+  if (unit && listingType === 'rent') return `${base}/${unit}`
+  return base
+}
+
 export default function RealEstatePage() {
-  const [properties, setProperties] = useState<Property[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('')
-  const [brokenImgs, setBrokenImgs] = useState<Set<string>>(new Set())
+  const [supabase] = useState(() =>
+    createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+  )
+  const [mounted,       setMounted]       = useState(false)
+  const [userEmail,     setUserEmail]     = useState<string | null>(null)
+  const [properties,    setProperties]    = useState<Property[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [listingFilter, setListingFilter] = useState<'' | 'sale' | 'rent' | 'land'>('')
+  const [typeFilter,    setTypeFilter]    = useState('')
+  const [searchQuery,   setSearchQuery]   = useState('')
+  const [brokenImgs,    setBrokenImgs]    = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    setMounted(true)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserEmail(session?.user?.email ?? null)
+    })
+  }, [])
 
   useEffect(() => {
     fetch('/api/real-estate')
@@ -47,215 +73,409 @@ export default function RealEstatePage() {
       .catch(() => setLoading(false))
   }, [])
 
-  const filtered = filter
-    ? properties.filter(p => {
-        if (filter === 'rental') return p.listing_type === 'rent'
-        return p.property_type?.toLowerCase() === filter
-      })
-    : properties
+  // Stats — derived from live data, nothing hardcoded
+  const totalProps = properties.length
+  const districts  = new Set(properties.map(p => p.city).filter(Boolean)).size
+  const propTypes  = new Set(properties.map(p => p.property_type).filter(Boolean)).size
+
+  // Filtering
+  const filtered = properties.filter(p => {
+    if (listingFilter === 'sale' && p.listing_type !== 'sale') return false
+    if (listingFilter === 'rent' && p.listing_type !== 'rent') return false
+    if (listingFilter === 'land' && p.property_type?.toLowerCase() !== 'land') return false
+    if (typeFilter && p.property_type?.toLowerCase() !== typeFilter) return false
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      const match =
+        p.title?.toLowerCase().includes(q) ||
+        p.city?.toLowerCase().includes(q) ||
+        p.locality?.toLowerCase().includes(q) ||
+        p.property_type?.toLowerCase().includes(q)
+      if (!match) return false
+    }
+    return true
+  })
+
+  const getInitials = (email: string) =>
+    email.split('@')[0].slice(0, 2).toUpperCase()
 
   return (
-    <div style={{ background: 'var(--bg)', minHeight: '100vh', fontFamily: "'Sora', sans-serif", color: 'var(--white)' }}>
-      <style>{`
-        :root{--bg:#0a0a0a;--bg2:#111111;--bg3:#161616;--bg4:#1e1e1e;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--white:#ffffff;--off:rgba(255,255,255,0.85);--muted:rgba(255,255,255,0.38);--red:#c0392b;--red2:#a93226;--red-bg:rgba(192,57,43,0.08);}
-        body{background:var(--bg);margin:0;padding:0;}
-        body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 50% at 20% 0%,rgba(139,0,0,0.09) 0%,transparent 60%),radial-gradient(ellipse 40% 40% at 80% 90%,rgba(192,57,43,0.05) 0%,transparent 60%);pointer-events:none;z-index:0;}
-        .re-nav{position:sticky;top:0;z-index:50;background:rgba(10,10,10,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;}
-        .re-nav-left{display:flex;align-items:center;gap:10px;}
-        .re-nav-logo{font-size:15px;font-weight:700;color:var(--white);text-decoration:none;}
-        .re-nav-sep{color:var(--muted);font-size:13px;margin:0 4px;}
-        .re-nav-tag{font-size:12px;font-weight:600;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);padding:3px 10px;border-radius:999px;}
-        .re-nav-back{font-size:13px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:5px;transition:color 0.15s;}
-        .re-nav-back:hover{color:var(--off);}
-        .re-hero{position:relative;z-index:1;text-align:center;padding:60px 24px 44px;}
-        .re-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.2);padding:6px 16px;border-radius:999px;margin-bottom:32px;}
-        .re-hero h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(38px,6.8vw,66px);font-weight:700;line-height:1.1;letter-spacing:-0.015em;margin-bottom:26px;color:var(--white);}
-        .re-hero h1 span{color:var(--red);}
-        .re-hero p{font-family:'Sora',sans-serif;font-size:clamp(15.5px,2.1vw,18px);color:rgba(255,255,255,0.5);max-width:480px;margin:0 auto 44px;line-height:1.82;font-weight:400;letter-spacing:0.008em;}
-        .re-hero-cta{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;}
-        .re-btn-primary{background:var(--red);color:#fff;font-size:13.5px;font-weight:600;letter-spacing:0.02em;padding:12px 28px;border-radius:10px;text-decoration:none;border:none;cursor:pointer;font-family:'Sora',sans-serif;transition:background 0.15s;}
-        .re-btn-primary:hover{background:var(--red2);}
-        .re-btn-ghost{background:transparent;color:rgba(255,255,255,0.7);font-size:13.5px;font-weight:500;letter-spacing:0.01em;padding:12px 24px;border-radius:10px;text-decoration:none;border:1px solid var(--border2);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
-        .re-btn-ghost:hover{border-color:rgba(255,255,255,0.25);color:var(--white);}
-        .re-cats{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:0 24px 36px;}
-        .re-cat-card{display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px 28px;cursor:pointer;text-decoration:none;transition:all 0.15s;min-width:110px;}
-        .re-cat-card:hover{border-color:rgba(192,57,43,0.3);background:rgba(192,57,43,0.05);}
-        .re-cat-icon{font-size:24px;}
-        .re-cat-label{font-size:11.5px;font-weight:600;color:var(--off);letter-spacing:0.02em;}
-        .re-section{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:0 24px 80px;}
-        .re-section-title{font-family:'Playfair Display',Georgia,serif;font-size:24px;font-weight:700;color:var(--white);margin-bottom:6px;letter-spacing:-0.01em;line-height:1.2;}
-        .re-section-sub{font-size:13.5px;color:var(--muted);margin-bottom:24px;letter-spacing:0.01em;}
-        .re-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;}
-        .re-filter-btn{font-size:12px;font-weight:600;padding:7px 16px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;}
-        .re-filter-btn.active{background:var(--red-bg);border-color:rgba(192,57,43,0.35);color:var(--white);}
-        .re-filter-btn:hover:not(.active){border-color:var(--border2);color:var(--off);}
-        .re-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;}
-        .re-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color 0.15s,transform 0.15s;}
-        .re-card:hover{border-color:rgba(192,57,43,0.3);transform:translateY(-2px);}
-        .re-card-img{position:relative;width:100%;height:180px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;}
-        .re-no-photo{display:flex;flex-direction:column;align-items:center;gap:6px;}
-        .re-no-photo-icon{opacity:0.2;}
-        .re-no-photo-label{font-size:10px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.2);}
-        .re-card-body{padding:16px 18px 18px;}
-        .re-card-type-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
-        .re-card-type{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--red);}
-        .re-card-featured{font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#e8a908;background:rgba(232,169,8,0.1);border:1px solid rgba(232,169,8,0.25);padding:2px 8px;border-radius:999px;}
-        .re-card-title{font-size:15px;font-weight:600;color:var(--white);margin-bottom:5px;line-height:1.45;letter-spacing:-0.01em;}
-        .re-card-loc{font-size:12.5px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:4px;}
-        .re-card-price{font-size:17px;font-weight:700;color:var(--white);letter-spacing:-0.02em;}
-        .re-card-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
-        .re-card-meta-area{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:4px;}
-        .re-badge-sale{font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.2);padding:2px 9px;border-radius:999px;}
-        .re-badge-rent{font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:#3ba88f;background:rgba(59,168,143,0.08);border:1px solid rgba(59,168,143,0.2);padding:2px 9px;border-radius:999px;}
-        .re-empty{text-align:center;padding:80px 24px;}
-        .re-empty-icon{font-size:48px;margin-bottom:16px;opacity:0.4;}
-        .re-empty-title{font-size:19px;font-weight:600;color:var(--off);margin-bottom:8px;letter-spacing:-0.02em;}
-        .re-empty-sub{font-size:14px;color:var(--muted);max-width:380px;margin:0 auto 28px;}
-        .re-divider{height:1px;background:var(--border);margin:0 0 60px;}
-        @media(max-width:600px){
-          .re-nav{display:none;}
-          .re-hero{padding:44px 20px 32px;}
-          .re-section{padding:0 16px 60px;}
-          /* Category icons — horizontal scroll row */
-          .re-cats{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding:0 16px 20px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
-          .re-cats::-webkit-scrollbar{display:none;}
-          .re-cat-card{flex-shrink:0;min-width:90px;padding:16px 18px;}
-          /* Remove gap between categories and Browse section */
-          .re-divider{display:none;}
-          .re-section-title{margin-top:0;}
-          /* Filter chips — horizontal scroll row */
-          .re-filters{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;}
-          .re-filters::-webkit-scrollbar{display:none;}
-          .re-filter-btn{flex-shrink:0;}
-        }
-      `}</style>
+    <>
+      <style>{CSS}</style>
+      <div className="re-root">
 
-      {/* NAV */}
-      <nav className="re-nav">
-        <div className="re-nav-left">
-          <a href="/" className="re-nav-logo">Yana Nagaland</a>
-          <span className="re-nav-sep">/</span>
-          <span className="re-nav-tag">Real Estate</span>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:16}}>
-          <a href="/real-estate/dashboard" className="re-nav-back" style={{color:'var(--red)',fontWeight:600}}>Owner Dashboard →</a>
-          <a href="/" className="re-nav-back">← Directory</a>
-        </div>
-      </nav>
-
-      {/* HERO */}
-      <section className="re-hero">
-        <div className="re-eyebrow">
-          <span>🏡</span>
-          <span>Nagaland Real Estate</span>
-        </div>
-        <h1>
-          Find Land, Homes &<br />
-          <span>Rentals in Nagaland</span>
-        </h1>
-        <p>
-          Browse verified property listings across Dimapur, Kohima, and all 17 districts.
-          Buy, sell, or rent — everything in one place.
-        </p>
-        <div className="re-hero-cta">
-          <a href="/real-estate/dashboard" className="re-btn-primary">List Your Property</a>
-          <a href="#browse" className="re-btn-ghost">Browse Listings</a>
-        </div>
-      </section>
-
-      {/* CATEGORY QUICK LINKS */}
-      <div className="re-cats">
-        {[
-          { icon: '🌿', label: 'Land for Sale' },
-          { icon: '🏠', label: 'Houses' },
-          { icon: '🏢', label: 'Apartments' },
-          { icon: '🏪', label: 'Commercial' },
-          { icon: '🔑', label: 'Rentals' },
-        ].map(c => (
-          <a
-            key={c.label}
-            className="re-cat-card"
-            onClick={() => setFilter(c.label === 'Land for Sale' ? 'land' : c.label === 'Houses' ? 'house' : c.label === 'Apartments' ? 'apartment' : c.label === 'Commercial' ? 'commercial' : 'rental')}
-            href="#browse"
-          >
-            <span className="re-cat-icon">{c.icon}</span>
-            <span className="re-cat-label">{c.label}</span>
+        {/* ── TOP NAV ──────────────────────────────────────────── */}
+        <nav className="re-nav">
+          <a href="/" className="re-nav-logo">
+            Yana<span>Nagaland</span>
           </a>
-        ))}
-      </div>
+          {!mounted ? (
+            <span style={{ width: 36, display: 'inline-block' }} />
+          ) : userEmail ? (
+            <a href="/dashboard" className="re-nav-avatar" title="Dashboard">
+              {getInitials(userEmail)}
+            </a>
+          ) : (
+            <a href="/login" className="re-nav-signin">Sign in</a>
+          )}
+        </nav>
 
-      <div className="re-divider" style={{ maxWidth: 1100, margin: '0 auto 60px' }} />
-
-      {/* BROWSE SECTION */}
-      <section className="re-section" id="browse">
-        <div className="re-section-title">Browse Properties</div>
-        <div className="re-section-sub">
-          {filtered.length > 0 ? `${filtered.length} listing${filtered.length !== 1 ? 's' : ''} available` : 'Showing all categories'}
-        </div>
-
-        <div className="re-filters">
-          {FILTERS.map(f => (
-            <button
-              key={f.value}
-              className={`re-filter-btn${filter === f.value ? ' active' : ''}`}
-              onClick={() => setFilter(f.value)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {loading ? (
-          <div className="re-empty">
-            <div className="re-empty-icon">⏳</div>
-            <div className="re-empty-title">Loading properties…</div>
+        {/* ── HERO ─────────────────────────────────────────────── */}
+        <section className="re-hero">
+          <div className="re-eyebrow">
+            <span className="re-eyebrow-line" />
+            <span>NAGALAND REAL ESTATE</span>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="re-empty">
-            <div className="re-empty-icon">🏡</div>
-            <div className="re-empty-title">No listings yet</div>
-            <div className="re-empty-sub">
-              Be the first to list your property on Nagaland&apos;s dedicated real estate platform.
+          <h1 className="re-hero-title">
+            Find Land, Homes &amp; Rentals in Nagaland
+          </h1>
+          <p className="re-hero-sub">
+            Buy, sell or rent across all 17 districts.
+          </p>
+
+          {/* Search */}
+          <div className="re-search-wrap">
+            <div className="re-search-row">
+              <input
+                className="re-search-input"
+                placeholder="Location, type, keyword..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+              />
+              <button className="re-search-btn">Search</button>
             </div>
-            <a href="/real-estate/dashboard" className="re-btn-primary">List a Property</a>
+            <div className="re-listing-pills">
+              {(['', 'sale', 'rent', 'land'] as const).map((v, i) => (
+                <button
+                  key={v}
+                  className={`re-pill${listingFilter === v ? ' active' : ''}`}
+                  onClick={() => setListingFilter(v)}
+                >
+                  {['All', 'For Sale', 'For Rent', 'Land'][i]}
+                </button>
+              ))}
+            </div>
           </div>
-        ) : (
-          <div className="re-grid">
-            {filtered.map(p => (
-              <a key={p.id} className="re-card" href={`/real-estate/${p.id}`} style={{textDecoration:'none',display:'block'}}>
-                <div className="re-card-img">
-                  {p.photos && p.photos.length > 0 && !brokenImgs.has(p.id)
-                    ? <img
-                        src={p.photos[0]}
-                        alt={p.title}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={() => setBrokenImgs(prev => new Set(prev).add(p.id))}
-                      />
-                    : (
-                      <div className="re-no-photo">
-                        <svg className="re-no-photo-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                        <span className="re-no-photo-label">No photo</span>
-                      </div>
-                    )}
-                </div>
-                <div className="re-card-body">
-                  <div className="re-card-type-row">
-                    <span className="re-card-type">{p.property_type || 'Property'}</span>
-                    {p.is_featured && <span className="re-card-featured">★ Featured</span>}
-                  </div>
-                  <div className="re-card-title">{p.title}</div>
-                  <div className="re-card-loc">📍 {p.city}{p.locality ? `, ${p.locality}` : ''}</div>
-                  <div className="re-card-price">₹{Number(p.price).toLocaleString('en-IN')}{p.price_unit ? <span style={{fontSize:'12px',fontWeight:400,color:'var(--muted)',marginLeft:5}}>{p.price_unit}</span> : null}</div>
-                  <div className="re-card-meta">
-                    {p.area && <span className="re-card-meta-area">📐 {p.area} {p.area_unit || 'sqft'}</span>}
-                    {p.listing_type && <span className={p.listing_type === 'rent' ? 're-badge-rent' : 're-badge-sale'}>{p.listing_type === 'rent' ? 'For Rent' : 'For Sale'}</span>}
-                  </div>
-                </div>
-              </a>
+
+          {/* Free banner */}
+          <div className="re-free-banner">
+            <div className="re-free-banner-left">
+              <span className="re-free-banner-text">🎉 Listings are free — for now</span>
+              <span className="re-free-banner-sub">Pricing will be introduced soon</span>
+            </div>
+            <a href="/real-estate/dashboard" className="re-free-banner-btn">List free →</a>
+          </div>
+        </section>
+
+        {/* ── PROPERTY TYPE CHIPS ──────────────────────────────── */}
+        <div className="re-chips-scroll">
+          <div className="re-chips">
+            {PROP_TYPES.map(t => (
+              <button
+                key={t.value}
+                className={`re-chip${typeFilter === t.value ? ' active' : ''}`}
+                onClick={() => setTypeFilter(typeFilter === t.value ? '' : t.value)}
+              >
+                <span className="re-chip-icon">{t.icon}</span>
+                <span className="re-chip-label">{t.label}</span>
+              </button>
             ))}
           </div>
-        )}
-      </section>
-    </div>
+        </div>
+
+        {/* ── STATS STRIP ──────────────────────────────────────── */}
+        <div className="re-stats">
+          <div className="re-stat-box">
+            <div className="re-stat-val">{loading ? '…' : totalProps || '0'}</div>
+            <div className="re-stat-label">Properties listed</div>
+          </div>
+          <div className="re-stat-divider" />
+          <div className="re-stat-box">
+            <div className="re-stat-val">{loading ? '…' : districts || '0'}</div>
+            <div className="re-stat-label">Districts covered</div>
+          </div>
+          <div className="re-stat-divider" />
+          <div className="re-stat-box">
+            <div className="re-stat-val">{loading ? '…' : propTypes || '0'}</div>
+            <div className="re-stat-label">Property types</div>
+          </div>
+        </div>
+
+        {/* ── RECENT LISTINGS ──────────────────────────────────── */}
+        <section className="re-listings">
+          <div className="re-listings-head">
+            <div className="re-listings-title">Recent Listings</div>
+            {!loading && filtered.length > 0 && (
+              <div className="re-listings-count">{filtered.length} available</div>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="re-skeletons">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="re-skeleton" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="re-empty">
+              <div className="re-empty-icon">🏡</div>
+              <div className="re-empty-title">No listings yet</div>
+              <div className="re-empty-sub">
+                Be the first to list a property in Nagaland.
+              </div>
+              <a href="/real-estate/dashboard" className="re-cta-btn">
+                List Your Property Free →
+              </a>
+            </div>
+          ) : (
+            <div className="re-card-list">
+              {filtered.map(p => (
+                <a key={p.id} href={`/real-estate/${p.id}`} className="re-card">
+                  {/* Photo */}
+                  <div className="re-card-photo">
+                    {p.photos && p.photos.length > 0 && !brokenImgs.has(p.id) ? (
+                      <img
+                        src={p.photos[0]}
+                        alt={p.title}
+                        className="re-card-img"
+                        onError={() => setBrokenImgs(prev => new Set(prev).add(p.id))}
+                      />
+                    ) : (
+                      <div className="re-card-no-photo">🏡</div>
+                    )}
+                    <span className={`re-sale-badge${p.listing_type === 'rent' ? ' rent' : ''}`}>
+                      {p.listing_type === 'rent' ? 'FOR RENT' : 'FOR SALE'}
+                    </span>
+                    {p.photos && p.photos.length > 1 && (
+                      <span className="re-photo-count">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        {p.photos.length}
+                      </span>
+                    )}
+                    {p.is_featured && (
+                      <span className="re-featured-badge">★ Featured</span>
+                    )}
+                  </div>
+                  {/* Body */}
+                  <div className="re-card-body">
+                    <div className="re-card-price">
+                      {fmtPrice(p.price, p.price_unit, p.listing_type)}
+                    </div>
+                    <div className="re-card-title">{p.title}</div>
+                    <div className="re-card-loc">
+                      📍 {p.city}{p.locality ? `, ${p.locality}` : ''}
+                    </div>
+                    {(p.area || p.property_type) && (
+                      <div className="re-card-tags">
+                        {p.area && (
+                          <span className="re-tag">
+                            {p.area} {p.area_unit || 'sqft'}
+                          </span>
+                        )}
+                        {p.property_type && (
+                          <span className="re-tag">{p.property_type}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── LIST YOUR PROPERTY CTA ───────────────────────────── */}
+        <div className="re-list-cta">
+          <div className="re-list-cta-icon">🏡</div>
+          <div className="re-list-cta-title">Have a property to sell or rent?</div>
+          <div className="re-list-cta-sub">
+            Reach buyers across all 17 districts — free
+          </div>
+          <a href="/real-estate/dashboard" className="re-cta-btn" style={{ display: 'block', textAlign: 'center' }}>
+            List Your Property Free →
+          </a>
+        </div>
+
+        {/* ── FOOTER ───────────────────────────────────────────── */}
+        <footer className="re-footer">
+          <div className="re-footer-links">
+            <a href="/search"   className="re-footer-link">Directory</a>·
+            <a href="/real-estate" className="re-footer-link">Real Estate</a>·
+            <a href="/privacy"  className="re-footer-link">Privacy Policy</a>·
+            <a href="/terms"    className="re-footer-link">Terms of Service</a>·
+            <a href="/refund"   className="re-footer-link">Refund Policy</a>·
+            <a href="/contact"  className="re-footer-link">Contact Us</a>·
+            <a href="/about"    className="re-footer-link">About</a>
+          </div>
+          <div className="re-footer-copy">© 2026 Yana Nagaland. All rights reserved.</div>
+        </footer>
+
+        {/* ── BOTTOM NAV ───────────────────────────────────────── */}
+        <nav className="re-bottom-nav">
+          <a href="/" className="re-bnav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Home</span>
+          </a>
+          <a href="/search" className="re-bnav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span>Search</span>
+          </a>
+          <a href="/real-estate" className="re-bnav-item active">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><line x1="9" y1="22" x2="9" y2="12"/><line x1="15" y1="22" x2="15" y2="12"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+            <span>Real Estate</span>
+          </a>
+          <a href="/dashboard" className="re-bnav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>Dashboard</span>
+          </a>
+        </nav>
+
+      </div>
+    </>
   )
 }
+
+// ── CSS ────────────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0a0a0a;--bg2:#111;--bg3:#161616;--bg4:#1e1e1e;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --white:#fff;--off:rgba(255,255,255,0.85);--muted:rgba(255,255,255,0.38);
+  --red:#c0392b;--red2:#a93226;--red-bg:rgba(192,57,43,0.09);
+  --gold:#D4A017;--gold-bg:rgba(212,160,23,0.09);
+}
+body{background:var(--bg);font-family:'Sora',sans-serif;color:var(--white);-webkit-font-smoothing:antialiased;}
+a{text-decoration:none;color:inherit;}
+button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
+
+.re-root{min-height:100vh;background:var(--bg);padding-bottom:80px;}
+
+/* NAV */
+.re-nav{position:sticky;top:0;z-index:100;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:rgba(10,10,10,0.94);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.re-nav-logo{font-size:16px;font-weight:800;color:var(--white);letter-spacing:-0.3px;}
+.re-nav-logo span{color:var(--red);}
+.re-nav-signin{font-size:12px;font-weight:700;color:var(--white);border:1.5px solid rgba(255,255,255,0.22);border-radius:8px;padding:6px 14px;transition:border-color 0.15s;}
+.re-nav-signin:hover{border-color:rgba(255,255,255,0.45);}
+.re-nav-avatar{width:34px;height:34px;border-radius:10px;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;letter-spacing:0.5px;}
+
+/* HERO */
+.re-hero{padding:28px 18px 20px;}
+.re-eyebrow{display:flex;align-items:center;gap:8px;margin-bottom:16px;}
+.re-eyebrow-line{width:24px;height:2px;background:var(--red);border-radius:2px;flex-shrink:0;}
+.re-eyebrow span:last-child{font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--red);}
+.re-hero-title{font-family:'Playfair Display',Georgia,serif;font-size:26px;font-weight:700;line-height:1.2;letter-spacing:-0.02em;color:var(--white);margin-bottom:10px;max-width:340px;}
+.re-hero-sub{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;}
+
+/* SEARCH */
+.re-search-wrap{margin-bottom:14px;}
+.re-search-row{display:flex;gap:8px;margin-bottom:10px;}
+.re-search-input{flex:1;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:13px;color:var(--white);font-family:'Sora',sans-serif;outline:none;transition:border-color 0.15s;}
+.re-search-input:focus{border-color:rgba(255,255,255,0.25);}
+.re-search-input::placeholder{color:var(--muted);}
+.re-search-btn{background:var(--red);color:#fff;font-size:13px;font-weight:700;padding:0 18px;border-radius:10px;white-space:nowrap;transition:background 0.15s;}
+.re-search-btn:hover{background:var(--red2);}
+.re-listing-pills{display:flex;gap:7px;flex-wrap:wrap;}
+.re-pill{font-size:12px;font-weight:600;padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all 0.15s;}
+.re-pill.active{background:var(--red-bg);border-color:rgba(192,57,43,0.4);color:var(--white);}
+.re-pill:hover:not(.active){border-color:var(--border2);color:var(--off);}
+
+/* FREE BANNER */
+.re-free-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--gold-bg);border:1px solid rgba(212,160,23,0.22);border-radius:12px;padding:12px 14px;margin-top:16px;}
+.re-free-banner-left{display:flex;flex-direction:column;gap:2px;}
+.re-free-banner-text{font-size:12px;font-weight:700;color:var(--gold);}
+.re-free-banner-sub{font-size:10.5px;color:rgba(212,160,23,0.65);}
+.re-free-banner-btn{font-size:11.5px;font-weight:700;color:var(--gold);border:1px solid rgba(212,160,23,0.35);border-radius:7px;padding:6px 12px;white-space:nowrap;background:transparent;transition:all 0.15s;}
+.re-free-banner-btn:hover{background:rgba(212,160,23,0.08);}
+
+/* TYPE CHIPS */
+.re-chips-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:18px 0 6px;}
+.re-chips-scroll::-webkit-scrollbar{display:none;}
+.re-chips{display:flex;gap:8px;padding:0 18px;}
+.re-chip{display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:999px;background:var(--bg2);border:1px solid var(--border);color:var(--off);font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+.re-chip.active{background:var(--red-bg);border-color:rgba(192,57,43,0.4);color:var(--white);}
+.re-chip:hover:not(.active){border-color:var(--border2);}
+.re-chip-icon{font-size:15px;line-height:1;}
+.re-chip-label{font-size:12px;}
+
+/* STATS STRIP */
+.re-stats{display:flex;align-items:stretch;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin:16px 0 0;}
+.re-stat-box{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 8px;text-align:center;}
+.re-stat-val{font-size:24px;font-weight:800;color:var(--white);letter-spacing:-1px;line-height:1;margin-bottom:4px;}
+.re-stat-label{font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;line-height:1.3;}
+.re-stat-divider{width:1px;background:var(--border);flex-shrink:0;}
+
+/* LISTINGS */
+.re-listings{padding:24px 18px 0;}
+.re-listings-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.re-listings-title{font-size:16px;font-weight:700;color:var(--white);}
+.re-listings-count{font-size:12px;color:var(--muted);}
+
+/* Skeletons */
+@keyframes rePulse{0%,100%{opacity:0.15}50%{opacity:0.3}}
+.re-skeletons{display:flex;flex-direction:column;gap:14px;}
+.re-skeleton{height:180px;border-radius:14px;background:var(--bg2);animation:rePulse 1.6s ease-in-out infinite;}
+
+/* Empty state */
+.re-empty{text-align:center;padding:48px 24px;}
+.re-empty-icon{font-size:40px;margin-bottom:12px;opacity:0.4;}
+.re-empty-title{font-size:17px;font-weight:600;color:var(--off);margin-bottom:6px;}
+.re-empty-sub{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;}
+
+/* Card list */
+.re-card-list{display:flex;flex-direction:column;gap:14px;}
+.re-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:block;transition:border-color 0.15s;}
+.re-card:hover{border-color:rgba(192,57,43,0.3);}
+.re-card-photo{position:relative;width:100%;height:186px;background:var(--bg3);overflow:hidden;}
+.re-card-img{width:100%;height:100%;object-fit:cover;display:block;}
+.re-card-no-photo{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;opacity:0.18;}
+.re-sale-badge{position:absolute;top:10px;left:10px;font-size:9.5px;font-weight:800;letter-spacing:0.08em;padding:3px 9px;border-radius:6px;background:rgba(192,57,43,0.85);color:#fff;backdrop-filter:blur(4px);}
+.re-sale-badge.rent{background:rgba(59,168,143,0.85);}
+.re-photo-count{position:absolute;bottom:8px;right:8px;font-size:10px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:6px;display:flex;align-items:center;gap:4px;backdrop-filter:blur(4px);}
+.re-featured-badge{position:absolute;top:10px;right:10px;font-size:9.5px;font-weight:700;color:#e8a908;background:rgba(232,169,8,0.15);border:1px solid rgba(232,169,8,0.3);padding:3px 8px;border-radius:6px;backdrop-filter:blur(4px);}
+.re-card-body{padding:14px 14px 16px;}
+.re-card-price{font-size:20px;font-weight:800;color:var(--white);letter-spacing:-0.5px;margin-bottom:4px;}
+.re-card-price-unit{font-size:12px;font-weight:400;color:var(--muted);}
+.re-card-title{font-size:14px;font-weight:600;color:var(--off);margin-bottom:5px;line-height:1.4;letter-spacing:-0.01em;}
+.re-card-loc{font-size:11.5px;color:var(--muted);margin-bottom:8px;}
+.re-card-tags{display:flex;flex-wrap:wrap;gap:5px;}
+.re-tag{font-size:10.5px;font-weight:500;color:var(--muted);background:var(--bg3);border:1px solid var(--border);padding:3px 9px;border-radius:6px;text-transform:capitalize;}
+
+/* CTA */
+.re-list-cta{margin:28px 18px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px 20px;text-align:center;}
+.re-list-cta-icon{font-size:30px;margin-bottom:10px;}
+.re-list-cta-title{font-size:16px;font-weight:700;color:var(--white);margin-bottom:6px;}
+.re-list-cta-sub{font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
+.re-cta-btn{display:inline-block;background:var(--red);color:#fff;font-size:13px;font-weight:700;padding:13px 20px;border-radius:10px;border:none;cursor:pointer;font-family:'Sora',sans-serif;transition:background 0.15s;width:100%;}
+.re-cta-btn:hover{background:var(--red2);}
+
+/* FOOTER */
+.re-footer{padding:20px 18px 16px;border-top:1px solid var(--border);}
+.re-footer-links{display:flex;flex-wrap:wrap;gap:4px 6px;font-size:11.5px;margin-bottom:10px;align-items:center;}
+.re-footer-link{color:var(--muted);transition:color 0.15s;}
+.re-footer-link:hover{color:var(--off);}
+.re-footer-copy{font-size:10.5px;color:rgba(255,255,255,0.2);}
+
+/* BOTTOM NAV */
+.re-bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:200;height:64px;background:rgba(6,6,6,0.98);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-end;justify-content:space-around;padding:0 4px;padding-bottom:max(10px,env(safe-area-inset-bottom));}
+.re-bnav-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 10px;color:rgba(255,255,255,0.35);font-size:9.5px;font-weight:600;letter-spacing:0.02em;text-decoration:none;transition:color 0.15s;min-width:52px;}
+.re-bnav-item svg{opacity:0.5;transition:opacity 0.15s;}
+.re-bnav-item.active{color:var(--red);}
+.re-bnav-item.active svg{opacity:1;stroke:var(--red);}
+
+/* Desktop: side-by-side grid, hide bottom nav */
+@media(min-width:768px){
+  .re-root{max-width:700px;margin:0 auto;}
+  .re-hero{padding:40px 24px 24px;}
+  .re-hero-title{font-size:36px;max-width:500px;}
+  .re-chips{padding:0 24px;}
+  .re-listings{padding:28px 24px 0;}
+  .re-card-list{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .re-list-cta{margin:28px 24px;}
+  .re-footer{padding:24px 24px 20px;}
+  .re-bottom-nav{display:none;}
+  .re-root{padding-bottom:24px;}
+}
+`

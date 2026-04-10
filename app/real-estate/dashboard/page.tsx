@@ -19,7 +19,6 @@ interface Property {
   created_at: string
   photos: string[] | null
   plan: string | null
-  trial_ends_at: string | null
 }
 
 function freshness(last_verified_at: string | null): { label: string; color: string } {
@@ -28,17 +27,6 @@ function freshness(last_verified_at: string | null): { label: string; color: str
   if (days <= 23) return { label: 'Active', color: '#3ba88f' }
   if (days <= 30) return { label: 'Expiring Soon', color: '#e8a908' }
   return { label: 'Expired', color: '#c0392b' }
-}
-
-function trialStatus(plan: string | null, trial_ends_at: string | null): { label: string; color: string; expired: boolean } {
-  if (!plan || plan === 'trial') {
-    if (!trial_ends_at) return { label: 'Trial expired', color: '#c0392b', expired: true }
-    const daysLeft = Math.ceil((new Date(trial_ends_at).getTime() - Date.now()) / 86400000)
-    if (daysLeft > 0) return { label: `Trial · ${daysLeft}d left`, color: '#3ba88f', expired: false }
-    return { label: 'Trial expired', color: '#c0392b', expired: true }
-  }
-  const labels: Record<string, string> = { starter: 'Starter', pro: 'Pro', agent: 'Agent' }
-  return { label: labels[plan] ?? plan, color: '#3ba88f', expired: false }
 }
 
 function fmt(price: number) {
@@ -121,7 +109,7 @@ export default function RealEstateDashboard() {
 
       const { data } = await supabase
         .from('properties')
-        .select('id,title,property_type,listing_type,city,locality,price,price_unit,is_available,last_verified_at,created_at,photos,plan,trial_ends_at')
+        .select('id,title,property_type,listing_type,city,locality,price,price_unit,is_available,last_verified_at,created_at,photos,plan')
         .eq('owner_id', session.user.id)
         .order('created_at', { ascending: false })
 
@@ -144,26 +132,6 @@ export default function RealEstateDashboard() {
     }
     load()
   }, [supabase, router])
-
-  // Compute trial banner from properties
-  const trialBanner = (() => {
-    if (loading || properties.length === 0) return null
-    const now = Date.now()
-    const trialExpired = properties.some(p =>
-      (!p.plan || p.plan === 'trial') &&
-      (!p.trial_ends_at || new Date(p.trial_ends_at).getTime() <= now)
-    )
-    if (trialExpired) return { type: 'expired' as const }
-    const trialActive = properties
-      .filter(p => (!p.plan || p.plan === 'trial') && p.trial_ends_at && new Date(p.trial_ends_at).getTime() > now)
-    if (trialActive.length > 0) {
-      const daysLeft = Math.min(...trialActive.map(p =>
-        Math.ceil((new Date(p.trial_ends_at!).getTime() - now) / 86400000)
-      ))
-      return { type: 'active' as const, daysLeft }
-    }
-    return null
-  })()
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', fontFamily: "'Sora', sans-serif", color: 'var(--white)' }}>
@@ -200,14 +168,6 @@ export default function RealEstateDashboard() {
         .dw-stat-label{font-size:12px;font-weight:600;color:var(--off);margin-bottom:2px;}
         .dw-stat-note{font-size:11px;color:var(--muted);}
 
-        /* TRIAL BANNER */
-        .tb{display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:12px;padding:11px 16px;margin-bottom:20px;font-size:13px;font-weight:600;}
-        .tb-expired{background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.25);color:#e05a4a;}
-        .tb-active{background:rgba(59,168,143,0.07);border:1px solid rgba(59,168,143,0.2);color:#3ba88f;}
-        .tb-link{font-size:12px;font-weight:700;padding:5px 12px;border-radius:7px;text-decoration:none;white-space:nowrap;flex-shrink:0;}
-        .tb-expired .tb-link{background:var(--red);color:#fff;}
-        .tb-active .tb-link{background:rgba(59,168,143,0.12);border:1px solid rgba(59,168,143,0.25);color:var(--teal);}
-
         /* ADD CTA */
         .dw-addrow{display:flex;align-items:center;gap:12px;margin-bottom:28px;}
         .dw-addbtn{display:inline-flex;align-items:center;gap:8px;background:var(--red);color:#fff;font-size:13px;font-weight:700;padding:10px 20px;border-radius:9px;text-decoration:none;letter-spacing:-0.01em;transition:background 0.15s;}
@@ -232,7 +192,6 @@ export default function RealEstateDashboard() {
         .ml-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
         .ml-price{font-size:14px;font-weight:700;color:var(--white);white-space:nowrap;}
         .ml-fresh{font-size:11px;font-weight:600;white-space:nowrap;}
-        .ml-plan{font-size:10px;font-weight:700;letter-spacing:0.05em;white-space:nowrap;}
         .ml-divider{height:1px;background:var(--border);}
         .ml-actions{display:flex;gap:6px;flex-wrap:wrap;}
         .ml-btn{font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:7px;cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;text-decoration:none;display:inline-flex;align-items:center;border:1px solid var(--border2);background:transparent;color:var(--muted);}
@@ -317,20 +276,6 @@ export default function RealEstateDashboard() {
           </div>
         </div>
 
-        {/* TRIAL / PLAN BANNER */}
-        {trialBanner?.type === 'expired' && (
-          <div className="tb tb-expired">
-            <span>Your trial has expired. Your listing is hidden.</span>
-            <a href="/real-estate/pricing" className="tb-link">Choose a Plan →</a>
-          </div>
-        )}
-        {trialBanner?.type === 'active' && (
-          <div className="tb tb-active">
-            <span>You have {trialBanner.daysLeft} day{trialBanner.daysLeft !== 1 ? 's' : ''} left on your free trial</span>
-            <a href="/real-estate/pricing" className="tb-link">View Plans →</a>
-          </div>
-        )}
-
         {/* ADD PROPERTY */}
         <div className="dw-addrow">
           <a href="/real-estate/dashboard/add-property" className="dw-addbtn">
@@ -356,7 +301,6 @@ export default function RealEstateDashboard() {
           <div className="ml-list">
             {properties.map(p => {
               const { label: freshLabel, color: freshColor } = freshness(p.last_verified_at)
-              const trial = trialStatus(p.plan, p.trial_ends_at)
               const loc = [p.locality, p.city].filter(Boolean).join(', ')
               const needsRefresh = freshLabel === 'Expiring Soon' || freshLabel === 'Expired' || freshLabel === 'Unverified'
               const isRefreshing = refreshing === p.id
@@ -383,7 +327,6 @@ export default function RealEstateDashboard() {
                     <div className="ml-right">
                       <div className="ml-price">{fmt(p.price)}{p.price_unit ? ` / ${p.price_unit}` : ''}</div>
                       <div className="ml-fresh" style={{ color: freshColor }}>{freshLabel}</div>
-                      <div className="ml-plan" style={{ color: trial.color }}>{trial.label}</div>
                     </div>
                   </div>
                   <div className="ml-divider" />
@@ -420,17 +363,13 @@ export default function RealEstateDashboard() {
             <div className="dw-planrow-val">
               {loading ? '—' : (() => {
                 if (properties.length === 0) return 'No listings'
-                const paidPlan = properties.find(p => p.plan && p.plan !== 'trial')?.plan
-                if (paidPlan) return paidPlan.charAt(0).toUpperCase() + paidPlan.slice(1)
-                if (trialBanner?.type === 'expired') return 'Trial expired'
-                if (trialBanner?.type === 'active') return `Free Trial · ${trialBanner.daysLeft} days left`
-                return 'Free Trial'
+                const activePlan = properties.find(p => p.plan && p.plan !== 'free')?.plan
+                if (activePlan) return activePlan.charAt(0).toUpperCase() + activePlan.slice(1)
+                return 'Free'
               })()}
             </div>
           </div>
-          <a href="/real-estate/pricing" className="dw-planrow-link">
-            {trialBanner ? 'Upgrade Plan →' : 'Manage Plan →'}
-          </a>
+          <a href="/real-estate/pricing" className="dw-planrow-link">Manage Plan →</a>
         </div>
 
       </div>
