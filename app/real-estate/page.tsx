@@ -173,58 +173,41 @@ export default function RealEstatePage() {
                 </div>
               </div>
 
-              {/* RIGHT — property type chips as card + featured listing preview */}
+              {/* RIGHT — 3 most recent properties (desktop only) */}
               <div className="re-hero-right">
-                <div className="re-hero-right-card">
-                  <div className="re-hero-right-label">Browse by type</div>
-                  <div className="re-type-grid">
-                    {PROP_TYPES.map(t => (
-                      <button
-                        key={t.value}
-                        className={`re-type-tile${typeFilter === t.value ? ' active' : ''}`}
-                        onClick={() => setTypeFilter(typeFilter === t.value ? '' : t.value)}
-                      >
-                        <span className="re-type-tile-icon">{t.icon}</span>
-                        <span className="re-type-tile-label">{t.label}</span>
-                        {!loading && (
-                          <span className="re-type-tile-count">
-                            {properties.filter(p => p.property_type?.toLowerCase() === t.value).length}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  {!loading && properties.length > 0 && (() => {
-                    const featured = properties.find(p => p.is_featured) ?? properties[0]
-                    const hasPhoto = featured.photos && featured.photos.length > 0 && !brokenImgs.has(featured.id)
-                    return (
-                      <a href={`/real-estate/${featured.id}`} className="re-hero-preview">
-                        <div className="re-hero-preview-photo">
-                          {hasPhoto ? (
-                            <img
-                              src={featured.photos![0]}
-                              alt={featured.title}
-                              className="re-hero-preview-img"
-                              onError={() => setBrokenImgs(prev => new Set(prev).add(featured.id))}
-                            />
-                          ) : (
-                            <div className="re-hero-preview-placeholder">🏡</div>
-                          )}
-                          <span className={`re-sale-badge${featured.listing_type === 'rent' ? ' rent' : ''}`}>
-                            {featured.listing_type === 'rent' ? 'FOR RENT' : 'FOR SALE'}
-                          </span>
-                        </div>
-                        <div className="re-hero-preview-body">
-                          <div className="re-hero-preview-price">
-                            {fmtPrice(featured.price, featured.price_unit, featured.listing_type)}
-                          </div>
-                          <div className="re-hero-preview-title">{featured.title}</div>
-                          <div className="re-hero-preview-loc">📍 {featured.city}{featured.locality ? `, ${featured.locality}` : ''}</div>
-                        </div>
-                      </a>
-                    )
-                  })()}
+                <div className="re-hr-head">
+                  <span className="re-hr-label">Latest listings</span>
+                  <a href="#listings" className="re-hr-viewall">View all →</a>
                 </div>
+                {loading ? (
+                  [1,2,3].map(i => <div key={i} className="re-mini-skeleton" />)
+                ) : properties.slice(0, 3).map(p => {
+                  const hasPhoto = p.photos && p.photos.length > 0 && !brokenImgs.has(p.id)
+                  return (
+                    <a key={p.id} href={`/real-estate/${p.id}`} className="re-mini-card">
+                      <div className="re-mini-photo">
+                        {hasPhoto ? (
+                          <img
+                            src={p.photos![0]}
+                            alt={p.title}
+                            className="re-mini-img"
+                            onError={() => setBrokenImgs(prev => new Set(prev).add(p.id))}
+                          />
+                        ) : (
+                          <div className="re-mini-nophoto">🏡</div>
+                        )}
+                      </div>
+                      <div className="re-mini-body">
+                        <div className="re-mini-price">{fmtPrice(p.price, p.price_unit, p.listing_type)}</div>
+                        <div className="re-mini-title">{p.title}</div>
+                        <div className="re-mini-meta">
+                          {p.property_type && <span className="re-mini-type">{p.property_type}</span>}
+                          <span className="re-mini-loc">📍 {p.city}</span>
+                        </div>
+                      </div>
+                    </a>
+                  )
+                })}
               </div>
 
             </div>
@@ -270,7 +253,7 @@ export default function RealEstatePage() {
         </div>
 
         {/* ── RECENT LISTINGS ──────────────────────────────────── */}
-        <section className="re-listings">
+        <section className="re-listings" id="listings">
           <div className="re-container">
             <div className="re-listings-head">
               <div className="re-listings-title">Recent Listings</div>
@@ -461,13 +444,13 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 .re-free-banner-btn{font-size:11.5px;font-weight:700;color:var(--gold);border:1px solid rgba(212,160,23,0.35);border-radius:7px;padding:6px 12px;white-space:nowrap;background:transparent;transition:all 0.15s;}
 .re-free-banner-btn:hover{background:rgba(212,160,23,0.08);}
 
-/* Container (desktop only; no-op on mobile) */
+/* Container — full width on mobile, max-width centered on desktop */
 .re-container{width:100%;}
 /* Hero grid — single col on mobile */
 .re-hero-grid{display:block;}
-.re-hero-right{display:none;}/* hidden on mobile, shown on desktop */
-.re-hero-right-card{display:none;}/* safety */
-.re-stats-wrap{/* wrapper for full-bleed border on desktop */}
+/* Hero right hidden on mobile */
+.re-hero-right{display:none;}
+.re-stats-wrap{}
 
 /* TYPE CHIPS */
 .re-chips-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:18px 0 6px;}
@@ -547,99 +530,82 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 
 /* ── DESKTOP ── */
 @media(min-width:768px){
-  /* Reset narrow container */
   .re-root{max-width:100%;padding-bottom:0;}
 
-  /* Shared centered container */
+  /* Every section's inner content is constrained + centered */
   .re-container{max-width:1200px;margin:0 auto;padding:0 40px;}
 
-  /* NAV */
-  .re-nav{padding:0 40px;}
+  /* NAV — full width with container-matching padding */
+  .re-nav{padding:0 40px;height:58px;}
   .re-nav-logo{font-size:18px;}
 
-  /* HERO — full-bleed section, container inside */
-  .re-hero{padding:0;}
-  .re-hero .re-container{padding-top:56px;padding-bottom:52px;}
+  /* HERO — hero section itself is full-width, content inside container */
+  .re-hero{padding:0;border-bottom:1px solid var(--border);}
+  .re-hero>.re-container{padding-top:60px;padding-bottom:60px;}
+
+  /* Two-column hero grid: 60% left, 40% right */
   .re-hero-grid{
     display:grid;
-    grid-template-columns:1fr 420px;
-    gap:56px;
-    align-items:center;
+    grid-template-columns:3fr 2fr;
+    gap:48px;
+    align-items:start;
   }
-  .re-hero-left{max-width:100%;}
-  .re-hero-title{font-size:42px;line-height:1.13;max-width:100%;letter-spacing:-0.03em;}
-  .re-hero-sub{font-size:15px;margin-bottom:24px;}
-  .re-search-input{font-size:14px;}
-  .re-search-btn{font-size:14px;}
-  .re-free-banner{margin-top:20px;}
 
-  /* RIGHT CARD */
-  .re-hero-right{display:block;}
-  .re-hero-right-card{
-    background:var(--bg2);
-    border:1px solid var(--border2);
-    border-radius:18px;
-    padding:20px;
-    overflow:hidden;
-  }
-  .re-hero-right-label{
-    font-size:10px;font-weight:700;text-transform:uppercase;
-    letter-spacing:1.5px;color:var(--muted);margin-bottom:14px;
-  }
-  .re-type-grid{
-    display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;
-    margin-bottom:16px;
-  }
-  .re-type-tile{
-    display:flex;flex-direction:column;align-items:center;gap:5px;
-    background:var(--bg3);border:1px solid var(--border);border-radius:12px;
-    padding:12px 8px;cursor:pointer;font-family:'Sora',sans-serif;
-    transition:all 0.15s;
-  }
-  .re-type-tile:hover{border-color:var(--border2);}
-  .re-type-tile.active{background:var(--red-bg);border-color:rgba(192,57,43,0.4);}
-  .re-type-tile-icon{font-size:22px;line-height:1;}
-  .re-type-tile-label{font-size:11px;font-weight:600;color:var(--off);}
-  .re-type-tile-count{font-size:10px;color:var(--muted);}
+  /* Left column */
+  .re-hero-title{font-size:40px;line-height:1.12;max-width:100%;letter-spacing:-0.03em;}
+  .re-hero-sub{font-size:14px;margin-bottom:22px;}
 
-  /* Featured preview card inside hero right */
-  .re-hero-preview{
-    display:flex;gap:12px;align-items:center;
-    background:var(--bg3);border:1px solid var(--border);border-radius:12px;
-    overflow:hidden;text-decoration:none;
+  /* Right column — show on desktop */
+  .re-hero-right{display:flex;flex-direction:column;gap:0;}
+  .re-hr-head{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .re-hr-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);}
+  .re-hr-viewall{font-size:11px;font-weight:600;color:var(--red);}
+  .re-hr-viewall:hover{opacity:0.8;}
+
+  /* Mini property card */
+  .re-mini-card{
+    display:flex;gap:0;align-items:stretch;
+    background:var(--bg2);border:1px solid var(--border);
+    border-radius:12px;overflow:hidden;
+    text-decoration:none;color:inherit;
+    margin-bottom:8px;
     transition:border-color 0.15s;
   }
-  .re-hero-preview:hover{border-color:rgba(192,57,43,0.3);}
-  .re-hero-preview-photo{
-    width:96px;height:80px;flex-shrink:0;position:relative;overflow:hidden;
-  }
-  .re-hero-preview-img{width:100%;height:100%;object-fit:cover;display:block;}
-  .re-hero-preview-placeholder{
-    width:100%;height:100%;display:flex;align-items:center;justify-content:center;
-    font-size:28px;background:var(--bg4);
-  }
-  .re-hero-preview-body{padding:10px 12px 10px 0;flex:1;min-width:0;}
-  .re-hero-preview-price{font-size:15px;font-weight:800;letter-spacing:-0.3px;margin-bottom:3px;}
-  .re-hero-preview-title{font-size:12px;font-weight:600;color:var(--off);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;}
-  .re-hero-preview-loc{font-size:11px;color:var(--muted);}
+  .re-mini-card:last-child{margin-bottom:0;}
+  .re-mini-card:hover{border-color:rgba(192,57,43,0.35);}
+  .re-mini-photo{width:90px;flex-shrink:0;background:var(--bg3);position:relative;}
+  .re-mini-img{width:100%;height:100%;object-fit:cover;display:block;}
+  .re-mini-nophoto{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px;opacity:0.25;}
+  .re-mini-body{padding:10px 12px;flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px;}
+  .re-mini-price{font-size:14px;font-weight:800;letter-spacing:-0.3px;}
+  .re-mini-title{font-size:12px;font-weight:600;color:var(--off);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .re-mini-meta{display:flex;align-items:center;gap:6px;}
+  .re-mini-type{font-size:10px;font-weight:600;color:var(--muted);background:var(--bg3);border:1px solid var(--border);padding:2px 7px;border-radius:4px;text-transform:capitalize;}
+  .re-mini-loc{font-size:10px;color:var(--muted);}
+  .re-mini-skeleton{height:72px;border-radius:12px;background:var(--bg2);margin-bottom:8px;animation:rePulse 1.6s ease-in-out infinite;}
 
-  /* Hide mobile chips, show desktop type grid */
+  /* Mobile chips hidden on desktop */
   .re-mobile-chips{display:none;}
 
-  /* STATS — inside container, border top/bottom full-bleed via wrapper */
-  .re-stats-wrap{border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--bg2);}
+  /* STATS STRIP — full-bleed bg, content in container */
+  .re-stats-wrap{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
   .re-stats{display:flex;align-items:stretch;}
-  .re-stat-box{padding:24px 0;}
-  .re-stat-val{font-size:32px;}
+  .re-stat-box{padding:28px 0;}
+  .re-stat-val{font-size:30px;}
 
   /* LISTINGS */
   .re-listings{padding:0;}
-  .re-listings .re-container{padding-top:36px;padding-bottom:0;}
-  .re-listings-title{font-size:20px;}
+  .re-listings>.re-container{padding-top:40px;padding-bottom:8px;}
+  .re-listings-title{font-size:18px;}
+  .re-skeletons{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  .re-skeleton{height:260px;}
   .re-card-list{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
-  .re-card-photo{height:200px;}
+  .re-card-photo{height:196px;}
 
-  /* CTA — horizontal on desktop */
+  /* CTA — horizontal banner */
   .re-list-cta{
     display:flex;align-items:center;justify-content:space-between;gap:24px;
     margin:36px 0;padding:28px 32px;text-align:left;
@@ -648,13 +614,14 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
   .re-list-cta-icon{font-size:36px;margin-bottom:0;}
   .re-list-cta-title{font-size:18px;}
   .re-list-cta-sub{margin-bottom:0;}
-  .re-cta-btn-desktop{width:auto;white-space:nowrap;padding:14px 28px;flex-shrink:0;}
+  .re-cta-btn{width:auto;}
+  .re-cta-btn-desktop{white-space:nowrap;padding:14px 28px;flex-shrink:0;}
 
   /* FOOTER */
   .re-footer{padding:0;}
-  .re-footer .re-container{padding-top:28px;padding-bottom:24px;}
+  .re-footer>.re-container{padding-top:28px;padding-bottom:24px;}
 
-  /* Hide bottom nav on desktop */
+  /* Hide mobile bottom nav */
   .re-bottom-nav{display:none;}
 }
 `
