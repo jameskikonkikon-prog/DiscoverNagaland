@@ -122,54 +122,117 @@ export default function RealEstatePage() {
 
         {/* ── HERO ─────────────────────────────────────────────── */}
         <section className="re-hero">
-          <div className="re-eyebrow">
-            <span className="re-eyebrow-line" />
-            <span>NAGALAND REAL ESTATE</span>
-          </div>
-          <h1 className="re-hero-title">
-            Find Land, Homes &amp; Rentals in Nagaland
-          </h1>
-          <p className="re-hero-sub">
-            Buy, sell or rent across all 17 districts.
-          </p>
+          <div className="re-container">
+            <div className="re-hero-grid">
 
-          {/* Search */}
-          <div className="re-search-wrap">
-            <div className="re-search-row">
-              <input
-                className="re-search-input"
-                placeholder="Location, type, keyword..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
-              />
-              <button className="re-search-btn">Search</button>
-            </div>
-            <div className="re-listing-pills">
-              {(['', 'sale', 'rent', 'land'] as const).map((v, i) => (
-                <button
-                  key={v}
-                  className={`re-pill${listingFilter === v ? ' active' : ''}`}
-                  onClick={() => setListingFilter(v)}
-                >
-                  {['All', 'For Sale', 'For Rent', 'Land'][i]}
-                </button>
-              ))}
-            </div>
-          </div>
+              {/* LEFT — title, search, filters */}
+              <div className="re-hero-left">
+                <div className="re-eyebrow">
+                  <span className="re-eyebrow-line" />
+                  <span>NAGALAND REAL ESTATE</span>
+                </div>
+                <h1 className="re-hero-title">
+                  Find Land, Homes &amp; Rentals in Nagaland
+                </h1>
+                <p className="re-hero-sub">
+                  Buy, sell or rent across all 17 districts.
+                </p>
 
-          {/* Free banner */}
-          <div className="re-free-banner">
-            <div className="re-free-banner-left">
-              <span className="re-free-banner-text">🎉 Listings are free — for now</span>
-              <span className="re-free-banner-sub">Pricing will be introduced soon</span>
+                {/* Search */}
+                <div className="re-search-wrap">
+                  <div className="re-search-row">
+                    <input
+                      className="re-search-input"
+                      placeholder="Location, type, keyword..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+                    />
+                    <button className="re-search-btn">Search</button>
+                  </div>
+                  <div className="re-listing-pills">
+                    {(['', 'sale', 'rent', 'land'] as const).map((v, i) => (
+                      <button
+                        key={v}
+                        className={`re-pill${listingFilter === v ? ' active' : ''}`}
+                        onClick={() => setListingFilter(v)}
+                      >
+                        {['All', 'For Sale', 'For Rent', 'Land'][i]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Free banner */}
+                <div className="re-free-banner">
+                  <div className="re-free-banner-left">
+                    <span className="re-free-banner-text">🎉 Listings are free — for now</span>
+                    <span className="re-free-banner-sub">Pricing will be introduced soon</span>
+                  </div>
+                  <a href="/real-estate/dashboard" className="re-free-banner-btn">List free →</a>
+                </div>
+              </div>
+
+              {/* RIGHT — property type chips as card + featured listing preview */}
+              <div className="re-hero-right">
+                <div className="re-hero-right-card">
+                  <div className="re-hero-right-label">Browse by type</div>
+                  <div className="re-type-grid">
+                    {PROP_TYPES.map(t => (
+                      <button
+                        key={t.value}
+                        className={`re-type-tile${typeFilter === t.value ? ' active' : ''}`}
+                        onClick={() => setTypeFilter(typeFilter === t.value ? '' : t.value)}
+                      >
+                        <span className="re-type-tile-icon">{t.icon}</span>
+                        <span className="re-type-tile-label">{t.label}</span>
+                        {!loading && (
+                          <span className="re-type-tile-count">
+                            {properties.filter(p => p.property_type?.toLowerCase() === t.value).length}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {!loading && properties.length > 0 && (() => {
+                    const featured = properties.find(p => p.is_featured) ?? properties[0]
+                    const hasPhoto = featured.photos && featured.photos.length > 0 && !brokenImgs.has(featured.id)
+                    return (
+                      <a href={`/real-estate/${featured.id}`} className="re-hero-preview">
+                        <div className="re-hero-preview-photo">
+                          {hasPhoto ? (
+                            <img
+                              src={featured.photos![0]}
+                              alt={featured.title}
+                              className="re-hero-preview-img"
+                              onError={() => setBrokenImgs(prev => new Set(prev).add(featured.id))}
+                            />
+                          ) : (
+                            <div className="re-hero-preview-placeholder">🏡</div>
+                          )}
+                          <span className={`re-sale-badge${featured.listing_type === 'rent' ? ' rent' : ''}`}>
+                            {featured.listing_type === 'rent' ? 'FOR RENT' : 'FOR SALE'}
+                          </span>
+                        </div>
+                        <div className="re-hero-preview-body">
+                          <div className="re-hero-preview-price">
+                            {fmtPrice(featured.price, featured.price_unit, featured.listing_type)}
+                          </div>
+                          <div className="re-hero-preview-title">{featured.title}</div>
+                          <div className="re-hero-preview-loc">📍 {featured.city}{featured.locality ? `, ${featured.locality}` : ''}</div>
+                        </div>
+                      </a>
+                    )
+                  })()}
+                </div>
+              </div>
+
             </div>
-            <a href="/real-estate/dashboard" className="re-free-banner-btn">List free →</a>
           </div>
         </section>
 
-        {/* ── PROPERTY TYPE CHIPS ──────────────────────────────── */}
-        <div className="re-chips-scroll">
+        {/* ── PROPERTY TYPE CHIPS (mobile only) ────────────────── */}
+        <div className="re-chips-scroll re-mobile-chips">
           <div className="re-chips">
             {PROP_TYPES.map(t => (
               <button
@@ -185,130 +248,138 @@ export default function RealEstatePage() {
         </div>
 
         {/* ── STATS STRIP ──────────────────────────────────────── */}
-        <div className="re-stats">
-          <div className="re-stat-box">
-            <div className="re-stat-val">{loading ? '…' : totalProps || '0'}</div>
-            <div className="re-stat-label">Properties listed</div>
-          </div>
-          <div className="re-stat-divider" />
-          <div className="re-stat-box">
-            <div className="re-stat-val">{loading ? '…' : districts || '0'}</div>
-            <div className="re-stat-label">Districts covered</div>
-          </div>
-          <div className="re-stat-divider" />
-          <div className="re-stat-box">
-            <div className="re-stat-val">{loading ? '…' : propTypes || '0'}</div>
-            <div className="re-stat-label">Property types</div>
+        <div className="re-stats-wrap">
+          <div className="re-container">
+            <div className="re-stats">
+              <div className="re-stat-box">
+                <div className="re-stat-val">{loading ? '…' : totalProps || '0'}</div>
+                <div className="re-stat-label">Properties listed</div>
+              </div>
+              <div className="re-stat-divider" />
+              <div className="re-stat-box">
+                <div className="re-stat-val">{loading ? '…' : districts || '0'}</div>
+                <div className="re-stat-label">Districts covered</div>
+              </div>
+              <div className="re-stat-divider" />
+              <div className="re-stat-box">
+                <div className="re-stat-val">{loading ? '…' : propTypes || '0'}</div>
+                <div className="re-stat-label">Property types</div>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* ── RECENT LISTINGS ──────────────────────────────────── */}
         <section className="re-listings">
-          <div className="re-listings-head">
-            <div className="re-listings-title">Recent Listings</div>
-            {!loading && filtered.length > 0 && (
-              <div className="re-listings-count">{filtered.length} available</div>
+          <div className="re-container">
+            <div className="re-listings-head">
+              <div className="re-listings-title">Recent Listings</div>
+              {!loading && filtered.length > 0 && (
+                <div className="re-listings-count">{filtered.length} available</div>
+              )}
+            </div>
+
+            {loading ? (
+              <div className="re-skeletons">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="re-skeleton" />
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="re-empty">
+                <div className="re-empty-icon">🏡</div>
+                <div className="re-empty-title">No listings yet</div>
+                <div className="re-empty-sub">
+                  Be the first to list a property in Nagaland.
+                </div>
+                <a href="/real-estate/dashboard" className="re-cta-btn">
+                  List Your Property Free →
+                </a>
+              </div>
+            ) : (
+              <div className="re-card-list">
+                {filtered.map(p => (
+                  <a key={p.id} href={`/real-estate/${p.id}`} className="re-card">
+                    <div className="re-card-photo">
+                      {p.photos && p.photos.length > 0 && !brokenImgs.has(p.id) ? (
+                        <img
+                          src={p.photos[0]}
+                          alt={p.title}
+                          className="re-card-img"
+                          onError={() => setBrokenImgs(prev => new Set(prev).add(p.id))}
+                        />
+                      ) : (
+                        <div className="re-card-no-photo">🏡</div>
+                      )}
+                      <span className={`re-sale-badge${p.listing_type === 'rent' ? ' rent' : ''}`}>
+                        {p.listing_type === 'rent' ? 'FOR RENT' : 'FOR SALE'}
+                      </span>
+                      {p.photos && p.photos.length > 1 && (
+                        <span className="re-photo-count">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                          {p.photos.length}
+                        </span>
+                      )}
+                      {p.is_featured && (
+                        <span className="re-featured-badge">★ Featured</span>
+                      )}
+                    </div>
+                    <div className="re-card-body">
+                      <div className="re-card-price">
+                        {fmtPrice(p.price, p.price_unit, p.listing_type)}
+                      </div>
+                      <div className="re-card-title">{p.title}</div>
+                      <div className="re-card-loc">
+                        📍 {p.city}{p.locality ? `, ${p.locality}` : ''}
+                      </div>
+                      {(p.area || p.property_type) && (
+                        <div className="re-card-tags">
+                          {p.area && (
+                            <span className="re-tag">{p.area} {p.area_unit || 'sqft'}</span>
+                          )}
+                          {p.property_type && (
+                            <span className="re-tag">{p.property_type}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </a>
+                ))}
+              </div>
             )}
           </div>
-
-          {loading ? (
-            <div className="re-skeletons">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="re-skeleton" />
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="re-empty">
-              <div className="re-empty-icon">🏡</div>
-              <div className="re-empty-title">No listings yet</div>
-              <div className="re-empty-sub">
-                Be the first to list a property in Nagaland.
-              </div>
-              <a href="/real-estate/dashboard" className="re-cta-btn">
-                List Your Property Free →
-              </a>
-            </div>
-          ) : (
-            <div className="re-card-list">
-              {filtered.map(p => (
-                <a key={p.id} href={`/real-estate/${p.id}`} className="re-card">
-                  {/* Photo */}
-                  <div className="re-card-photo">
-                    {p.photos && p.photos.length > 0 && !brokenImgs.has(p.id) ? (
-                      <img
-                        src={p.photos[0]}
-                        alt={p.title}
-                        className="re-card-img"
-                        onError={() => setBrokenImgs(prev => new Set(prev).add(p.id))}
-                      />
-                    ) : (
-                      <div className="re-card-no-photo">🏡</div>
-                    )}
-                    <span className={`re-sale-badge${p.listing_type === 'rent' ? ' rent' : ''}`}>
-                      {p.listing_type === 'rent' ? 'FOR RENT' : 'FOR SALE'}
-                    </span>
-                    {p.photos && p.photos.length > 1 && (
-                      <span className="re-photo-count">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                        {p.photos.length}
-                      </span>
-                    )}
-                    {p.is_featured && (
-                      <span className="re-featured-badge">★ Featured</span>
-                    )}
-                  </div>
-                  {/* Body */}
-                  <div className="re-card-body">
-                    <div className="re-card-price">
-                      {fmtPrice(p.price, p.price_unit, p.listing_type)}
-                    </div>
-                    <div className="re-card-title">{p.title}</div>
-                    <div className="re-card-loc">
-                      📍 {p.city}{p.locality ? `, ${p.locality}` : ''}
-                    </div>
-                    {(p.area || p.property_type) && (
-                      <div className="re-card-tags">
-                        {p.area && (
-                          <span className="re-tag">
-                            {p.area} {p.area_unit || 'sqft'}
-                          </span>
-                        )}
-                        {p.property_type && (
-                          <span className="re-tag">{p.property_type}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
         </section>
 
         {/* ── LIST YOUR PROPERTY CTA ───────────────────────────── */}
-        <div className="re-list-cta">
-          <div className="re-list-cta-icon">🏡</div>
-          <div className="re-list-cta-title">Have a property to sell or rent?</div>
-          <div className="re-list-cta-sub">
-            Reach buyers across all 17 districts — free
+        <div className="re-container">
+          <div className="re-list-cta">
+            <div className="re-list-cta-inner">
+              <div className="re-list-cta-icon">🏡</div>
+              <div>
+                <div className="re-list-cta-title">Have a property to sell or rent?</div>
+                <div className="re-list-cta-sub">Reach buyers across all 17 districts — free</div>
+              </div>
+            </div>
+            <a href="/real-estate/dashboard" className="re-cta-btn re-cta-btn-desktop">
+              List Your Property Free →
+            </a>
           </div>
-          <a href="/real-estate/dashboard" className="re-cta-btn" style={{ display: 'block', textAlign: 'center' }}>
-            List Your Property Free →
-          </a>
         </div>
 
         {/* ── FOOTER ───────────────────────────────────────────── */}
         <footer className="re-footer">
-          <div className="re-footer-links">
-            <a href="/search"   className="re-footer-link">Directory</a>·
-            <a href="/real-estate" className="re-footer-link">Real Estate</a>·
-            <a href="/privacy"  className="re-footer-link">Privacy Policy</a>·
-            <a href="/terms"    className="re-footer-link">Terms of Service</a>·
-            <a href="/refund"   className="re-footer-link">Refund Policy</a>·
-            <a href="/contact"  className="re-footer-link">Contact Us</a>·
-            <a href="/about"    className="re-footer-link">About</a>
+          <div className="re-container">
+            <div className="re-footer-links">
+              <a href="/search"      className="re-footer-link">Directory</a>·
+              <a href="/real-estate" className="re-footer-link">Real Estate</a>·
+              <a href="/privacy"     className="re-footer-link">Privacy Policy</a>·
+              <a href="/terms"       className="re-footer-link">Terms of Service</a>·
+              <a href="/refund"      className="re-footer-link">Refund Policy</a>·
+              <a href="/contact"     className="re-footer-link">Contact Us</a>·
+              <a href="/about"       className="re-footer-link">About</a>
+            </div>
+            <div className="re-footer-copy">© 2026 Yana Nagaland. All rights reserved.</div>
           </div>
-          <div className="re-footer-copy">© 2026 Yana Nagaland. All rights reserved.</div>
         </footer>
 
         {/* ── BOTTOM NAV ───────────────────────────────────────── */}
@@ -390,6 +461,14 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 .re-free-banner-btn{font-size:11.5px;font-weight:700;color:var(--gold);border:1px solid rgba(212,160,23,0.35);border-radius:7px;padding:6px 12px;white-space:nowrap;background:transparent;transition:all 0.15s;}
 .re-free-banner-btn:hover{background:rgba(212,160,23,0.08);}
 
+/* Container (desktop only; no-op on mobile) */
+.re-container{width:100%;}
+/* Hero grid — single col on mobile */
+.re-hero-grid{display:block;}
+.re-hero-right{display:none;}/* hidden on mobile, shown on desktop */
+.re-hero-right-card{display:none;}/* safety */
+.re-stats-wrap{/* wrapper for full-bleed border on desktop */}
+
 /* TYPE CHIPS */
 .re-chips-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:18px 0 6px;}
 .re-chips-scroll::-webkit-scrollbar{display:none;}
@@ -445,7 +524,8 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 
 /* CTA */
 .re-list-cta{margin:28px 18px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px 20px;text-align:center;}
-.re-list-cta-icon{font-size:30px;margin-bottom:10px;}
+.re-list-cta-inner{display:block;}
+.re-list-cta-icon{font-size:30px;margin-bottom:10px;display:block;}
 .re-list-cta-title{font-size:16px;font-weight:700;color:var(--white);margin-bottom:6px;}
 .re-list-cta-sub{font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
 .re-cta-btn{display:inline-block;background:var(--red);color:#fff;font-size:13px;font-weight:700;padding:13px 20px;border-radius:10px;border:none;cursor:pointer;font-family:'Sora',sans-serif;transition:background 0.15s;width:100%;}
@@ -465,17 +545,116 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 .re-bnav-item.active{color:var(--red);}
 .re-bnav-item.active svg{opacity:1;stroke:var(--red);}
 
-/* Desktop: side-by-side grid, hide bottom nav */
+/* ── DESKTOP ── */
 @media(min-width:768px){
-  .re-root{max-width:700px;margin:0 auto;}
-  .re-hero{padding:40px 24px 24px;}
-  .re-hero-title{font-size:36px;max-width:500px;}
-  .re-chips{padding:0 24px;}
-  .re-listings{padding:28px 24px 0;}
-  .re-card-list{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-  .re-list-cta{margin:28px 24px;}
-  .re-footer{padding:24px 24px 20px;}
+  /* Reset narrow container */
+  .re-root{max-width:100%;padding-bottom:0;}
+
+  /* Shared centered container */
+  .re-container{max-width:1200px;margin:0 auto;padding:0 40px;}
+
+  /* NAV */
+  .re-nav{padding:0 40px;}
+  .re-nav-logo{font-size:18px;}
+
+  /* HERO — full-bleed section, container inside */
+  .re-hero{padding:0;}
+  .re-hero .re-container{padding-top:56px;padding-bottom:52px;}
+  .re-hero-grid{
+    display:grid;
+    grid-template-columns:1fr 420px;
+    gap:56px;
+    align-items:center;
+  }
+  .re-hero-left{max-width:100%;}
+  .re-hero-title{font-size:42px;line-height:1.13;max-width:100%;letter-spacing:-0.03em;}
+  .re-hero-sub{font-size:15px;margin-bottom:24px;}
+  .re-search-input{font-size:14px;}
+  .re-search-btn{font-size:14px;}
+  .re-free-banner{margin-top:20px;}
+
+  /* RIGHT CARD */
+  .re-hero-right{display:block;}
+  .re-hero-right-card{
+    background:var(--bg2);
+    border:1px solid var(--border2);
+    border-radius:18px;
+    padding:20px;
+    overflow:hidden;
+  }
+  .re-hero-right-label{
+    font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:1.5px;color:var(--muted);margin-bottom:14px;
+  }
+  .re-type-grid{
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;
+    margin-bottom:16px;
+  }
+  .re-type-tile{
+    display:flex;flex-direction:column;align-items:center;gap:5px;
+    background:var(--bg3);border:1px solid var(--border);border-radius:12px;
+    padding:12px 8px;cursor:pointer;font-family:'Sora',sans-serif;
+    transition:all 0.15s;
+  }
+  .re-type-tile:hover{border-color:var(--border2);}
+  .re-type-tile.active{background:var(--red-bg);border-color:rgba(192,57,43,0.4);}
+  .re-type-tile-icon{font-size:22px;line-height:1;}
+  .re-type-tile-label{font-size:11px;font-weight:600;color:var(--off);}
+  .re-type-tile-count{font-size:10px;color:var(--muted);}
+
+  /* Featured preview card inside hero right */
+  .re-hero-preview{
+    display:flex;gap:12px;align-items:center;
+    background:var(--bg3);border:1px solid var(--border);border-radius:12px;
+    overflow:hidden;text-decoration:none;
+    transition:border-color 0.15s;
+  }
+  .re-hero-preview:hover{border-color:rgba(192,57,43,0.3);}
+  .re-hero-preview-photo{
+    width:96px;height:80px;flex-shrink:0;position:relative;overflow:hidden;
+  }
+  .re-hero-preview-img{width:100%;height:100%;object-fit:cover;display:block;}
+  .re-hero-preview-placeholder{
+    width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+    font-size:28px;background:var(--bg4);
+  }
+  .re-hero-preview-body{padding:10px 12px 10px 0;flex:1;min-width:0;}
+  .re-hero-preview-price{font-size:15px;font-weight:800;letter-spacing:-0.3px;margin-bottom:3px;}
+  .re-hero-preview-title{font-size:12px;font-weight:600;color:var(--off);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;}
+  .re-hero-preview-loc{font-size:11px;color:var(--muted);}
+
+  /* Hide mobile chips, show desktop type grid */
+  .re-mobile-chips{display:none;}
+
+  /* STATS — inside container, border top/bottom full-bleed via wrapper */
+  .re-stats-wrap{border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--bg2);}
+  .re-stats{display:flex;align-items:stretch;}
+  .re-stat-box{padding:24px 0;}
+  .re-stat-val{font-size:32px;}
+
+  /* LISTINGS */
+  .re-listings{padding:0;}
+  .re-listings .re-container{padding-top:36px;padding-bottom:0;}
+  .re-listings-title{font-size:20px;}
+  .re-card-list{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  .re-card-photo{height:200px;}
+
+  /* CTA — horizontal on desktop */
+  .re-list-cta{
+    display:flex;align-items:center;justify-content:space-between;gap:24px;
+    margin:36px 0;padding:28px 32px;text-align:left;
+  }
+  .re-list-cta-inner{display:flex;align-items:center;gap:16px;}
+  .re-list-cta-icon{font-size:36px;margin-bottom:0;}
+  .re-list-cta-title{font-size:18px;}
+  .re-list-cta-sub{margin-bottom:0;}
+  .re-cta-btn-desktop{width:auto;white-space:nowrap;padding:14px 28px;flex-shrink:0;}
+
+  /* FOOTER */
+  .re-footer{padding:0;}
+  .re-footer .re-container{padding-top:28px;padding-bottom:24px;}
+
+  /* Hide bottom nav on desktop */
   .re-bottom-nav{display:none;}
-  .re-root{padding-bottom:24px;}
 }
 `
