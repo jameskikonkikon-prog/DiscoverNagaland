@@ -492,11 +492,11 @@ const css = `
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 2px; height: 100%; position: relative;
   }
-  .gal-main { overflow: hidden; }
+  .gal-main { overflow: hidden; height: 100%; background: #1a1a1a; }
   .gal-side { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; }
-  .gal-side-item { overflow: hidden; }
+  .gal-side-item { overflow: hidden; height: 100%; background: #1a1a1a; }
   .gal-side-empty { background: var(--surface2); }
-  .gal-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gal-img { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; background: #1a1a1a; }
 
   .gal-badge {
     position: absolute; top: 10px; left: 10px; z-index: 4;
@@ -678,7 +678,7 @@ const css = `
   .lb-title { font-size: 14px; font-weight: 700; }
   .lb-close { background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer; padding: 4px 8px; font-family: 'Sora', sans-serif; }
   .lb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .lb-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; }
+  .lb-img { width: 100%; aspect-ratio: 4/3; object-fit: contain; object-position: center; background: #1a1a1a; border-radius: 8px; }
 
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
