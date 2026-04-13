@@ -173,10 +173,10 @@ export default function RealEstateDashboard() {
 
         /* STATS */
         .dw-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
-        .dw-stat{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px 14px;}
-        .dw-stat-val{font-size:30px;font-weight:800;letter-spacing:-0.05em;color:var(--white);line-height:1;margin-bottom:5px;}
-        .dw-stat-label{font-size:11.5px;font-weight:600;color:var(--off);margin-bottom:1px;}
-        .dw-stat-note{font-size:10.5px;color:var(--muted);}
+        .dw-stat{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:11px 12px;}
+        .dw-stat-val{font-size:22px;font-weight:800;letter-spacing:-0.04em;color:var(--white);line-height:1;margin-bottom:3px;}
+        .dw-stat-label{font-size:11px;font-weight:600;color:var(--off);margin-bottom:1px;}
+        .dw-stat-note{font-size:10px;color:var(--muted);}
 
         /* ADD BUTTON */
         .dw-addbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:var(--red);color:#fff;font-size:14px;font-weight:700;padding:13px 20px;border-radius:10px;text-decoration:none;letter-spacing:-0.01em;transition:background 0.15s;margin-bottom:24px;}
@@ -233,9 +233,7 @@ export default function RealEstateDashboard() {
           .dn{display:none;}
           .dw{padding:24px 14px 64px;}
           .dw-greeting{font-size:20px;}
-          .dw-stats{grid-template-columns:1fr 1fr;}
-          .dw-stats .dw-stat:last-child{grid-column:1/-1;}
-          .dw-stat-val{font-size:26px;}
+          .dw-stat-val{font-size:20px;}
         }
 
         /* DESKTOP */
@@ -244,8 +242,6 @@ export default function RealEstateDashboard() {
           .dw-body{display:grid;grid-template-columns:300px 1fr;gap:40px;align-items:start;}
           .dw-left{position:sticky;top:80px;}
           .dw-addbtn{margin-bottom:16px;}
-          .dw-stats{grid-template-columns:1fr;gap:8px;}
-          .dw-stat{padding:18px 16px;}
         }
       `}</style>
 
