@@ -173,7 +173,7 @@ export default function RealEstatePage() {
                 </div>
               </div>
 
-              {/* RIGHT — 3 most recent properties (desktop only) */}
+              {/* RIGHT — 3 most recent properties + stats (desktop only) */}
               <div className="re-hero-right">
                 <div className="re-hr-head">
                   <span className="re-hr-label">Latest listings</span>
@@ -208,6 +208,24 @@ export default function RealEstatePage() {
                     </a>
                   )
                 })}
+
+                {/* Stats — desktop only, sits at bottom of right column */}
+                <div className="re-hero-stats">
+                  <div className="re-hero-stat">
+                    <div className="re-hero-stat-val">{loading ? '…' : totalProps || '0'}</div>
+                    <div className="re-hero-stat-label">Properties listed</div>
+                  </div>
+                  <div className="re-hero-stat-divider" />
+                  <div className="re-hero-stat">
+                    <div className="re-hero-stat-val">{loading ? '…' : districts || '0'}</div>
+                    <div className="re-hero-stat-label">Districts covered</div>
+                  </div>
+                  <div className="re-hero-stat-divider" />
+                  <div className="re-hero-stat">
+                    <div className="re-hero-stat-val">{loading ? '…' : propTypes || '0'}</div>
+                    <div className="re-hero-stat-label">Property types</div>
+                  </div>
+                </div>
               </div>
 
             </div>
@@ -450,6 +468,8 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 .re-hero-grid{display:block;}
 /* Hero right hidden on mobile */
 .re-hero-right{display:none;}
+/* Desktop right-column stats hidden on mobile */
+.re-hero-stats{display:none;}
 .re-stats-wrap{}
 
 /* TYPE CHIPS */
@@ -587,12 +607,22 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
   .re-mini-loc{font-size:10px;color:var(--muted);}
   .re-mini-skeleton{height:72px;border-radius:12px;background:var(--bg2);margin-bottom:8px;animation:rePulse 1.6s ease-in-out infinite;}
 
+  /* Desktop right-column stats strip */
+  .re-hero-stats{
+    display:flex;align-items:stretch;
+    background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+    margin-top:10px;overflow:hidden;
+  }
+  .re-hero-stat{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 8px;text-align:center;}
+  .re-hero-stat-val{font-size:22px;font-weight:800;color:var(--white);letter-spacing:-0.5px;line-height:1;margin-bottom:4px;}
+  .re-hero-stat-label{font-size:9.5px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;line-height:1.3;}
+  .re-hero-stat-divider{width:1px;background:var(--border);flex-shrink:0;}
+
   /* Mobile chips hidden on desktop */
   .re-mobile-chips{display:none;}
 
-  /* STATS STRIP — full-bleed bg, content in container */
-  .re-stats-wrap{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
-  .re-stats{display:flex;align-items:stretch;}
+  /* STATS STRIP — hide on desktop (moved into right column) */
+  .re-stats-wrap{display:none;}
   .re-stat-box{padding:28px 0;}
   .re-stat-val{font-size:30px;}
 
