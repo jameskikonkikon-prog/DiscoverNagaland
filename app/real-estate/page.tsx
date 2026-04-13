@@ -58,6 +58,8 @@ export default function RealEstatePage() {
   const [typeFilter,    setTypeFilter]    = useState('')
   const [searchQuery,   setSearchQuery]   = useState('')
   const [brokenImgs,    setBrokenImgs]    = useState<Set<string>>(new Set())
+  const [searching,     setSearching]     = useState(false)
+  const [hasSearched,   setHasSearched]   = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -148,7 +150,16 @@ export default function RealEstatePage() {
                       onChange={e => setSearchQuery(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
                     />
-                    <button className="re-search-btn">Search</button>
+                    <button
+                      className={`re-search-btn${searching ? ' searching' : ''}`}
+                      onClick={() => {
+                        setSearching(true)
+                        setHasSearched(true)
+                        setTimeout(() => setSearching(false), 380)
+                      }}
+                    >
+                      {searching ? 'Searching…' : 'Search'}
+                    </button>
                   </div>
                   <div className="re-listing-pills">
                     {(['', 'sale', 'rent', 'land'] as const).map((v, i) => (
@@ -275,7 +286,12 @@ export default function RealEstatePage() {
           <div className="re-container">
             <div className="re-listings-head">
               <div className="re-listings-title">Recent Listings</div>
-              {!loading && filtered.length > 0 && (
+              {!loading && hasSearched && (
+                <div className={`re-listings-count${searching ? ' re-count-searching' : ''}`}>
+                  {searching ? '…' : `${filtered.length} result${filtered.length !== 1 ? 's' : ''} found`}
+                </div>
+              )}
+              {!loading && !hasSearched && filtered.length > 0 && (
                 <div className="re-listings-count">{filtered.length} available</div>
               )}
             </div>
@@ -449,6 +465,9 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 .re-search-input::placeholder{color:var(--muted);}
 .re-search-btn{background:var(--red);color:#fff;font-size:13px;font-weight:700;padding:0 18px;border-radius:10px;white-space:nowrap;transition:background 0.15s;}
 .re-search-btn:hover{background:var(--red2);}
+.re-search-btn.searching{background:var(--red2);animation:reSearchPulse 0.7s ease-in-out infinite;}
+@keyframes reSearchPulse{0%,100%{opacity:1;}50%{opacity:0.65;}}
+.re-count-searching{animation:reSearchPulse 0.7s ease-in-out infinite;}
 .re-listing-pills{display:flex;gap:7px;flex-wrap:wrap;}
 .re-pill{font-size:12px;font-weight:600;padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all 0.15s;}
 .re-pill.active{background:var(--red-bg);border-color:rgba(192,57,43,0.4);color:var(--white);}

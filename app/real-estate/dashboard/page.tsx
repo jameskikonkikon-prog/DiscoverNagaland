@@ -228,12 +228,23 @@ export default function RealEstateDashboard() {
         .skeleton{background:var(--bg3);border-radius:14px;animation:pulse 1.4s ease-in-out infinite;}
         @keyframes pulse{0%,100%{opacity:0.3;}50%{opacity:0.65;}}
 
+        /* FREE LAUNCH — desktop shows in left col, mobile shows after listings */
+        .dw-launch-mobile{display:none;}
+
         /* MOBILE */
         @media(max-width:640px){
           .dn{display:none;}
-          .dw{padding:24px 14px 64px;}
-          .dw-greeting{font-size:20px;}
-          .dw-stat-val{font-size:20px;}
+          .dw{padding:18px 12px 56px;}
+          .dw-greeting{font-size:18px;margin-bottom:2px;}
+          .dw-sub{font-size:12px;margin-bottom:14px;}
+          .dw-stats{gap:6px;margin-bottom:12px;}
+          .dw-stat{padding:8px 10px;}
+          .dw-stat-val{font-size:18px;}
+          .dw-stat-label{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+          .dw-stat-note{display:none;}
+          .dw-addbtn{margin-bottom:16px;padding:12px 16px;font-size:13px;}
+          .dw-launch-desktop{display:none;}
+          .dw-launch-mobile{display:block;margin-top:16px;}
         }
 
         /* DESKTOP */
@@ -294,8 +305,8 @@ export default function RealEstateDashboard() {
               + Add New Property
             </a>
 
-            {/* FREE LAUNCH CARD */}
-            <div className="dw-launch">
+            {/* FREE LAUNCH CARD — desktop only (hidden on mobile via CSS) */}
+            <div className="dw-launch dw-launch-desktop">
               <div className="dw-launch-label">Free during launch</div>
               <div className="dw-launch-text">
                 Listings are free during our launch period. Pricing will be introduced soon.
@@ -306,6 +317,7 @@ export default function RealEstateDashboard() {
           {/* RIGHT COLUMN — LISTINGS */}
           <div className="dw-right">
             <div className="dw-sec">My Listings</div>
+
 
             {loading ? (
               <div className="ml-list">
@@ -375,6 +387,14 @@ export default function RealEstateDashboard() {
                 })}
               </div>
             )}
+
+            {/* FREE LAUNCH CARD — mobile only (hidden on desktop via CSS) */}
+            <div className="dw-launch dw-launch-mobile">
+              <div className="dw-launch-label">Free during launch</div>
+              <div className="dw-launch-text">
+                Listings are free during our launch period. Pricing will be introduced soon.
+              </div>
+            </div>
           </div>
 
         </div>
