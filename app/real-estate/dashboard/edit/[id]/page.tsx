@@ -419,15 +419,6 @@ export default function EditPropertyPage() {
               </div>
             )}
 
-            {success && (
-              <div className="aw-notice" style={{background:'rgba(59,168,143,0.07)',borderColor:'rgba(59,168,143,0.25)',marginTop:20}}>
-                <span>✅</span>
-                <div className="aw-notice-text" style={{color:'rgba(59,168,143,0.9)'}}>
-                  <strong>Changes saved!</strong>{' '}
-                  <a href="/real-estate/dashboard" style={{color:'inherit',textDecoration:'underline'}}>Back to dashboard →</a>
-                </div>
-              </div>
-            )}
 
           </form>
         </div>
