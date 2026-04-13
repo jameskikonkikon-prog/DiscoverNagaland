@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 
 type Property = {
@@ -76,11 +76,27 @@ function isRentType(type?: string): boolean {
 
 export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Props) {
   const [failedPhotos, setFailedPhotos] = useState<Set<number>>(new Set());
-  const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const [currentPhoto, setCurrentPhoto] = useState(1);
   const [descExpanded, setDescExpanded] = useState(false);
+  const stripRef = useRef<HTMLDivElement>(null);
 
   const handlePhotoError = useCallback((index: number) => {
     setFailedPhotos(prev => new Set(prev).add(index));
+  }, []);
+
+  const handleStripScroll = useCallback(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const center = strip.scrollLeft + strip.clientWidth / 2;
+    let cumWidth = 0;
+    const children = strip.children;
+    for (let i = 0; i < children.length; i++) {
+      cumWidth += (children[i] as HTMLElement).offsetWidth;
+      if (cumWidth > center) {
+        setCurrentPhoto(i + 1);
+        break;
+      }
+    }
   }, []);
 
   const photos = property.photos?.length ? property.photos : [];
@@ -126,59 +142,32 @@ export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Pr
     }
 
     return (
-      <div className="gal-grid">
-        {/* Main photo */}
-        <div className="gal-main">
-          <img
-            src={validPhotos[0]}
-            alt={property.title}
-            className="gal-img"
-            onError={() => handlePhotoError(photos.indexOf(validPhotos[0]))}
-          />
-        </div>
-
-        {/* Two stacked on right — only if 2+ photos */}
-        {validPhotos.length >= 2 && (
-          <div className="gal-side">
-            <div className="gal-side-item">
+      <>
+        <div className="gal-strip" ref={stripRef} onScroll={handleStripScroll}>
+          {validPhotos.map((src, i) => (
+            <div key={i} className="gal-strip-item">
               <img
-                src={validPhotos[1]}
-                alt={`${property.title} 2`}
+                src={src}
+                alt={`${property.title} ${i + 1}`}
                 className="gal-img"
-                onError={() => handlePhotoError(photos.indexOf(validPhotos[1]))}
+                onError={() => handlePhotoError(photos.indexOf(src))}
               />
             </div>
-            {validPhotos.length >= 3 ? (
-              <div className="gal-side-item">
-                <img
-                  src={validPhotos[2]}
-                  alt={`${property.title} 3`}
-                  className="gal-img"
-                  onError={() => handlePhotoError(photos.indexOf(validPhotos[2]))}
-                />
-              </div>
-            ) : (
-              <div className="gal-side-item gal-side-empty" />
-            )}
-          </div>
-        )}
+          ))}
+        </div>
 
         {/* FOR SALE / FOR RENT badge */}
         <div className={`gal-badge ${isRent ? 'gal-badge-rent' : 'gal-badge-sale'}`}>
           {badgeLabel}
         </div>
 
-        {/* See all photos */}
-        {validPhotos.length >= 3 && (
-          <button
-            type="button"
-            className="gal-see-all"
-            onClick={() => setShowAllPhotos(true)}
-          >
-            See all {validPhotos.length} photos
-          </button>
+        {/* Photo counter */}
+        {validPhotos.length > 1 && (
+          <div className="gal-counter">
+            {currentPhoto}/{validPhotos.length}
+          </div>
         )}
-      </div>
+      </>
     );
   };
 
@@ -397,31 +386,6 @@ export default function PropertyPageClient({ property, isOwner, isLoggedIn }: Pr
         </div>
       </div>
 
-      {/* ── All photos lightbox ── */}
-      {showAllPhotos && (
-        <div
-          className="lb-overlay"
-          onClick={e => { if (e.target === e.currentTarget) setShowAllPhotos(false); }}
-        >
-          <div className="lb-modal">
-            <div className="lb-header">
-              <span className="lb-title">All Photos ({validPhotos.length})</span>
-              <button className="lb-close" onClick={() => setShowAllPhotos(false)}>✕</button>
-            </div>
-            <div className="lb-grid">
-              {validPhotos.map((src, i) => (
-                <img
-                  key={i}
-                  src={src}
-                  alt={`${property.title} photo ${i + 1}`}
-                  className="lb-img"
-                  onError={() => handlePhotoError(photos.indexOf(src))}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
@@ -476,8 +440,8 @@ const css = `
   /* ── Gallery ── */
   .gal-wrap {
     margin-top: 52px;
-    height: 56vw; min-height: 220px; max-height: 340px;
-    background: var(--surface2);
+    height: 220px;
+    background: #1a1a1a;
     position: relative; overflow: hidden;
   }
   .gal-placeholder {
@@ -488,15 +452,21 @@ const css = `
   .gal-icon { font-size: 3rem; }
   .gal-none { font-size: 13px; }
 
-  .gal-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 2px; height: 100%; position: relative;
+  .gal-strip {
+    display: flex; flex-direction: row;
+    height: 100%; overflow-x: auto; overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; -ms-overflow-style: none;
   }
-  .gal-main { overflow: hidden; height: 100%; background: #1a1a1a; }
-  .gal-side { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; }
-  .gal-side-item { overflow: hidden; height: 100%; background: #1a1a1a; }
-  .gal-side-empty { background: var(--surface2); }
-  .gal-img { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; background: #1a1a1a; }
+  .gal-strip::-webkit-scrollbar { display: none; }
+
+  .gal-strip-item {
+    flex-shrink: 0; height: 100%;
+    scroll-snap-align: start;
+    background: #1a1a1a;
+  }
+  .gal-img { height: 100%; width: auto; object-fit: cover; object-position: center; display: block; }
 
   .gal-badge {
     position: absolute; top: 10px; left: 10px; z-index: 4;
@@ -506,13 +476,12 @@ const css = `
   .gal-badge-sale { background: var(--red); color: #fff; }
   .gal-badge-rent { background: #0d2b1a; color: var(--green); border: 1px solid rgba(37,211,102,0.3); }
 
-  .gal-see-all {
-    position: absolute; bottom: 10px; right: 10px; z-index: 4;
+  .gal-counter {
+    position: absolute; top: 10px; right: 10px; z-index: 4;
     font-size: 11px; font-weight: 600; color: #fff;
-    background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+    background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
     border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
-    padding: 6px 12px; cursor: pointer;
-    font-family: 'Sora', sans-serif;
+    padding: 4px 9px;
   }
 
   /* ── Two-column wrapper (single column on mobile) ── */
@@ -662,24 +631,6 @@ const css = `
   .cta-wa { background: #1a3d26; color: var(--green); margin-left: 6px; }
   .cta-full { flex: 1; margin: 0; }
 
-  /* ── Lightbox ── */
-  .lb-overlay {
-    position: fixed; inset: 0; z-index: 500;
-    background: rgba(0,0,0,0.88); backdrop-filter: blur(8px);
-    display: flex; align-items: flex-end;
-    animation: fadeIn 0.15s ease;
-  }
-  .lb-modal {
-    width: 100%; max-height: 90vh; overflow-y: auto;
-    background: var(--surface); border-radius: 20px 20px 0 0;
-    padding: 20px 16px;
-  }
-  .lb-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-  .lb-title { font-size: 14px; font-weight: 700; }
-  .lb-close { background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer; padding: 4px 8px; font-family: 'Sora', sans-serif; }
-  .lb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .lb-img { width: 100%; aspect-ratio: 4/3; object-fit: contain; object-position: center; background: #1a1a1a; border-radius: 8px; }
-
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
   /* ── Desktop ── */
@@ -695,9 +646,7 @@ const css = `
 
     /* Gallery — full width, taller */
     .gal-wrap {
-      height: 52vw;
-      max-height: 520px;
-      min-height: 360px;
+      height: 280px;
     }
 
     /* Two-column body */
@@ -800,9 +749,5 @@ const css = `
     }
     .sb-btn-ghost:hover { border-color: var(--border2, rgba(255,255,255,0.15)); color: var(--text); }
 
-    /* Lightbox grid wider on desktop */
-    .lb-modal { border-radius: 16px; max-width: 800px; margin: auto; }
-    .lb-grid { grid-template-columns: repeat(3, 1fr); }
-    .lb-overlay { align-items: center; }
   }
 `;
