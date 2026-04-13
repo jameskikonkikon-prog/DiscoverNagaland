@@ -46,6 +46,16 @@ interface DbMeta {
 let _meta: DbMeta | null = null;
 const META_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+/**
+ * Categories that belong to the real-estate section, not the business directory.
+ * Excluded from all business search queries and metadata so property listings
+ * never mix in with business results.
+ */
+const PROPERTY_CATEGORIES = [
+  'rental_house', 'real_estate', 'property', 'land', 'land_sale',
+  'house_sale', 'flat', 'apartment_sale', 'property_listing',
+];
+
 async function loadMeta(client: ServiceClient): Promise<DbMeta> {
   if (_meta && Date.now() - _meta.loadedAt < META_TTL_MS) return _meta;
 
@@ -54,6 +64,7 @@ async function loadMeta(client: ServiceClient): Promise<DbMeta> {
       .from('businesses')
       .select('category')
       .not('category', 'is', null)
+      .not('category', 'in', `(${PROPERTY_CATEGORIES.join(',')})`)
       .or('is_active.eq.true,is_active.is.null'),
     client
       .from('businesses')
@@ -336,7 +347,8 @@ async function fetchByCategory(
   let q = client
     .from('businesses')
     .select(SELECT_COLS)
-    .or('is_active.eq.true,is_active.is.null');
+    .or('is_active.eq.true,is_active.is.null')
+    .not('category', 'in', `(${PROPERTY_CATEGORIES.join(',')})`);
 
   if (city) q = q.eq('city', city);
   if (cats.length === 1) q = q.eq('category', cats[0]);
@@ -369,7 +381,8 @@ async function fetchByKeywords(
   let q = client
     .from('businesses')
     .select(SELECT_COLS)
-    .or('is_active.eq.true,is_active.is.null');
+    .or('is_active.eq.true,is_active.is.null')
+    .not('category', 'in', `(${PROPERTY_CATEGORIES.join(',')})`);
 
   if (city) q = q.eq('city', city);
 
@@ -525,6 +538,7 @@ export async function searchBusinesses(
       .from('businesses')
       .select(SELECT_COLS)
       .or('is_active.eq.true,is_active.is.null')
+      .not('category', 'in', `(${PROPERTY_CATEGORIES.join(',')})`)
       .eq('city', activeCity);
     businesses = ((data as unknown) as Business[]) || [];
   } else {
