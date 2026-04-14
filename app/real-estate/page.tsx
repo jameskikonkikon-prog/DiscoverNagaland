@@ -118,9 +118,7 @@ export default function RealEstatePage() {
   const getInitials = (email: string) =>
     email.split('@')[0].slice(0, 2).toUpperCase()
 
-  async function toggleSaveProp(e: React.MouseEvent, propId: string) {
-    e.preventDefault()
-    e.stopPropagation()
+  async function toggleSaveProp(propId: string) {
     if (!userId) {
       window.location.href = '/login?redirect=/real-estate'
       return
@@ -353,7 +351,7 @@ export default function RealEstatePage() {
             ) : (
               <div className="re-card-list">
                 {filtered.map(p => (
-                  <a key={p.id} href={`/real-estate/${p.id}`} className="re-card">
+                  <div key={p.id} className="re-card">
                     <div className="re-card-photo">
                       {p.photos && p.photos.length > 0 && !brokenImgs.has(p.id) ? (
                         <img
@@ -379,7 +377,7 @@ export default function RealEstatePage() {
                       )}
                       <button
                         className={`re-save-btn${savedPropIds.has(p.id) ? ' saved' : ''}`}
-                        onClick={(e) => toggleSaveProp(e, p.id)}
+                        onClick={() => toggleSaveProp(p.id)}
                         title={savedPropIds.has(p.id) ? 'Remove from saved' : 'Save property'}
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill={savedPropIds.has(p.id) ? '#c0392b' : 'none'} stroke={savedPropIds.has(p.id) ? '#c0392b' : 'white'}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -404,7 +402,8 @@ export default function RealEstatePage() {
                         </div>
                       )}
                     </div>
-                  </a>
+                    <a href={`/real-estate/${p.id}`} className="re-card-link" aria-label={p.title} />
+                  </div>
                 ))}
               </div>
             )}
@@ -571,8 +570,9 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 
 /* Card list */
 .re-card-list{display:flex;flex-direction:column;gap:14px;}
-.re-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:block;transition:border-color 0.15s;}
+.re-card{position:relative;background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:block;transition:border-color 0.15s;}
 .re-card:hover{border-color:rgba(192,57,43,0.3);}
+.re-card-link{position:absolute;inset:0;z-index:1;}
 .re-card-photo{position:relative;width:100%;height:186px;background:var(--bg3);overflow:hidden;}
 .re-card-img{width:100%;height:100%;object-fit:cover;display:block;}
 .re-card-no-photo{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;opacity:0.18;}
@@ -580,7 +580,7 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 .re-sale-badge.rent{background:rgba(59,168,143,0.85);}
 .re-photo-count{position:absolute;bottom:8px;right:8px;font-size:10px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:6px;display:flex;align-items:center;gap:4px;backdrop-filter:blur(4px);}
 .re-featured-badge{position:absolute;top:10px;right:10px;font-size:9.5px;font-weight:700;color:#e8a908;background:rgba(232,169,8,0.15);border:1px solid rgba(232,169,8,0.3);padding:3px 8px;border-radius:6px;backdrop-filter:blur(4px);}
-.re-save-btn{position:absolute;bottom:8px;right:8px;width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;z-index:2;}
+.re-save-btn{position:absolute;bottom:8px;right:8px;width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;z-index:3;}
 .re-save-btn:hover{background:rgba(0,0,0,0.8);transform:scale(1.08);}
 .re-save-btn.saved{background:rgba(192,57,43,0.2);}
 .re-card-body{padding:14px 14px 16px;}

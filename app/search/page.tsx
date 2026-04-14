@@ -926,16 +926,16 @@ const styles = `
     border: 1px solid #333;
   }
   .save-btn {
-    background: #1a1a1a;
-    color: rgba(255,255,255,0.5);
-    border: 1px solid #2a2a2a;
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.75);
+    border: 1px solid rgba(255,255,255,0.18);
   }
   .save-btn.saved {
-    background: rgba(192,57,43,0.1);
-    color: #c0392b;
-    border-color: rgba(192,57,43,0.3);
+    background: rgba(192,57,43,0.15);
+    color: #e05c4e;
+    border-color: rgba(192,57,43,0.4);
   }
-  .save-btn:hover { opacity: 1 !important; border-color: rgba(192,57,43,0.4); color: #c0392b; }
+  .save-btn:hover { opacity: 1 !important; background: rgba(192,57,43,0.12); border-color: rgba(192,57,43,0.45); color: #e05c4e; }
 
   @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
   .skeleton { background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%); background-size: 800px 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
