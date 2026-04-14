@@ -40,7 +40,8 @@ export default function LoginPage() {
     const hasProp = (propRes.count ?? 0) > 0;
     if (hasBiz && !hasProp) return '/dashboard';
     if (hasProp && !hasBiz) return '/real-estate/dashboard';
-    return '/account';
+    if (hasBiz && hasProp) return '/account';
+    return '/';
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -137,7 +138,7 @@ export default function LoginPage() {
           </a>
 
           <h1 className="login-title">Welcome back</h1>
-          <p className="login-sub">Sign in to manage your business listing</p>
+          <p className="login-sub">Sign in to your account</p>
 
           {/* Mode toggle */}
           <div className="mode-toggle">
@@ -212,7 +213,7 @@ export default function LoginPage() {
           )}
 
           <div className="login-footer">
-            Don&apos;t have an account? <a href="/register">List your business</a>
+            Don&apos;t have an account? <a href="/register">Create account</a>
           </div>
         </div>
       </main>

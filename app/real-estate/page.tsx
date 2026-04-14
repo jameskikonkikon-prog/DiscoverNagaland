@@ -60,11 +60,28 @@ export default function RealEstatePage() {
   const [brokenImgs,    setBrokenImgs]    = useState<Set<string>>(new Set())
   const [searching,     setSearching]     = useState(false)
   const [hasSearched,   setHasSearched]   = useState(false)
+  const [userId,        setUserId]        = useState<string | null>(null)
+  const [savedPropIds,  setSavedPropIds]  = useState<Set<string>>(new Set())
 
   useEffect(() => {
     setMounted(true)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUserEmail(session?.user?.email ?? null)
+      if (session?.user) {
+        setUserId(session.user.id)
+        try {
+          const res = await fetch('/api/saved')
+          if (res.ok) {
+            const json = await res.json()
+            const ids = new Set<string>(
+              (json.saved ?? [])
+                .filter((s: { property_id: string | null }) => s.property_id)
+                .map((s: { property_id: string }) => s.property_id)
+            )
+            setSavedPropIds(ids)
+          }
+        } catch { /* ignore */ }
+      }
     })
   }, [])
 
@@ -100,6 +117,26 @@ export default function RealEstatePage() {
 
   const getInitials = (email: string) =>
     email.split('@')[0].slice(0, 2).toUpperCase()
+
+  async function toggleSaveProp(e: React.MouseEvent, propId: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!userId) {
+      window.location.href = '/login?redirect=/real-estate'
+      return
+    }
+    const isSaved = savedPropIds.has(propId)
+    setSavedPropIds(prev => {
+      const next = new Set(prev)
+      if (isSaved) next.delete(propId); else next.add(propId)
+      return next
+    })
+    if (isSaved) {
+      await fetch(`/api/saved?property_id=${propId}`, { method: 'DELETE' })
+    } else {
+      await fetch('/api/saved', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: propId }) })
+    }
+  }
 
   return (
     <>
@@ -340,6 +377,13 @@ export default function RealEstatePage() {
                       {p.is_featured && (
                         <span className="re-featured-badge">★ Featured</span>
                       )}
+                      <button
+                        className={`re-save-btn${savedPropIds.has(p.id) ? ' saved' : ''}`}
+                        onClick={(e) => toggleSaveProp(e, p.id)}
+                        title={savedPropIds.has(p.id) ? 'Remove from saved' : 'Save property'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill={savedPropIds.has(p.id) ? '#c0392b' : 'none'} stroke={savedPropIds.has(p.id) ? '#c0392b' : 'white'}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                      </button>
                     </div>
                     <div className="re-card-body">
                       <div className="re-card-price">
@@ -536,6 +580,9 @@ button{border:none;cursor:pointer;font-family:'Sora',sans-serif;}
 .re-sale-badge.rent{background:rgba(59,168,143,0.85);}
 .re-photo-count{position:absolute;bottom:8px;right:8px;font-size:10px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:6px;display:flex;align-items:center;gap:4px;backdrop-filter:blur(4px);}
 .re-featured-badge{position:absolute;top:10px;right:10px;font-size:9.5px;font-weight:700;color:#e8a908;background:rgba(232,169,8,0.15);border:1px solid rgba(232,169,8,0.3);padding:3px 8px;border-radius:6px;backdrop-filter:blur(4px);}
+.re-save-btn{position:absolute;bottom:8px;right:8px;width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;z-index:2;}
+.re-save-btn:hover{background:rgba(0,0,0,0.8);transform:scale(1.08);}
+.re-save-btn.saved{background:rgba(192,57,43,0.2);}
 .re-card-body{padding:14px 14px 16px;}
 .re-card-price{font-size:20px;font-weight:800;color:var(--white);letter-spacing:-0.5px;margin-bottom:4px;}
 .re-card-price-unit{font-size:12px;font-weight:400;color:var(--muted);}

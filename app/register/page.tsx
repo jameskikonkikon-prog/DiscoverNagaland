@@ -397,6 +397,49 @@ export default function RegisterPage() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState('');
   const [otpResending, setOtpResending] = useState(false);
+
+  // ── CUSTOMER SIGN-UP MODE ──────────────────────────────────────────────────
+  const [regMode,          setRegMode]          = useState<'business' | 'customer'>('business')
+  const [custName,         setCustName]         = useState('')
+  const [custEmail,        setCustEmail]        = useState('')
+  const [custPassword,     setCustPassword]     = useState('')
+  const [custLoading,      setCustLoading]      = useState(false)
+  const [custError,        setCustError]        = useState('')
+  const [custShowOtp,      setCustShowOtp]      = useState(false)
+  const [custOtpCode,      setCustOtpCode]      = useState('')
+  const [custOtpLoading,   setCustOtpLoading]   = useState(false)
+  const [custOtpError,     setCustOtpError]     = useState('')
+  const [custOtpResending, setCustOtpResending] = useState(false)
+  const [custOtpResent,    setCustOtpResent]    = useState(false)
+
+  const handleCustSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!custName.trim())       { setCustError('Please enter your name.');                    return }
+    if (custPassword.length < 6){ setCustError('Password must be at least 6 characters.');   return }
+    setCustLoading(true); setCustError('')
+    const { error } = await supabase.auth.signUp({
+      email: custEmail,
+      password: custPassword,
+      options: { data: { full_name: custName.trim() } },
+    })
+    if (error) { setCustError(error.message); setCustLoading(false); return }
+    setCustShowOtp(true)
+    setCustLoading(false)
+  }
+
+  const handleCustOtpVerify = async () => {
+    if (custOtpCode.length !== 6) { setCustOtpError('Enter the 6-digit code.'); return }
+    setCustOtpLoading(true); setCustOtpError('')
+    const { error } = await supabase.auth.verifyOtp({ email: custEmail, token: custOtpCode, type: 'signup' })
+    if (error) { setCustOtpError('Invalid or expired code. Try again.'); setCustOtpLoading(false); return }
+    window.location.href = '/'
+  }
+
+  const handleCustOtpResend = async () => {
+    setCustOtpResending(true); setCustOtpResent(false)
+    await supabase.auth.resend({ type: 'signup', email: custEmail })
+    setCustOtpResending(false); setCustOtpResent(true)
+  }
   const [otpResent, setOtpResent] = useState(false);
 
   const update = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
@@ -512,6 +555,43 @@ export default function RegisterPage() {
     setResent(true);
   };
 
+  if (custShowOtp) return (
+    <>
+      <style>{styles}</style>
+      <main className="reg-page">
+        <div className="reg-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔐</div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', color: 'var(--white)', marginBottom: '0.75rem' }}>Verify your email</h1>
+          <p style={{ color: 'var(--muted)', marginBottom: '0.5rem', lineHeight: '1.6' }}>We sent a 6-digit code to</p>
+          <p style={{ color: 'var(--white)', fontWeight: 600, marginBottom: '1.5rem' }}>{custEmail}</p>
+          <input
+            type="text" inputMode="numeric" maxLength={6}
+            value={custOtpCode}
+            onChange={e => { setCustOtpCode(e.target.value.replace(/\D/g, '')); setCustOtpError('') }}
+            placeholder="000000" autoFocus
+            style={{ display: 'block', margin: '0 auto 1rem', width: '100%', maxWidth: '220px', textAlign: 'center', letterSpacing: '0.5em', fontSize: '2rem', fontWeight: 700, background: 'var(--card)', border: `1.5px solid ${custOtpError ? '#f87171' : 'var(--border2)'}`, borderRadius: '12px', color: 'var(--white)', padding: '0.75rem', fontFamily: "'Sora', sans-serif", outline: 'none' }}
+          />
+          {custOtpError && <p style={{ color: '#f87171', fontSize: '0.88rem', marginBottom: '0.75rem' }}>{custOtpError}</p>}
+          <button onClick={handleCustOtpVerify} disabled={custOtpLoading || custOtpCode.length !== 6}
+            style={{ display: 'block', margin: '0 auto 1.25rem', width: '100%', maxWidth: '220px', padding: '0.85rem', background: 'var(--red)', border: 'none', borderRadius: '10px', color: '#fff', fontFamily: "'Sora', sans-serif", fontSize: '1rem', fontWeight: 600, cursor: (custOtpLoading || custOtpCode.length !== 6) ? 'default' : 'pointer', opacity: (custOtpLoading || custOtpCode.length !== 6) ? 0.6 : 1 }}>
+            {custOtpLoading ? 'Verifying…' : 'Verify Code'}
+          </button>
+          {custOtpResent ? (
+            <p style={{ color: '#4ade80', fontSize: '0.88rem', marginBottom: '1rem' }}>✓ New code sent. Check your inbox.</p>
+          ) : (
+            <button onClick={handleCustOtpResend} disabled={custOtpResending}
+              style={{ background: 'transparent', border: '1.5px solid var(--border2)', borderRadius: '10px', color: 'var(--muted)', fontFamily: "'Sora', sans-serif", fontSize: '0.88rem', padding: '0.65rem 1.4rem', cursor: custOtpResending ? 'default' : 'pointer', marginBottom: '1rem', opacity: custOtpResending ? 0.5 : 1 }}>
+              {custOtpResending ? 'Sending…' : 'Resend code'}
+            </button>
+          )}
+          <div style={{ marginTop: '0.5rem' }}>
+            <a href="/register" style={{ color: 'var(--muted)', fontSize: '0.82rem', textDecoration: 'none' }}>← Start over</a>
+          </div>
+        </div>
+      </main>
+    </>
+  );
+
   if (showOtp) return (
     <>
       <style>{styles}</style>
@@ -615,9 +695,50 @@ export default function RegisterPage() {
             <span className="brand-yana">Yana</span>
             <span className="brand-naga">Nagaland</span>
           </a>
-          <p>List Your Business — It&apos;s Free</p>
+          <p>{regMode === 'customer' ? 'Create a free account' : 'List Your Business — It\'s Free'}</p>
         </div>
 
+        {/* MODE TOGGLE */}
+        <div className="reg-mode-wrap">
+          <button className={`reg-mode-btn${regMode === 'business' ? ' active' : ''}`} onClick={() => setRegMode('business')}>
+            🏪 List a Business
+          </button>
+          <button className={`reg-mode-btn${regMode === 'customer' ? ' active' : ''}`} onClick={() => setRegMode('customer')}>
+            👤 Join as Customer
+          </button>
+        </div>
+
+        {regMode === 'customer' ? (
+          <div className="reg-card">
+            <div className="step-heading">
+              <h2>Create your account</h2>
+              <p>Browse, save, and discover businesses across Nagaland.</p>
+            </div>
+            <form onSubmit={handleCustSubmit} className="step-content" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <div className="form-group">
+                <label className="form-label">Full Name *</label>
+                <input className="form-input" value={custName} onChange={e => setCustName(e.target.value)} placeholder="Your name" required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email *</label>
+                <input className="form-input" type="email" value={custEmail} onChange={e => setCustEmail(e.target.value)} placeholder="you@email.com" required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Password *</label>
+                <input className="form-input" type="password" value={custPassword} onChange={e => setCustPassword(e.target.value)} placeholder="At least 6 characters" required minLength={6} />
+              </div>
+              {custError && <div style={{ color: '#f87171', fontSize: '0.85rem', marginBottom: '1rem', padding: '10px 14px', background: 'rgba(248,113,113,0.08)', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.2)' }}>{custError}</div>}
+              <button type="submit" disabled={custLoading}
+                style={{ width: '100%', padding: '13px', background: 'var(--red)', border: 'none', borderRadius: '10px', color: '#fff', fontFamily: "'Sora', sans-serif", fontSize: '0.95rem', fontWeight: 700, cursor: custLoading ? 'default' : 'pointer', opacity: custLoading ? 0.65 : 1, marginTop: '8px' }}>
+                {custLoading ? 'Creating account…' : 'Create Account →'}
+              </button>
+              <p style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                Already have an account? <a href="/login" style={{ color: 'var(--red)', textDecoration: 'none' }}>Sign in</a>
+              </p>
+            </form>
+          </div>
+        ) : (
+        <>
         {/* STEPPER */}
         <div className="stepper">
           {STEPS.map((s, i) => (
@@ -830,6 +951,8 @@ export default function RegisterPage() {
           </div>
         </div>
         <div className="login-link">Already have an account? <a href="/login">Sign in →</a></div>
+        </>
+        )}
       </main>
     </>
   );
@@ -857,7 +980,13 @@ const styles = `
   }
 
   /* BRAND */
-  .reg-brand { text-align: center; margin-bottom: 2.5rem; position: relative; z-index: 1; }
+  .reg-brand { text-align: center; margin-bottom: 1.5rem; position: relative; z-index: 1; }
+
+  /* MODE TOGGLE */
+  .reg-mode-wrap { display: flex; gap: 0; background: #0a0a0a; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 4px; margin-bottom: 2rem; width: 100%; max-width: 480px; position: relative; z-index: 1; }
+  .reg-mode-btn { flex: 1; padding: 11px 12px; background: transparent; border: none; border-radius: 9px; font-family: 'Sora', sans-serif; font-size: 0.82rem; font-weight: 500; color: rgba(255,255,255,0.45); cursor: pointer; transition: all 0.2s; }
+  .reg-mode-btn.active { background: #1e1e1e; color: #fff; font-weight: 700; }
+  .reg-mode-btn:hover:not(.active) { color: rgba(255,255,255,0.7); }
   .reg-brand a { text-decoration: none; display: flex; align-items: baseline; gap: 4px; justify-content: center; }
   .brand-yana { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: var(--white); letter-spacing: 1.5px; }
   .brand-naga { font-size: 0.65rem; letter-spacing: 4px; text-transform: uppercase; color: var(--muted2); }

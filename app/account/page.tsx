@@ -18,6 +18,7 @@ export default function AccountPage() {
   const [email, setEmail]           = useState('')
   const [bizCount, setBizCount]     = useState(0)
   const [propCount, setPropCount]   = useState(0)
+  const [savedCount, setSavedCount] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -35,6 +36,15 @@ export default function AccountPage() {
 
       setBizCount(bc ?? 0)
       setPropCount(pc ?? 0)
+
+      try {
+        const res = await fetch('/api/saved')
+        if (res.ok) {
+          const data = await res.json()
+          setSavedCount((data.saved ?? []).length)
+        }
+      } catch { /* ignore */ }
+
       setLoading(false)
     }
     load()
@@ -85,6 +95,24 @@ export default function AccountPage() {
         .empty-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
         .skeleton{background:var(--bg3);border-radius:8px;animation:pulse 1.5s ease-in-out infinite;}
         @keyframes pulse{0%,100%{opacity:0.4;}50%{opacity:0.8;}}
+        /* SAVED CARD (customer hero) */
+        .saved-card{display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid rgba(192,57,43,0.2);border-radius:16px;padding:20px 20px;text-decoration:none;color:inherit;transition:border-color 0.15s;margin-bottom:16px;}
+        .saved-card:hover{border-color:rgba(192,57,43,0.4);}
+        .saved-card-left{display:flex;align-items:center;gap:14px;}
+        .saved-card-icon{font-size:26px;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:var(--red-bg);border:1px solid rgba(192,57,43,0.2);border-radius:12px;}
+        .saved-card-title{font-size:16px;font-weight:700;color:var(--white);margin-bottom:3px;}
+        .saved-card-sub{font-size:12px;color:var(--muted);}
+        .saved-card-arrow{font-size:18px;color:var(--red);}
+        /* CUSTOMER DISCOVER */
+        .cust-discover{margin-bottom:16px;}
+        .cust-discover-title{font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+        .cust-discover-links{display:flex;gap:10px;flex-wrap:wrap;}
+        .cust-list-cta{font-size:13px;color:var(--muted);text-align:center;}
+        .cust-list-cta a{color:var(--red);text-decoration:none;}
+        /* SAVED STRIP (for owners) */
+        .saved-strip{display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-top:16px;text-decoration:none;color:var(--off);font-size:13px;font-weight:600;transition:border-color 0.15s;}
+        .saved-strip:hover{border-color:var(--border2);}
+        .saved-strip-count{font-size:12px;color:var(--muted);}
         @media(max-width:580px){.cards{grid-template-columns:1fr;}.wrap{padding:36px 16px 60px;}}
       `}</style>
 
@@ -98,9 +126,9 @@ export default function AccountPage() {
       </nav>
 
       <div className="wrap">
-        <div className="eyebrow"><span>👤</span><span>Owner Hub</span></div>
+        <div className="eyebrow"><span>👤</span><span>{ownsNeither && !loading ? 'My Account' : 'Owner Hub'}</span></div>
         <h1 className="title">My Account</h1>
-        <p className="sub">Manage your business listings and real estate properties from one place.</p>
+        <p className="sub">{ownsNeither && !loading ? 'Save businesses and properties, or list your own.' : 'Manage your business listings and real estate properties from one place.'}</p>
 
         {loading ? (
           <div className="cards">
@@ -108,57 +136,84 @@ export default function AccountPage() {
             <div className="skeleton" style={{ height: 220, borderRadius: 18 }} />
           </div>
         ) : ownsNeither ? (
-          <div className="empty-notice">
-            <div className="empty-title">Nothing listed yet</div>
-            <div className="empty-sub">Get started by registering a business or listing a property on Yana Nagaland.</div>
-            <div className="empty-btns">
-              <a href="/register" className="card-btn red">Register a Business</a>
-              <a href="/real-estate/dashboard/add-property" className="card-btn teal">List a Property</a>
+          /* ── CUSTOMER VIEW ── */
+          <div>
+            <a href="/saved" className="saved-card">
+              <div className="saved-card-left">
+                <div className="saved-card-icon">🔖</div>
+                <div>
+                  <div className="saved-card-title">Saved Items</div>
+                  <div className="saved-card-sub">{savedCount > 0 ? `${savedCount} saved` : 'Nothing saved yet'}</div>
+                </div>
+              </div>
+              <div className="saved-card-arrow">→</div>
+            </a>
+
+            <div className="cust-discover">
+              <div className="cust-discover-title">Discover Nagaland</div>
+              <div className="cust-discover-links">
+                <a href="/search"      className="card-btn red">Browse Businesses</a>
+                <a href="/real-estate" className="card-btn teal">View Properties</a>
+              </div>
+            </div>
+
+            <div className="divider" />
+            <div className="cust-list-cta">
+              Want to list? <a href="/register">Register a business</a> · <a href="/real-estate/dashboard/add-property">List a property</a>
             </div>
           </div>
         ) : (
-          <div className="cards">
-            {/* Business card */}
-            <div className={`card${bizCount > 0 ? ' active' : ''}`}>
-              <div className="card-icon red">🏪</div>
-              <div>
-                <div className="card-label red">Business Directory</div>
-                <div className="card-title">Business Dashboard</div>
-              </div>
-              <div className="card-desc">
+          /* ── OWNER VIEW ── */
+          <div>
+            <div className="cards">
+              {/* Business card */}
+              <div className={`card${bizCount > 0 ? ' active' : ''}`}>
+                <div className="card-icon red">🏪</div>
+                <div>
+                  <div className="card-label red">Business Directory</div>
+                  <div className="card-title">Business Dashboard</div>
+                </div>
+                <div className="card-desc">
+                  {bizCount > 0
+                    ? 'Manage your listings, analytics, and AI tools.'
+                    : 'You have no business listings yet.'}
+                </div>
+                {bizCount > 0 && (
+                  <div className="card-count">{bizCount} active listing{bizCount !== 1 ? 's' : ''}</div>
+                )}
                 {bizCount > 0
-                  ? 'Manage your listings, analytics, and AI tools.'
-                  : 'You have no business listings yet.'}
+                  ? <a href="/dashboard" className="card-btn red">Go to Dashboard →</a>
+                  : <a href="/register" className="card-btn ghost">Register a Business</a>
+                }
               </div>
-              {bizCount > 0 && (
-                <div className="card-count">{bizCount} active listing{bizCount !== 1 ? 's' : ''}</div>
-              )}
-              {bizCount > 0
-                ? <a href="/dashboard" className="card-btn red">Go to Dashboard →</a>
-                : <a href="/register" className="card-btn ghost">Register a Business</a>
-              }
+
+              {/* Real estate card */}
+              <div className={`card${propCount > 0 ? ' teal' : ''}`}>
+                <div className="card-icon teal">🏡</div>
+                <div>
+                  <div className="card-label teal">Real Estate</div>
+                  <div className="card-title">Property Dashboard</div>
+                </div>
+                <div className="card-desc">
+                  {propCount > 0
+                    ? 'Manage your property listings across Nagaland.'
+                    : 'You have no property listings yet.'}
+                </div>
+                {propCount > 0 && (
+                  <div className="card-count">{propCount} active listing{propCount !== 1 ? 's' : ''}</div>
+                )}
+                {propCount > 0
+                  ? <a href="/real-estate/dashboard" className="card-btn teal">Go to Dashboard →</a>
+                  : <a href="/real-estate/dashboard/add-property" className="card-btn ghost">List a Property</a>
+                }
+              </div>
             </div>
 
-            {/* Real estate card */}
-            <div className={`card${propCount > 0 ? ' teal' : ''}`}>
-              <div className="card-icon teal">🏡</div>
-              <div>
-                <div className="card-label teal">Real Estate</div>
-                <div className="card-title">Property Dashboard</div>
-              </div>
-              <div className="card-desc">
-                {propCount > 0
-                  ? 'Manage your property listings across Nagaland.'
-                  : 'You have no property listings yet.'}
-              </div>
-              {propCount > 0 && (
-                <div className="card-count">{propCount} active listing{propCount !== 1 ? 's' : ''}</div>
-              )}
-              {propCount > 0
-                ? <a href="/real-estate/dashboard" className="card-btn teal">Go to Dashboard →</a>
-                : <a href="/real-estate/dashboard/add-property" className="card-btn ghost">List a Property</a>
-              }
-            </div>
+            {/* Saved strip for owners */}
+            <a href="/saved" className="saved-strip">
+              <span>🔖 Saved Items</span>
+              <span className="saved-strip-count">{savedCount > 0 ? `${savedCount} saved` : 'None yet'} →</span>
+            </a>
           </div>
         )}
 

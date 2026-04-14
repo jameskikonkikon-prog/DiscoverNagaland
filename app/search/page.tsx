@@ -39,8 +39,9 @@ function SearchPageInner() {
   const [filterPremium, setFilterPremium] = useState(false);
   const [filterVerified, setFilterVerified] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [mounted,      setMounted]      = useState(false);
+  const [loggedIn,     setLoggedIn]     = useState(false);
+  const [savedBizIds,  setSavedBizIds]  = useState<Set<string>>(new Set());
 
   const DID_YOU_MEAN = ["Cafés", "Restaurants", "Gyms", "PG & Hostels", "Turfs & Sports", "Study Spaces"];
   const POPULAR_SEARCHES = ["Cafes", "PG rooms", "Gyms", "Turfs", "Hotels"];
@@ -65,17 +66,30 @@ function SearchPageInner() {
     let isMounted = true;
     supabase.auth
       .getSession()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (!isMounted) return;
-        setLoggedIn(!!data.session);
+        const isLoggedIn = !!data.session;
+        setLoggedIn(isLoggedIn);
+        if (isLoggedIn) {
+          try {
+            const res = await fetch('/api/saved');
+            if (res.ok && isMounted) {
+              const json = await res.json();
+              const ids = new Set<string>(
+                (json.saved ?? [])
+                  .filter((s: { business_id: string | null }) => s.business_id)
+                  .map((s: { business_id: string }) => s.business_id)
+              );
+              setSavedBizIds(ids);
+            }
+          } catch { /* ignore */ }
+        }
       })
       .catch(() => {
         if (!isMounted) return;
         setLoggedIn(false);
       });
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   async function doSearch(q: string, city?: string) {
@@ -160,6 +174,24 @@ function SearchPageInner() {
   function getCallUrl(biz: Business) {
     if (!biz.phone) return null;
     return `tel:${biz.phone}`;
+  }
+
+  async function toggleSaveBiz(bizId: string) {
+    if (!loggedIn) {
+      window.location.href = `/login?redirect=/search`;
+      return;
+    }
+    const isSaved = savedBizIds.has(bizId);
+    setSavedBizIds(prev => {
+      const next = new Set(prev);
+      if (isSaved) next.delete(bizId); else next.add(bizId);
+      return next;
+    });
+    if (isSaved) {
+      await fetch(`/api/saved?business_id=${bizId}`, { method: 'DELETE' });
+    } else {
+      await fetch('/api/saved', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business_id: bizId }) });
+    }
   }
 
   if (!mounted) {
@@ -302,6 +334,14 @@ function SearchPageInner() {
                                   Call
                                 </a>
                               )}
+                              <button
+                                className={`action-btn save-btn${savedBizIds.has(biz.id) ? ' saved' : ''}`}
+                                onClick={() => toggleSaveBiz(biz.id)}
+                                title={savedBizIds.has(biz.id) ? 'Remove from saved' : 'Save'}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill={savedBizIds.has(biz.id) ? '#c0392b' : 'none'} stroke={savedBizIds.has(biz.id) ? '#c0392b' : 'currentColor'}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                                {savedBizIds.has(biz.id) ? 'Saved' : 'Save'}
+                              </button>
                             </div>
                           </div>
                         );
@@ -402,6 +442,14 @@ function SearchPageInner() {
                           Call
                         </a>
                       )}
+                      <button
+                        className={`action-btn save-btn${savedBizIds.has(biz.id) ? ' saved' : ''}`}
+                        onClick={() => toggleSaveBiz(biz.id)}
+                        title={savedBizIds.has(biz.id) ? 'Remove from saved' : 'Save'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill={savedBizIds.has(biz.id) ? '#c0392b' : 'none'} stroke={savedBizIds.has(biz.id) ? '#c0392b' : 'currentColor'}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                        {savedBizIds.has(biz.id) ? 'Saved' : 'Save'}
+                      </button>
                     </div>
                   </div>
                 );
@@ -877,6 +925,17 @@ const styles = `
     color: #fff;
     border: 1px solid #333;
   }
+  .save-btn {
+    background: #1a1a1a;
+    color: rgba(255,255,255,0.5);
+    border: 1px solid #2a2a2a;
+  }
+  .save-btn.saved {
+    background: rgba(192,57,43,0.1);
+    color: #c0392b;
+    border-color: rgba(192,57,43,0.3);
+  }
+  .save-btn:hover { opacity: 1 !important; border-color: rgba(192,57,43,0.4); color: #c0392b; }
 
   @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
   .skeleton { background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%); background-size: 800px 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }

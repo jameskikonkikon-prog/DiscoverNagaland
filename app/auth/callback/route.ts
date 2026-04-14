@@ -42,10 +42,6 @@ export async function GET(request: NextRequest) {
         return redirectWithCookies(`${origin}/reset-password`);
       }
 
-      if (type === 'signup' || type === 'email') {
-        return redirectWithCookies(`${origin}/dashboard`);
-      }
-
       const userId = data.user.id;
 
       const serviceClient = getServiceClient();
@@ -54,12 +50,13 @@ export async function GET(request: NextRequest) {
         serviceClient.from('properties').select('id', { count: 'exact', head: true }).eq('owner_id', userId),
       ]);
 
-      const hasBiz = (bizCount ?? 0) > 0;
+      const hasBiz  = (bizCount  ?? 0) > 0;
       const hasProp = (propCount ?? 0) > 0;
 
-      let destination = '/account';
-      if (hasBiz && !hasProp) destination = '/dashboard';
-      else if (hasProp && !hasBiz) destination = '/real-estate/dashboard';
+      let destination = '/';
+      if (hasBiz  && !hasProp) destination = '/dashboard';
+      else if (hasProp && !hasBiz)  destination = '/real-estate/dashboard';
+      else if (hasBiz  && hasProp)  destination = '/account';
 
       return redirectWithCookies(`${origin}${destination}`);
     }
