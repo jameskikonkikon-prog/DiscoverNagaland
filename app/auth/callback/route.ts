@@ -53,10 +53,15 @@ export async function GET(request: NextRequest) {
       const hasBiz  = (bizCount  ?? 0) > 0;
       const hasProp = (propCount ?? 0) > 0;
 
-      let destination = '/';
-      if (hasBiz  && !hasProp) destination = '/dashboard';
+      // `next` is set by OAuth redirectTo for customer logins
+      const next = searchParams.get('next');
+      const safePath = next && next.startsWith('/') && !next.startsWith('//') ? next : null;
+
+      let destination: string;
+      if      (hasBiz  && !hasProp) destination = '/dashboard';
       else if (hasProp && !hasBiz)  destination = '/real-estate/dashboard';
       else if (hasBiz  && hasProp)  destination = '/account';
+      else                          destination = safePath ?? '/saved';  // customer
 
       return redirectWithCookies(`${origin}${destination}`);
     }
