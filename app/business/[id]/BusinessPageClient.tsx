@@ -106,6 +106,49 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [descExpanded, setDescExpanded] = useState(false);
 
+  const [isSaved, setIsSaved] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+
+  // Load saved state for logged-in customers
+  useEffect(() => {
+    if (!isLoggedIn || isOwner) return;
+    fetch('/api/saved')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.saved) {
+          setIsSaved(data.saved.some((s: { business_id: string | null }) => s.business_id === biz.id));
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSave = async () => {
+    if (!isLoggedIn) {
+      window.location.href = `/register?redirect=${encodeURIComponent(window.location.pathname)}`;
+      return;
+    }
+    if (saveLoading) return;
+    setSaveLoading(true);
+    try {
+      if (isSaved) {
+        await fetch(`/api/saved?business_id=${biz.id}`, { method: 'DELETE' });
+        setIsSaved(false);
+      } else {
+        await fetch('/api/saved', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ business_id: biz.id }),
+        });
+        setIsSaved(true);
+      }
+    } catch {
+      // silently fail — state stays as-is
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimForm, setClaimForm] = useState({ name: '', phone: '', email: '', designation: '' });
   const [claimLoading, setClaimLoading] = useState(false);
@@ -433,6 +476,26 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
                   <span className="icon-btn-label">Facebook</span>
                 </a>
               )}
+              {/* Save button — hidden for business owners */}
+              {!isOwner && (
+                <button
+                  type="button"
+                  className={`icon-btn icon-btn-save${isSaved ? ' icon-btn-saved' : ''}`}
+                  onClick={handleSave}
+                  disabled={saveLoading}
+                  aria-label={isSaved ? 'Remove from saved' : 'Save business'}
+                >
+                  <div className="icon-btn-circle icon-btn-circle-save">
+                    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                      fill={isSaved ? '#c0392b' : 'none'}
+                      stroke={isSaved ? '#c0392b' : 'currentColor'}>
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                  </div>
+                  <span className="icon-btn-label">{isSaved ? 'Saved' : 'Save'}</span>
+                </button>
+              )}
+
               {siteUrl && (
                 <a href={siteUrl} target="_blank" rel="noopener noreferrer" className="icon-btn">
                   <div className="icon-btn-circle">
@@ -887,6 +950,12 @@ const styles = `
   .icon-btn:hover .icon-btn-wa { background: #20ba5a; border-color: #20ba5a; box-shadow: 0 6px 20px rgba(37,211,102,0.5); }
   .icon-btn-insta { background: linear-gradient(135deg, #f09433, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888); border-color: rgba(224,64,80,0.35); color: #fff; }
   .icon-btn-fb { background: #1877f2; border-color: rgba(24,119,242,0.4); color: #fff; }
+  .icon-btn-save { background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+  .icon-btn-save:disabled { opacity: 0.6; cursor: default; }
+  .icon-btn-circle-save { color: var(--text2); }
+  .icon-btn-save:hover:not(:disabled) .icon-btn-circle-save { border-color: rgba(192,57,43,0.4); background: rgba(192,57,43,0.08); color: #c0392b; }
+  .icon-btn-saved .icon-btn-circle-save { border-color: rgba(192,57,43,0.35); background: rgba(192,57,43,0.08); }
+  .icon-btn-saved .icon-btn-label { color: #c0392b; }
 
   /* Quick info strip */
   .info-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 24px; }
