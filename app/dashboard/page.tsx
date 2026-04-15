@@ -91,6 +91,7 @@ export default function DashboardPage() {
   const [leadWa,       setLeadWa]       = useState(0)
   const [leadViews,    setLeadViews]    = useState(0)
   const [leadMonth,    setLeadMonth]    = useState(0)
+  const [saveCount,    setSaveCount]    = useState(0)
 
   // ── LOAD ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -173,6 +174,14 @@ export default function DashboardPage() {
         setLeadMonth(leadRows.filter((l: { event_type: string; created_at: string }) =>
           (l.event_type === 'call' || l.event_type === 'whatsapp') && l.created_at >= monthStart
         ).length)
+      }
+
+      // Save count
+      const scRes = await fetch('/api/save-count')
+      if (scRes.ok) {
+        const scData = await scRes.json()
+        const counts: Record<string, number> = scData.businesses ?? {}
+        setSaveCount(Object.values(counts).reduce((s: number, n) => s + (n as number), 0))
       }
 
       setLoading(false)
@@ -506,6 +515,7 @@ export default function DashboardPage() {
                 { icon:'💬', label:'WhatsApp',  value: leadWa     },
                 { icon:'👁️', label:'Views',     value: leadViews  },
                 { icon:'📊', label:'Leads',     value: leadMonth  },
+                { icon:'🔖', label:'Saves',     value: saveCount  },
               ].map((s, i) => (
                 <div key={i} className="stat-card">
                   <div className="stat-icon">{s.icon}</div>

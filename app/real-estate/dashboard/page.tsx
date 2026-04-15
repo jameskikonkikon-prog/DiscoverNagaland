@@ -57,6 +57,7 @@ export default function RealEstateDashboard() {
   const [totalViews, setTotalViews] = useState(0)
   const [refreshing, setRefreshing] = useState<string | null>(null)
   const [disabling,  setDisabling]  = useState<string | null>(null)
+  const [saveCounts, setSaveCounts] = useState<Record<string, number>>({})
 
   async function handleDisable(id: string) {
     setDisabling(id)
@@ -124,6 +125,13 @@ export default function RealEstateDashboard() {
         const evRows = events ?? []
         setTotalLeads(evRows.filter((e: { event_type: string }) => e.event_type === 'call' || e.event_type === 'whatsapp').length)
         setTotalViews(evRows.filter((e: { event_type: string }) => e.event_type === 'view').length)
+      }
+
+      // Save counts per property
+      const scRes = await fetch('/api/save-count')
+      if (scRes.ok) {
+        const scData = await scRes.json()
+        setSaveCounts(scData.properties ?? {})
       }
 
       setLoading(false)
@@ -206,6 +214,7 @@ export default function RealEstateDashboard() {
         .ml-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;min-width:0;}
         .ml-price{font-size:13.5px;font-weight:700;color:var(--white);white-space:nowrap;}
         .ml-fresh{font-size:10.5px;font-weight:600;white-space:nowrap;}
+        .ml-saves{font-size:10.5px;font-weight:600;color:rgba(255,255,255,0.3);white-space:nowrap;margin-top:1px;}
         .ml-divider{height:1px;background:var(--border);}
         .ml-actions{display:flex;gap:6px;flex-wrap:wrap;}
         .ml-btn{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;text-decoration:none;display:inline-flex;align-items:center;border:1px solid var(--border2);background:transparent;color:var(--muted);}
@@ -360,6 +369,7 @@ export default function RealEstateDashboard() {
                         <div className="ml-right">
                           <div className="ml-price">{fmt(p.price)}{p.price_unit ? ` / ${p.price_unit}` : ''}</div>
                           <div className="ml-fresh" style={{ color: freshColor }}>{freshLabel}</div>
+                          <div className="ml-saves">🔖 {saveCounts[p.id] ?? 0} saves</div>
                         </div>
                       </div>
                       <div className="ml-divider" />

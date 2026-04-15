@@ -10,6 +10,7 @@ export default function MobileBottomNav() {
   const isRE = pathname.startsWith('/real-estate');
   const isRegister = pathname.startsWith('/register');
   const isDashboard = pathname.startsWith('/dashboard') || pathname.startsWith('/account');
+  const isSaved = pathname.startsWith('/saved');
 
   const [loggedIn, setLoggedIn] = useState(false);
 
@@ -39,6 +40,7 @@ export default function MobileBottomNav() {
           box-shadow:0 -6px 32px rgba(0,0,0,0.6);
           font-family:'Sora',sans-serif;
         }
+        .gnav.gnav-5{grid-template-columns:repeat(5,1fr);}
         @media(max-width:767px){.gnav{display:grid;}}
         .gnav-item{
           display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -55,7 +57,7 @@ export default function MobileBottomNav() {
           color:#e5383b;font-weight:700;
         }
       `}</style>
-      <nav className="gnav" aria-label="Mobile navigation">
+      <nav className={`gnav${loggedIn ? ' gnav-5' : ''}`} aria-label="Mobile navigation">
         <a href="/" className={`gnav-item${isHome ? ' gnav-active' : ''}`}>
           <span className="gnav-icon">🏠</span>
           <span className="gnav-label">Home</span>
@@ -69,10 +71,16 @@ export default function MobileBottomNav() {
           <span className="gnav-label">Real Estate</span>
         </a>
         {loggedIn ? (
-          <a href="/dashboard" className={`gnav-item gnav-cta${isDashboard ? ' gnav-active' : ''}`}>
-            <span className="gnav-icon">📊</span>
-            <span className="gnav-label">Dashboard</span>
-          </a>
+          <>
+            <a href="/saved" className={`gnav-item${isSaved ? ' gnav-active' : ''}`}>
+              <span className="gnav-icon">🔖</span>
+              <span className="gnav-label">Saved</span>
+            </a>
+            <a href="/dashboard" className={`gnav-item gnav-cta${isDashboard ? ' gnav-active' : ''}`}>
+              <span className="gnav-icon">📊</span>
+              <span className="gnav-label">Dashboard</span>
+            </a>
+          </>
         ) : (
           <a href="/register" className={`gnav-item gnav-cta${isRegister ? ' gnav-active' : ''}`}>
             <span className="gnav-icon">+</span>

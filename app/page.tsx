@@ -91,6 +91,9 @@ export default function HomePage() {
   const [totalCategories, setTotalCategories] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [bizName, setBizName] = useState<string | null>(null);
   const [ownerPlan, setOwnerPlan] = useState<string>('free');
   const [ownerStats, setOwnerStats] = useState<{ views: number; calls: number; whatsapp: number }>({ views: 0, calls: 0, whatsapp: 0 });
@@ -239,6 +242,7 @@ export default function HomePage() {
       .then(async ({ data }) => {
         if (!isMounted) return;
         setLoggedIn(!!data.session);
+        setUserEmail(data.session?.user?.email ?? null);
         if (data.session?.user?.id) {
           const res = await fetch('/api/owner-stats');
           if (isMounted && res.ok) {
@@ -256,6 +260,7 @@ export default function HomePage() {
     const { data: { subscription } } = supabaseBrowser.auth.onAuthStateChange(async (_event, session) => {
       if (!isMounted) return;
       setLoggedIn(!!session);
+      setUserEmail(session?.user?.email ?? null);
       if (session?.user?.id) {
         const res = await fetch('/api/owner-stats');
         if (isMounted && res.ok) {
@@ -268,6 +273,7 @@ export default function HomePage() {
         setBizName(null);
         setOwnerPlan('free');
         setOwnerStats({ views: 0, calls: 0, whatsapp: 0 });
+        setUserEmail(null);
       }
     });
     return () => {
@@ -275,6 +281,22 @@ export default function HomePage() {
       subscription.unsubscribe();
     };
   }, [mounted, supabaseBrowser]);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownOpen]);
+
+  async function handleSignOut() {
+    await supabaseBrowser.auth.signOut();
+    setDropdownOpen(false);
+  }
 
   const handleSearch = () => {
     if (query.trim()) router.push(`/search?q=${encodeURIComponent(query.trim())}`);
@@ -389,9 +411,24 @@ export default function HomePage() {
         ) : loggedIn ? (
           <>
             <a href="/account" className="nav-cta-btn">My Account</a>
-            <a href="/account" className="nav-avatar" aria-label="My account">
-              <span className="nav-avatar-icon">👤</span>
-            </a>
+            <div ref={dropdownRef} className="nav-dd-wrap">
+              <button
+                onClick={() => setDropdownOpen(o => !o)}
+                className={`nav-avatar${dropdownOpen ? ' nav-avatar-open' : ''}`}
+                aria-label="Account menu"
+                aria-expanded={dropdownOpen}
+              >
+                <span className="nav-avatar-icon">👤</span>
+              </button>
+              {dropdownOpen && (
+                <div className="nav-dd">
+                  <div className="nav-dd-email">{userEmail || 'My Account'}</div>
+                  <a href="/saved" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🔖 Saved</a>
+                  <a href="/account" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>👤 My Profile</a>
+                  <button onClick={handleSignOut} className="nav-dd-item nav-dd-signout">Sign Out</button>
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>
@@ -1058,6 +1095,41 @@ const pageStyles = `
   }
   .nav-avatar-icon{font-size:0.9rem;}
   .nav-avatar-placeholder{pointer-events:none;visibility:hidden;}
+  .nav-avatar-open{background:var(--red-bg);border-color:var(--red);color:#fff;}
+  .nav-dd-wrap{position:relative;}
+  .nav-dd{
+    position:absolute;top:calc(100% + 10px);right:0;
+    min-width:200px;
+    background:#111;
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:12px;
+    padding:6px;
+    z-index:200;
+    box-shadow:0 8px 32px rgba(0,0,0,0.55);
+  }
+  .nav-dd-email{
+    padding:10px 12px 9px;
+    font-size:11.5px;
+    color:rgba(255,255,255,0.38);
+    border-bottom:1px solid rgba(255,255,255,0.07);
+    margin-bottom:4px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .nav-dd-item{
+    display:flex;align-items:center;gap:9px;
+    width:100%;padding:9px 12px;
+    font-size:13px;font-weight:600;color:rgba(255,255,255,0.75);
+    background:none;border:none;cursor:pointer;
+    font-family:'Sora',sans-serif;
+    text-decoration:none;border-radius:8px;
+    transition:background 0.12s,color 0.12s;
+    text-align:left;
+  }
+  .nav-dd-item:hover{background:rgba(255,255,255,0.06);color:#fff;}
+  .nav-dd-signout{color:rgba(229,56,59,0.75);}
+  .nav-dd-signout:hover{background:rgba(229,56,59,0.08);color:#e5383b;}
 
   /* ── HERO ── */
   .hero{
