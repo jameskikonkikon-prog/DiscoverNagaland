@@ -49,6 +49,7 @@ export default function MyListingPage() {
   const [priceRange, setPriceRange] = useState('');
   const [openingHours, setOpeningHours] = useState('');
   const [website, setWebsite] = useState('');
+  const [description, setDescription] = useState('');
 
   // Photo management
   const [photos, setPhotos] = useState<string[]>([]);
@@ -80,6 +81,7 @@ export default function MyListingPage() {
         setPriceRange(b.price_range ?? '');
         setOpeningHours(b.opening_hours ?? '');
         setWebsite(b.website ?? '');
+        setDescription(b.description ?? '');
         setPhotos(Array.isArray(b.photos) ? b.photos : []);
       }
       setLoading(false);
@@ -128,6 +130,7 @@ export default function MyListingPage() {
           price_range: priceRange.trim() || null,
           opening_hours: openingHours.trim() || null,
           website: website.trim() || null,
+          description: description.trim() || null,
           photos: photos.length ? photos : null,
         }),
       });
@@ -181,7 +184,6 @@ export default function MyListingPage() {
   const location = [business.area, business.city].filter(Boolean).join(', ');
 
   const readonlyFields = [
-    { label: 'Description', value: business.description },
     { label: 'Tags', value: business.tags },
     { label: 'Vibe Tags', value: business.vibe_tags?.join(', ') || null },
   ];
@@ -311,6 +313,18 @@ export default function MyListingPage() {
                 className="listing-field-input"
                 style={s.fieldInput}
                 placeholder="Not added"
+              />
+            </div>
+
+            <div style={{ ...s.fieldRow, alignItems: 'flex-start', paddingTop: 12 }}>
+              <span style={{ ...s.fieldLabel, paddingTop: 4 }}>Description</span>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                className="listing-field-input"
+                style={{ ...s.fieldInput, resize: 'vertical', minHeight: 72, lineHeight: 1.5, fontSize: 13, paddingTop: 4 } as React.CSSProperties}
+                placeholder="Not added"
+                rows={3}
               />
             </div>
 
