@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import { PLANS, normalizePlan } from '@/types'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts'
 
 declare global {
   interface Window {
@@ -92,6 +93,7 @@ export default function DashboardPage() {
   const [leadViews,    setLeadViews]    = useState(0)
   const [leadMonth,    setLeadMonth]    = useState(0)
   const [saveCount,    setSaveCount]    = useState(0)
+  const [weeklyData,   setWeeklyData]   = useState<{ views: number[]; calls: number[]; whatsapp: number[] }>({ views: [], calls: [], whatsapp: [] })
 
   // ── LOAD ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -174,6 +176,22 @@ export default function DashboardPage() {
         setLeadMonth(leadRows.filter((l: { event_type: string; created_at: string }) =>
           (l.event_type === 'call' || l.event_type === 'whatsapp') && l.created_at >= monthStart
         ).length)
+
+        // Weekly breakdown for chart (last 7 days, index 0 = 6 days ago, index 6 = today)
+        const now = Date.now()
+        const wViews = new Array(7).fill(0)
+        const wCalls = new Array(7).fill(0)
+        const wWa    = new Array(7).fill(0)
+        leadRows.forEach((l: { event_type: string; created_at: string }) => {
+          const daysAgo = Math.floor((now - new Date(l.created_at).getTime()) / 86400000)
+          if (daysAgo >= 0 && daysAgo < 7) {
+            const idx = 6 - daysAgo
+            if (l.event_type === 'view')     wViews[idx]++
+            if (l.event_type === 'call')     wCalls[idx]++
+            if (l.event_type === 'whatsapp') wWa[idx]++
+          }
+        })
+        setWeeklyData({ views: wViews, calls: wCalls, whatsapp: wWa })
       }
 
       // Save count
@@ -279,6 +297,12 @@ export default function DashboardPage() {
 
   const weekMax  = Math.max(...(analytics?.weekly_views ?? [1]), 1)
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const chartData = weekDays.map((day, i) => ({
+    day,
+    Views:    weeklyData.views[i]    ?? 0,
+    Calls:    weeklyData.calls[i]    ?? 0,
+    WhatsApp: weeklyData.whatsapp[i] ?? 0,
+  }))
 
   const greeting = () => {
     const h = new Date().getHours()
@@ -511,18 +535,44 @@ export default function DashboardPage() {
             {/* ── STATS ROW ──────────────────────────────────────────── */}
             <div className="stats-row" style={{ marginBottom:16 }}>
               {[
-                { icon:'📞', label:'Calls',     value: leadCalls  },
-                { icon:'💬', label:'WhatsApp',  value: leadWa     },
-                { icon:'👁️', label:'Views',     value: leadViews  },
-                { icon:'📊', label:'Leads',     value: leadMonth  },
-                { icon:'🔖', label:'Saves',     value: saveCount  },
+                { icon:'📞', label:'Calls',     value: leadCalls,  sub: 'People who tapped to call your business' },
+                { icon:'💬', label:'WhatsApp',  value: leadWa,     sub: 'People who opened WhatsApp to message you' },
+                { icon:'👁️', label:'Views',    value: leadViews,  sub: 'Times your listing was opened and seen' },
+                { icon:'📊', label:'Leads',     value: leadMonth,  sub: 'People who called, messaged, or saved your listing' },
+                { icon:'🔖', label:'Saves',     value: saveCount,  sub: 'People who bookmarked your listing to visit later', wide: true },
               ].map((s, i) => (
-                <div key={i} className="stat-card">
+                <div key={i} className={`stat-card${s.wide ? ' stat-card-wide' : ''}`}>
                   <div className="stat-icon">{s.icon}</div>
                   <div className="stat-value">{s.value.toLocaleString()}</div>
                   <div className="stat-label">{s.label}</div>
+                  <div className="stat-sub">{s.sub}</div>
                 </div>
               ))}
+            </div>
+
+            {/* ── 7-DAY CHART ────────────────────────────────────────── */}
+            <div className="card" style={{ marginBottom:16 }}>
+              <div className="card-header" style={{ marginBottom:12 }}>
+                <div>
+                  <div className="card-title">Last 7 Days</div>
+                  <div className="card-sub">Views, Calls &amp; WhatsApp activity</div>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={chartData} margin={{ top:4, right:8, left:-28, bottom:0 }}>
+                  <XAxis dataKey="day" tick={{ fill:'#555', fontSize:10, fontFamily:'Sora,sans-serif' }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fill:'#444', fontSize:10, fontFamily:'Sora,sans-serif' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ background:'#161616', border:'1px solid #2a2a2a', borderRadius:10, fontFamily:'Sora,sans-serif', fontSize:12 }}
+                    labelStyle={{ color:'#888', marginBottom:4 }}
+                    itemStyle={{ color:'#ccc' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize:11, fontFamily:'Sora,sans-serif', color:'#666', paddingTop:8 }} />
+                  <Line type="monotone" dataKey="Views"    stroke="#c0392b" strokeWidth={2} dot={false} activeDot={{ r:4, fill:'#c0392b' }} />
+                  <Line type="monotone" dataKey="Calls"    stroke="#3ba88f" strokeWidth={2} dot={false} activeDot={{ r:4, fill:'#3ba88f' }} />
+                  <Line type="monotone" dataKey="WhatsApp" stroke="#25d366" strokeWidth={2} dot={false} activeDot={{ r:4, fill:'#25d366' }} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
 
             {/* ── LISTING HEALTH ─────────────────────────────────────── */}
@@ -837,9 +887,10 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 18px;transition:all 0.2s;}
 .stat-card:hover{border-color:#333;}
-.stat-icon{font-size:22px;margin-bottom:12px;}
-.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
-.stat-value{font-size:32px;font-weight:800;line-height:1;letter-spacing:-1px;}
+.stat-icon{font-size:22px;margin-bottom:10px;}
+.stat-value{font-size:32px;font-weight:800;line-height:1;letter-spacing:-1px;margin-bottom:6px;}
+.stat-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+.stat-sub{font-size:11px;color:#3a3a3a;line-height:1.4;}
 .stat-change{font-size:11px;margin-top:6px;}
 
 /* GRID */
@@ -961,10 +1012,12 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
   .main{margin-left:0;max-width:100vw;padding:14px 12px;}
   .topbar{display:none;}
   .stats-row{grid-template-columns:repeat(2,1fr);gap:10px;}
-  .stats-row .stat-card{grid-column:auto!important;}
-  .stat-card{padding:16px 14px;}
-  .stat-value{font-size:30px;letter-spacing:-0.5px;}
+  .stats-row .stat-card{grid-column:auto;}
+  .stats-row .stat-card-wide{grid-column:1/-1;}
+  .stat-card{padding:14px 12px;}
+  .stat-value{font-size:28px;letter-spacing:-0.5px;}
   .stat-icon{font-size:18px;margin-bottom:8px;}
+  .stat-sub{font-size:10px;}
   .two-col{grid-template-columns:1fr;}
   .plan-grid{gap:8px;}
   .billing-card{padding:12px 10px;}
