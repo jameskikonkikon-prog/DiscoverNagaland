@@ -175,13 +175,14 @@ function detectIntent(message: string): Intent {
 // --- Category fetch config per intent ---
 type CategoryFetch = { category: string; limit: number };
 
+// Category values match exact DB slugs from the businesses table
 const INTENT_CATEGORIES: Record<Intent, CategoryFetch[]> = {
-  day_plan:    [{ category: 'Cafés', limit: 2 }, { category: 'Restaurants', limit: 2 }, { category: 'Turfs & Sports', limit: 2 }, { category: 'shop', limit: 2 }],
-  new_in_city: [{ category: 'PG & Hostels', limit: 3 }, { category: 'Restaurants', limit: 2 }, { category: 'Study Spaces', limit: 2 }],
-  medical:     [{ category: 'Hospitals', limit: 3 }, { category: 'Clinics', limit: 3 }, { category: 'Pharmacies', limit: 3 }],
-  food:        [{ category: 'Restaurants', limit: 4 }, { category: 'Cafés', limit: 3 }],
-  stay:        [{ category: 'PG & Hostels', limit: 4 }, { category: 'Hotels', limit: 3 }],
-  general:     [{ category: 'Cafés', limit: 2 }, { category: 'Restaurants', limit: 2 }, { category: 'PG & Hostels', limit: 2 }, { category: 'Gyms', limit: 1 }, { category: 'Turfs & Sports', limit: 1 }],
+  day_plan:    [{ category: 'cafe', limit: 3 }, { category: 'restaurant', limit: 3 }, { category: 'turf', limit: 2 }, { category: 'couple_spot', limit: 2 }, { category: 'shop', limit: 2 }],
+  new_in_city: [{ category: 'pg', limit: 3 }, { category: 'hostel', limit: 2 }, { category: 'restaurant', limit: 2 }, { category: 'study_space', limit: 2 }, { category: 'coaching', limit: 2 }],
+  medical:     [{ category: 'hospital', limit: 5 }, { category: 'clinic', limit: 5 }, { category: 'pharmacy', limit: 4 }],
+  food:        [{ category: 'restaurant', limit: 6 }, { category: 'cafe', limit: 4 }],
+  stay:        [{ category: 'pg', limit: 4 }, { category: 'hostel', limit: 3 }, { category: 'hotel', limit: 3 }, { category: 'homestay', limit: 2 }],
+  general:     [{ category: 'cafe', limit: 2 }, { category: 'restaurant', limit: 2 }, { category: 'pg', limit: 2 }, { category: 'gym', limit: 2 }, { category: 'turf', limit: 1 }, { category: 'salon', limit: 2 }, { category: 'coaching', limit: 2 }, { category: 'vehicle_rental', limit: 2 }, { category: 'service', limit: 2 }],
 };
 
 type BizRow = { id: string; name: string; category: string; address: string; description: string; price_range: string; plan: string };
@@ -201,7 +202,7 @@ async function fetchByIntent(intent: Intent, location: string | null): Promise<B
     })
   );
 
-  // Merge, deduplicate by id, cap at 8
+  // Merge, deduplicate by id, cap at 12
   const seen = new Set<string>();
   const merged: BizRow[] = [];
   for (const batch of results) {
@@ -212,7 +213,7 @@ async function fetchByIntent(intent: Intent, location: string | null): Promise<B
       }
     }
   }
-  return merged.slice(0, 8);
+  return merged.slice(0, 12);
 }
 
 export async function POST(req: NextRequest) {
@@ -261,15 +262,16 @@ export async function POST(req: NextRequest) {
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5',
-      max_tokens: 400,
-      system: `You are Yana AI, a local guide for Nagaland. Be honest, specific, and brief. STRICT RULES:
+      max_tokens: 600,
+      system: `You are Yana AI, a local guide for Nagaland. Be honest, specific, and helpful. STRICT RULES:
 1. ONLY recommend businesses from the provided list — never invent place names, businesses, or services not in the list.
 2. If a city was specified, ONLY mention businesses from that city. Never mention businesses from other cities even if the list contains them.
-3. If the user corrects you (e.g. "those aren't in Kohima", "I said Dimapur"), acknowledge the mistake, apologize briefly, then use only the corrected city's results.
-4. If there are no or few matching businesses for the requested location, say so honestly. Example: "I don't have enough listings in [city] right now — we're still growing there." Do not bluff, redirect, or pad with generic positivity.
-5. Only recommend categories relevant to what the user is asking.
-6. Keep replies conversational, honest, and under 4 sentences. No filler phrases.
-When mentioning a listed business, wrap it like: [BUSINESS:id:name] so the frontend can make it clickable.
+3. If the user corrects you (e.g. "those aren't in Kohima", "I said Dimapur"), acknowledge briefly, apologize, then re-answer using only the corrected city.
+4. If zero businesses match: say so honestly, tell the user they can browse directly on the site, and suggest a related search. Example: "I don't have [category] listings in [city] yet — try browsing the directory or searching for a nearby category." Never bluff or pad.
+5. When the results span multiple categories (e.g. cafes AND restaurants AND gyms), group them naturally in your reply — don't dump them as one undifferentiated list.
+6. Only surface categories relevant to what the user is actually asking about — skip unrelated ones even if they appear in the results.
+7. Keep replies conversational and concise. Aim for 3–6 sentences depending on how many options you have. No filler phrases.
+When mentioning a business, wrap it like: [BUSINESS:id:name] so the frontend makes it clickable.
 Return JSON: {"text": "string"}`,
       messages: [
         ...validHistory,
