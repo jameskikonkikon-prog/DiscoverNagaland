@@ -651,7 +651,22 @@ export default function HomePage() {
         <div className="ai-chat" role="dialog" aria-label="Yana AI Chat">
           {/* Header */}
           <div className="ai-chat-header">
-            <div className="ai-chat-avatar">✦</div>
+            <div className="ai-chat-avatar">
+              <svg width="18" height="21" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="ai-pinG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#8B0000"/>
+                    <stop offset="50%" stopColor="#e5383b"/>
+                    <stop offset="100%" stopColor="#922B21"/>
+                  </linearGradient>
+                </defs>
+                <path d="M60 18 C38 18 20 36 20 58 C20 82 60 120 60 120 C60 120 100 82 100 58 C100 36 82 18 60 18Z" fill="url(#ai-pinG)"/>
+                <circle cx="60" cy="58" r="19" fill="#1a1a1a" stroke="white" strokeWidth="2.5"/>
+                <path d="M54 52 L68 66" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                <path d="M54 52 L54 60 L62 52 Z" fill="white"/>
+                <line x1="74" y1="72" x2="84" y2="82" stroke="white" strokeWidth="4" strokeLinecap="round"/>
+              </svg>
+            </div>
             <div className="ai-chat-header-info">
               <div className="ai-chat-title">Yana AI</div>
               <div className="ai-chat-sub">Online · Your local guide</div>
@@ -676,7 +691,17 @@ export default function HomePage() {
           <div className="ai-messages" ref={chatScrollRef}>
             {chatMessages.map((m, i) => (
               <div key={i} className={`ai-msg ai-msg-${m.role}`}>
-                {m.role === 'ai' && <div className="ai-msg-avatar">✦</div>}
+                {m.role === 'ai' && (
+                  <div className="ai-msg-avatar">
+                    <svg width="13" height="15" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M60 18 C38 18 20 36 20 58 C20 82 60 120 60 120 C60 120 100 82 100 58 C100 36 82 18 60 18Z" fill="#c0392b"/>
+                      <circle cx="60" cy="58" r="19" fill="#1a1a1a" stroke="white" strokeWidth="3"/>
+                      <path d="M54 52 L68 66" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+                      <path d="M54 52 L54 60 L62 52 Z" fill="white"/>
+                      <line x1="74" y1="72" x2="84" y2="82" stroke="white" strokeWidth="5" strokeLinecap="round"/>
+                    </svg>
+                  </div>
+                )}
                 <div className="ai-msg-body">
                   <div className="ai-msg-text">{m.role === 'ai' ? renderAiText(m.text) : m.text}</div>
                   {m.chips && m.chips.length > 0 && (
@@ -701,7 +726,15 @@ export default function HomePage() {
             ))}
             {chatLoading && (
               <div className="ai-msg ai-msg-ai">
-                <div className="ai-msg-avatar">✦</div>
+                <div className="ai-msg-avatar">
+                  <svg width="13" height="15" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M60 18 C38 18 20 36 20 58 C20 82 60 120 60 120 C60 120 100 82 100 58 C100 36 82 18 60 18Z" fill="#c0392b"/>
+                    <circle cx="60" cy="58" r="19" fill="#1a1a1a" stroke="white" strokeWidth="3"/>
+                    <path d="M54 52 L68 66" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+                    <path d="M54 52 L54 60 L62 52 Z" fill="white"/>
+                    <line x1="74" y1="72" x2="84" y2="82" stroke="white" strokeWidth="5" strokeLinecap="round"/>
+                  </svg>
+                </div>
                 <div className="ai-msg-body">
                   <div className="ai-typing"><span /><span /><span /></div>
                 </div>
@@ -1481,7 +1514,7 @@ const pageStyles = `
   .ai-chat{
     position:fixed;bottom:78px;right:24px;z-index:9999;
     width:310px;max-height:480px;
-    background:#0a0a0a;border:1px solid #1e1e1e;
+    background:#0a0a0a;border:1px solid rgba(192,57,43,0.5);
     border-radius:18px;
     box-shadow:0 24px 70px rgba(0,0,0,0.7);
     display:flex;flex-direction:column;overflow:hidden;
@@ -1494,7 +1527,7 @@ const pageStyles = `
   }
   .ai-chat-avatar{
     width:36px;height:36px;flex-shrink:0;
-    background:rgba(192,57,43,0.14);border:1.5px solid rgba(192,57,43,0.35);
+    background:rgba(192,57,43,0.10);border:1.5px solid rgba(192,57,43,0.35);
     border-radius:50%;display:grid;place-items:center;
     color:#c0392b;font-size:16px;
   }
@@ -1510,12 +1543,12 @@ const pageStyles = `
   .ai-chat-close:hover{color:#e5e5e5;background:#1a1a1a;}
 
   .ai-quick-prompts{
-    display:flex;flex-direction:column;gap:6px;
-    padding:12px;border-bottom:1px solid #131313;flex-shrink:0;
+    display:flex;flex-direction:row;flex-wrap:wrap;gap:6px;
+    padding:10px 12px;border-bottom:1px solid #131313;flex-shrink:0;
   }
   .ai-qp{
     text-align:left;background:#111;border:1px solid #1e1e1e;
-    border-radius:10px;padding:11px 13px;min-height:44px;
+    border-radius:20px;padding:5px 12px;min-height:auto;
     font-size:13px;color:#b0b0b0;cursor:pointer;
     font-family:'Sora',sans-serif;line-height:1.4;
     transition:all 0.15s;
