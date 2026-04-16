@@ -193,7 +193,7 @@ async function fetchByIntent(intent: Intent, location: string | null): Promise<B
       let q = supabase
         .from('businesses')
         .select('id, name, category, address, description, price_range, plan')
-        .ilike('category', `%${category}%`)
+        .or(`category.ilike.%${category}%,name.ilike.%${category}%,description.ilike.%${category}%`)
         .limit(limit);
       if (location) q = q.ilike('city', `%${location}%`);
       const { data } = await q;
