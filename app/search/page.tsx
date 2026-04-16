@@ -399,11 +399,11 @@ function SearchPageInner() {
               </>
             )}
             {!loading && results.length > 0 && hasActiveFilter && filteredResults.length === 0 && (
-              <p className="no-filter-match">No results match your filters. Try clearing a filter above.</p>
+              <p className="no-filter-match">No exact matches for your filters — here are related results:</p>
             )}
             {!loading && results.length > 0 && (
               <div className="results-grid">
-                {(hasActiveFilter ? filteredResults : results).map((biz) => {
+                {(hasActiveFilter && filteredResults.length > 0 ? filteredResults : results).map((biz) => {
                   const isPlus = (biz.plan || "").toLowerCase() === "plus";
                   return (
                   <div key={biz.id} className={`biz-card${isPlus ? " biz-card-plus" : ""}`}>
