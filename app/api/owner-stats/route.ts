@@ -28,17 +28,17 @@ export async function GET() {
 
   if (!biz) return NextResponse.json({ error: 'No business found' }, { status: 404 });
 
-  // Sum all-time analytics
+  // Count all-time lead events
   const { data: rows } = await serviceClient
-    .from('business_analytics')
-    .select('profile_views, call_clicks, whatsapp_clicks')
+    .from('lead_events')
+    .select('event_type')
     .eq('business_id', biz.id);
 
   const totals = (rows ?? []).reduce(
     (acc, r) => ({
-      views: acc.views + (r.profile_views || 0),
-      calls: acc.calls + (r.call_clicks || 0),
-      whatsapp: acc.whatsapp + (r.whatsapp_clicks || 0),
+      views:    acc.views    + (r.event_type === 'view'      ? 1 : 0),
+      calls:    acc.calls    + (r.event_type === 'call'      ? 1 : 0),
+      whatsapp: acc.whatsapp + (r.event_type === 'whatsapp'  ? 1 : 0),
     }),
     { views: 0, calls: 0, whatsapp: 0 }
   );
