@@ -1002,6 +1002,9 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 /* MISC */
 .empty-state{text-align:center;padding:32px 0;color:var(--muted);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:8px;}
 
+/* GLOBAL FOOTER — offset by sidebar width on desktop */
+.yana-global-footer{margin-left:220px;}
+
 /* MOBILE NAV */
 .mob-topbar{display:none;align-items:center;justify-content:space-between;padding:0 8px;height:52px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
 .mob-topbar-title{font-size:13px;font-weight:600;font-family:'Sora',sans-serif;flex:1;text-align:center;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -1041,6 +1044,7 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
   .sk-sidebar{display:none!important;}
   .sk-main{margin-left:0!important;padding:16px!important;}
   .sk-stats{grid-template-columns:repeat(2,1fr)!important;}
+  .yana-global-footer{margin-left:0;}
 }
 
 /* ── FB-STYLE PROFILE HEADER ──────────────────────────────────── */
