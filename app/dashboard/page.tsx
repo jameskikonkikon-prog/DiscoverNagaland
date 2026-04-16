@@ -561,16 +561,22 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={chartData} margin={{ top:4, right:8, left:-28, bottom:0 }}>
                   <XAxis dataKey="day" tick={{ fill:'#555', fontSize:10, fontFamily:'Sora,sans-serif' }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fill:'#444', fontSize:10, fontFamily:'Sora,sans-serif' }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fill:'#444', fontSize:10, fontFamily:'Sora,sans-serif' }}
+                    axisLine={false}
+                    tickLine={false}
+                    domain={[0, (dataMax: number) => Math.max(dataMax, 5)]}
+                  />
                   <Tooltip
                     contentStyle={{ background:'#161616', border:'1px solid #2a2a2a', borderRadius:10, fontFamily:'Sora,sans-serif', fontSize:12 }}
                     labelStyle={{ color:'#888', marginBottom:4 }}
                     itemStyle={{ color:'#ccc' }}
                   />
                   <Legend wrapperStyle={{ fontSize:11, fontFamily:'Sora,sans-serif', color:'#666', paddingTop:8 }} />
-                  <Line type="monotone" dataKey="Views"    stroke="#c0392b" strokeWidth={2} dot={false} activeDot={{ r:4, fill:'#c0392b' }} />
-                  <Line type="monotone" dataKey="Calls"    stroke="#3ba88f" strokeWidth={2} dot={false} activeDot={{ r:4, fill:'#3ba88f' }} />
-                  <Line type="monotone" dataKey="WhatsApp" stroke="#25d366" strokeWidth={2} dot={false} activeDot={{ r:4, fill:'#25d366' }} />
+                  <Line type="monotone" dataKey="Views"    stroke="#c0392b" strokeWidth={2.5} dot={false} activeDot={{ r:4, fill:'#c0392b' }} />
+                  <Line type="monotone" dataKey="Calls"    stroke="#3ba88f" strokeWidth={1.5} dot={{ r:2, fill:'#3ba88f', strokeWidth:0 }} activeDot={{ r:4, fill:'#3ba88f' }} strokeDasharray="0" />
+                  <Line type="monotone" dataKey="WhatsApp" stroke="#25d366" strokeWidth={1.5} dot={{ r:2, fill:'#25d366', strokeWidth:0 }} activeDot={{ r:4, fill:'#25d366' }} strokeDasharray="4 2" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
