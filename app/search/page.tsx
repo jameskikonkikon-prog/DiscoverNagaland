@@ -193,7 +193,7 @@ function SearchPageInner() {
   }
 
   function asBizCardBiz(biz: Business): BizCardBiz {
-    return { id: biz.id, name: biz.name, category: biz.category, city: biz.city, area: biz.area, photos: biz.photos, phone: biz.phone, whatsapp: biz.whatsapp, is_verified: biz.is_verified, verified: (biz as Business & { verified?: boolean }).verified, plan: biz.plan };
+    return { id: biz.id, name: biz.name, category: biz.category, city: biz.city, area: biz.area, photos: biz.photos, phone: biz.phone, whatsapp: biz.whatsapp, is_verified: biz.is_verified, verified: (biz as Business & { verified?: boolean }).verified, plan: biz.plan, opening_hours: biz.opening_hours };
   }
 
   function renderCard(biz: Business) {

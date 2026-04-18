@@ -12,6 +12,7 @@ export type BizCardBiz = {
   is_verified?: boolean;
   verified?: boolean;
   plan?: string | null;
+  opening_hours?: string | null;
 };
 
 type Props = {
@@ -35,6 +36,38 @@ function getCatEmoji(cat: string) {
   return '🏪';
 }
 
+function isOpenNow(hours: string | null): boolean | null {
+  if (!hours || !hours.trim()) return null;
+  const h = hours.toLowerCase().trim();
+  if (h.includes('24') || h === 'always open') return true;
+
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const ist = new Date(utcMs + 5.5 * 3600000);
+  const cur = ist.getHours() * 60 + ist.getMinutes();
+
+  function parseTime(t: string): number | null {
+    const m = t.trim().toLowerCase().replace(/\s/g, '').match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
+    if (!m) return null;
+    let hr = parseInt(m[1]);
+    const min = parseInt(m[2] || '0');
+    if (m[3] === 'pm' && hr !== 12) hr += 12;
+    if (m[3] === 'am' && hr === 12) hr = 0;
+    return hr * 60 + min;
+  }
+
+  const range = h.match(/(\d{1,2}(?::\d{2})?\s*(?:am|pm))\s*[–\-]\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm))/);
+  if (range) {
+    const open = parseTime(range[1]);
+    const close = parseTime(range[2]);
+    if (open !== null && close !== null) {
+      if (close < open) return cur >= open || cur < close;
+      return cur >= open && cur < close;
+    }
+  }
+  return null;
+}
+
 function getWaUrl(biz: BizCardBiz) {
   const num = biz.whatsapp || biz.phone;
   if (!num) return null;
@@ -46,7 +79,7 @@ function getWaUrl(biz: BizCardBiz) {
 export function BizCard({ biz, isSaved = false, onToggleSave }: Props) {
   const photo = biz.photos?.[0] ?? null;
   const isVerified = !!(biz.is_verified || biz.verified);
-  const isPro = ['pro', 'plus'].includes((biz.plan || '').toLowerCase());
+  const openStatus = isOpenNow(biz.opening_hours ?? null);
   const location = [biz.area, biz.city].filter(Boolean).join(' · ') || biz.city;
   const waUrl = getWaUrl(biz);
   const callUrl = biz.phone ? `tel:${biz.phone}` : null;
@@ -69,10 +102,11 @@ export function BizCard({ biz, isSaved = false, onToggleSave }: Props) {
       <div className="bc-grad" />
 
       {/* Top-left badges */}
-      {(isVerified || isPro) && (
+      {(isVerified || openStatus !== null) && (
         <div className="bc-badges">
           {isVerified && <span className="bc-badge bc-badge-v">✓ Verified</span>}
-          {isPro && <span className="bc-badge bc-badge-pro">PRO</span>}
+          {openStatus === true && <span className="bc-badge bc-badge-open">Open</span>}
+          {openStatus === false && <span className="bc-badge bc-badge-closed">Closed</span>}
         </div>
       )}
 
@@ -172,9 +206,13 @@ export const BIZ_CARD_CSS = `
     background: rgba(255,255,255,0.92); color: #b8860b;
     border: 1.5px solid #d4af37;
   }
-  .bc-badge-pro {
-    background: rgba(192,57,43,0.9); color: #fff;
-    border: 1px solid rgba(255,255,255,0.15);
+  .bc-badge-open {
+    background: rgba(34,197,94,0.18); color: #22c55e;
+    border: 1.5px solid rgba(34,197,94,0.38);
+  }
+  .bc-badge-closed {
+    background: rgba(239,68,68,0.18); color: #ef4444;
+    border: 1.5px solid rgba(239,68,68,0.38);
   }
   .bc-heart {
     position: absolute; top: 10px; right: 10px; z-index: 3;

@@ -76,6 +76,7 @@ type Business = {
   whatsapp?: string;
   price_range?: string;
   rating?: number | null;
+  opening_hours?: string | null;
 };
 
 type CategoryCount = { category: string; count: number };
@@ -165,7 +166,7 @@ export default function HomePage() {
       let featuredList: Business[] = [];
       const { data: planRows } = await supabase
         .from('businesses')
-        .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
+        .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at, opening_hours, phone, whatsapp')
         .eq('is_active', true)
         .eq('featured', true)
         .order('created_at', { ascending: false })
@@ -200,7 +201,7 @@ export default function HomePage() {
 
       const { data: recent } = await supabase
         .from('businesses')
-        .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at')
+        .select('id, name, category, city, area, photos, price_range, plan, is_verified, created_at, opening_hours, phone, whatsapp')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(18);
@@ -862,11 +863,9 @@ export default function HomePage() {
             <span className="m-sec-title">Featured this week</span>
             <button className="m-sec-more" onClick={() => router.push('/search?featured=true')}>View all →</button>
           </div>
-          <div className="m-feat-scroll">
+          <div className="m-feat-vert">
             {featuredBusinesses.length > 0 ? featuredBusinesses.map(biz => (
-              <div key={biz.id} className="m-biz-wrap">
-                <BizCard biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
-              </div>
+              <BizCard key={biz.id} biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
             )) : (
               <div className="m-feat-placeholder">
                 {[1,2,3].map(i => <div key={i} className="m-feat-skel" />)}
@@ -1238,7 +1237,7 @@ const pageStyles = BIZ_CARD_CSS + `
   }
 
   /* ── FEATURED ── */
-  .featured-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:28px; }
+  .featured-grid { display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:28px; }
 
   /* ── CATEGORIES ── */
   .categories-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;}
@@ -1646,7 +1645,14 @@ const pageStyles = BIZ_CARD_CSS + `
     color:#e5383b;background:none;border:none;cursor:pointer;
   }
 
-  /* Featured horizontal scroll */
+  /* Featured vertical stack (single column) */
+  .m-feat-vert{
+    display:flex;flex-direction:column;gap:12px;
+    padding:0 18px 8px;
+  }
+  .m-feat-vert .bc{ height:200px; }
+
+  /* Recently listed horizontal scroll */
   .m-feat-scroll{
     display:flex;gap:14px;overflow-x:auto;
     padding:0 18px 8px;
