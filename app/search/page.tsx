@@ -55,9 +55,12 @@ function SearchPageInner() {
 
   useEffect(() => {
     const q = searchParams.get("q") || "";
-    if (q) {
+    const isFeatured = searchParams.get("featured") === "true";
+    if (isFeatured) {
+      doSearch("", "", true);
+    } else if (q) {
       setQuery(q);
-      doSearch(q, "", "");
+      doSearch(q, "");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -92,7 +95,7 @@ function SearchPageInner() {
     return () => { isMounted = false; };
   }, []);
 
-  async function doSearch(q: string, city?: string) {
+  async function doSearch(q: string, city?: string, featuredOnly?: boolean) {
     setLoading(true);
     setHasSearched(true);
     setRelatedResults([]);
@@ -100,6 +103,7 @@ function SearchPageInner() {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q);
       if (city) params.set("city", city);
+      if (featuredOnly) params.set("featured", "true");
       const res = await fetch(`/api/search?${params}`);
       const json = await res.json();
       setDetectedCity(json.detectedCity || null);

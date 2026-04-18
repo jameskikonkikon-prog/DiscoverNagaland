@@ -475,7 +475,8 @@ function shortenLast(query: string, n: number): string {
 
 export async function searchBusinesses(
   query: string,
-  cityFilter?: string
+  cityFilter?: string,
+  featured?: boolean
 ): Promise<{
   businesses: Business[];
   detectedCity: string | null;
@@ -484,6 +485,16 @@ export async function searchBusinesses(
   relatedResults?: Business[];
 }> {
   const client = getServiceClient();
+
+  if (featured) {
+    const { data } = await client
+      .from('businesses')
+      .select(SELECT_COLS)
+      .eq('is_active', true)
+      .eq('featured', true)
+      .not('category', 'in', `(${PROPERTY_CATEGORIES.join(',')})`);
+    return { businesses: byPlan(((data as unknown) as Business[]) || []), detectedCity: null, detectedPrice: null };
+  }
 
   // Load DB metadata (categories + cities) — cached
   const meta = await loadMeta(client);

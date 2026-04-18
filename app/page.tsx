@@ -487,7 +487,7 @@ export default function HomePage() {
           <div className="sec-head">
             <span className="sec-title">Featured this week</span>
             {featuredBusinesses.length > 1 && (
-              <button className="sec-more" onClick={() => quickSearch('featured businesses Nagaland')}>See all →</button>
+              <button className="sec-more" onClick={() => router.push('/search?featured=true')}>See all →</button>
             )}
           </div>
           <div className="featured-grid">
@@ -883,7 +883,7 @@ export default function HomePage() {
         <div className="m-section">
           <div className="m-sec-head">
             <span className="m-sec-title">Featured this week</span>
-            <button className="m-sec-more" onClick={() => quickSearch('featured businesses Nagaland')}>View all →</button>
+            <button className="m-sec-more" onClick={() => router.push('/search?featured=true')}>View all →</button>
           </div>
           <div className="m-feat-scroll">
             {featuredBusinesses.length > 0 ? featuredBusinesses.map(biz => {
