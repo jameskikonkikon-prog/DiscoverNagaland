@@ -427,7 +427,7 @@ export default function RegisterPage() {
       password: custPassword,
       options: { data: { full_name: custName.trim() } },
     })
-    if (error) { setCustError(error.message); setCustLoading(false); return }
+    if (error) { setCustError(error.message.includes('already registered') ? 'An account with this email already exists.' : 'Could not create account. Please try again.'); setCustLoading(false); return }
     setCustShowOtp(true)
     setCustLoading(false)
   }
@@ -437,7 +437,7 @@ export default function RegisterPage() {
     setCustOtpLoading(true); setCustOtpError('')
     const { error } = await supabase.auth.verifyOtp({ email: custEmail, token: custOtpCode, type: 'signup' })
     if (error) { setCustOtpError('Invalid or expired code. Try again.'); setCustOtpLoading(false); return }
-    window.location.href = '/'
+    window.location.href = '/saved'
   }
 
   const handleCustOtpResend = async () => {
@@ -502,7 +502,8 @@ export default function RegisterPage() {
       const { error: signUpErr } = await supabase.auth.signUp({ email: account.email, password: account.password });
       if (signUpErr) {
         localStorage.removeItem('yana_pending_business');
-        throw signUpErr;
+        const msg = signUpErr.message.includes('already registered') ? 'An account with this email already exists.' : 'Could not create account. Please try again.';
+        throw new Error(msg);
       }
 
       setShowOtp(true);
@@ -529,7 +530,20 @@ export default function RegisterPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...payload, signup_user_id: session.user.id }),
           });
-          if (res.ok) localStorage.removeItem('yana_pending_business');
+          if (res.ok) {
+            const { business } = await res.json();
+            if (business?.id) {
+              const [photoUrls, menuUrl] = await Promise.all([uploadPhotos(business.id), uploadMenu(business.id)]);
+              if (photoUrls.length > 0 || menuUrl) {
+                await fetch('/api/register-business/media', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ business_id: business.id, photos: photoUrls, menu_url: menuUrl }),
+                });
+              }
+            }
+            localStorage.removeItem('yana_pending_business');
+          }
         }
       }
       window.location.href = '/dashboard';
