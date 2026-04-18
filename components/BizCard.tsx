@@ -102,11 +102,9 @@ export function BizCard({ biz, isSaved = false, onToggleSave }: Props) {
       <div className="bc-grad" />
 
       {/* Top-left badges */}
-      {(isVerified || openStatus !== null) && (
+      {isVerified && (
         <div className="bc-badges">
-          {isVerified && <span className="bc-badge bc-badge-v">✓ Verified</span>}
-          {openStatus === true && <span className="bc-badge bc-badge-open">Open</span>}
-          {openStatus === false && <span className="bc-badge bc-badge-closed">Closed</span>}
+          <span className="bc-badge bc-badge-v">✓ Verified</span>
         </div>
       )}
 
@@ -133,7 +131,7 @@ export function BizCard({ biz, isSaved = false, onToggleSave }: Props) {
           <span className="bc-dot">·</span>
           📍 {location}
         </div>
-        {(waUrl || callUrl) && (
+        {(waUrl || callUrl || openStatus !== null) && (
           <div className="bc-actions">
             {waUrl && (
               <a
@@ -156,6 +154,12 @@ export function BizCard({ biz, isSaved = false, onToggleSave }: Props) {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
                 Call
               </a>
+            )}
+            {openStatus !== null && (
+              <span className="bc-status" onClick={e => e.stopPropagation()}>
+                <span className={`bc-status-dot${openStatus ? ' bc-dot-open' : ' bc-dot-closed'}`} />
+                {openStatus ? 'Open now' : 'Closed'}
+              </span>
             )}
           </div>
         )}
@@ -206,14 +210,6 @@ export const BIZ_CARD_CSS = `
     background: rgba(255,255,255,0.92); color: #b8860b;
     border: 1.5px solid #d4af37;
   }
-  .bc-badge-open {
-    background: rgba(34,197,94,0.18); color: #22c55e;
-    border: 1.5px solid rgba(34,197,94,0.38);
-  }
-  .bc-badge-closed {
-    background: rgba(239,68,68,0.18); color: #ef4444;
-    border: 1.5px solid rgba(239,68,68,0.38);
-  }
   .bc-heart {
     position: absolute; top: 10px; right: 10px; z-index: 3;
     width: 32px; height: 32px; border-radius: 999px;
@@ -244,7 +240,21 @@ export const BIZ_CARD_CSS = `
   }
   .bc-cat { color: rgba(255,255,255,0.7); font-weight: 500; }
   .bc-dot { color: rgba(255,255,255,0.3); }
-  .bc-actions { display: flex; gap: 6px; }
+  .bc-actions { display: flex; gap: 6px; align-items: center; }
+  .bc-status {
+    display: inline-flex; align-items: center; gap: 5px;
+    margin-left: auto;
+    padding: 5px 9px; border-radius: 6px;
+    font-family: 'Sora', sans-serif; font-size: 11px; font-weight: 600;
+    background: rgba(255,255,255,0.07);
+    color: rgba(255,255,255,0.55);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .bc-status-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .bc-dot-open { background: #4ade80; box-shadow: 0 0 5px rgba(74,222,128,0.7); }
+  .bc-dot-closed { background: rgba(255,255,255,0.25); }
   .bc-btn {
     display: inline-flex; align-items: center; gap: 4px;
     padding: 5px 10px; border-radius: 6px;
