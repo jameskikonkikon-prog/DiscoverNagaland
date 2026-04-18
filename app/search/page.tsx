@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { BizCard, BIZ_CARD_CSS } from "@/components/BizCard";
+import type { BizCardBiz } from "@/components/BizCard";
 
 type Business = {
   id: string;
@@ -186,64 +188,13 @@ function SearchPageInner() {
     }
   }
 
-  const CATEGORY_EMOJI: Record<string, string> = {
-    restaurant: '🍽️', cafe: '☕', hotel: '🏨', pg: '🏠', hostel: '🏠',
-    rental: '🏡', rental_house: '🏡', gym: '💪', turf: '⚽', shop: '🛍️',
-    salon: '💇', coaching: '📚', school: '🎓', pharmacy: '💊',
-    hospital: '🏥', clinic: '🏥', service: '🔧',
-  };
+  function asBizCardBiz(biz: Business): BizCardBiz {
+    return { id: biz.id, name: biz.name, category: biz.category, city: biz.city, area: biz.area, photos: biz.photos, phone: biz.phone, whatsapp: biz.whatsapp, is_verified: biz.is_verified, verified: (biz as Business & { verified?: boolean }).verified, plan: biz.plan };
+  }
 
   function renderCard(biz: Business) {
-    const isVerified = !!(biz.is_verified || (biz as Business & { verified?: boolean }).verified);
-    const isPlus = (biz.plan || "").toLowerCase() === "plus";
-    const photoUrl = getBizPhotoUrl(biz);
-    const emoji = CATEGORY_EMOJI[(biz.category || '').toLowerCase()] ?? '🏪';
-    const location = [biz.area, biz.city].filter(Boolean).join(', ') || biz.city;
-
     return (
-      <div key={biz.id} className={`biz-card${isPlus ? " biz-card-plus" : ""}`}>
-        <Link href={`/business/${biz.id}`} className="biz-card-link">
-          <div className="biz-photo-wrap">
-            {photoUrl ? (
-              <img src={photoUrl} alt={biz.name} className="biz-photo" />
-            ) : (
-              <div className="biz-photo-placeholder">
-                <span className="biz-placeholder-emoji">{emoji}</span>
-              </div>
-            )}
-          </div>
-          <div className="biz-body">
-            <div className="biz-top-row">
-              <span className="biz-category">{biz.category}</span>
-              {isVerified && <span className="biz-verified-badge">✓ Verified</span>}
-            </div>
-            <div className="biz-name">{biz.name}</div>
-            <div className="biz-city">📍 {location}</div>
-            <div className="biz-desc">{getBizDescription(biz)}</div>
-          </div>
-        </Link>
-        <div className="biz-actions">
-          {getWhatsAppUrl(biz) && (
-            <a href={getWhatsAppUrl(biz)!} target="_blank" rel="noopener noreferrer" className="action-btn whatsapp-btn">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              WhatsApp
-            </a>
-          )}
-          {getCallUrl(biz) && (
-            <a href={getCallUrl(biz)!} className="action-btn call-btn">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
-              Call
-            </a>
-          )}
-          <button
-            className={`action-btn save-btn${savedBizIds.has(biz.id) ? ' saved' : ''}`}
-            onClick={() => toggleSaveBiz(biz.id)}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill={savedBizIds.has(biz.id) ? '#c0392b' : 'none'} stroke={savedBizIds.has(biz.id) ? '#c0392b' : 'currentColor'}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            {savedBizIds.has(biz.id) ? 'Saved' : 'Save'}
-          </button>
-        </div>
-      </div>
+      <BizCard key={biz.id} biz={asBizCardBiz(biz)} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
     );
   }
 
@@ -453,7 +404,7 @@ export default function SearchPage() {
   );
 }
 
-const styles = `
+const styles = BIZ_CARD_CSS + `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #0a0a0a; color: #e0e0e0; font-family: 'Sora', sans-serif; min-height: 100vh; }
   .search-page { min-height: 100vh; background: #0a0a0a; display: flex; flex-direction: column; }
@@ -599,62 +550,7 @@ const styles = `
   .zero-register { margin-top: 1rem; font-size: 0.83rem; color: #555; }
 
   /* ── RESULTS GRID ── */
-  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-
-  /* ── BUSINESS CARD ── */
-  .biz-card {
-    background: #111; border: 1px solid #1e1e1e;
-    border-radius: 10px; overflow: hidden;
-    display: flex; flex-direction: column;
-    transition: transform 0.18s, border-color 0.18s;
-  }
-  .biz-card-plus { border-color: rgba(192,57,43,0.25); }
-  .biz-card:hover { transform: translateY(-2px); border-color: #2a2a2a; }
-  .biz-card-plus:hover { border-color: rgba(192,57,43,0.45); }
-  .biz-card-link { text-decoration: none; color: inherit; display: block; }
-
-  .biz-photo-wrap { position: relative; width: 100%; }
-  .biz-photo { width: 100%; height: 150px; object-fit: cover; display: block; }
-  .biz-photo-placeholder {
-    width: 100%; height: 130px;
-    background: linear-gradient(160deg, #161616 0%, #0d0d0d 100%);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .biz-placeholder-emoji { font-size: 2.2rem; opacity: 0.35; }
-
-  .biz-body { padding: 12px 14px 8px; }
-  .biz-top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; gap: 8px; }
-  .biz-category {
-    font-size: 0.68rem; color: #c0392b;
-    text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .biz-verified-badge {
-    flex-shrink: 0; padding: 2px 8px; border-radius: 999px;
-    background: rgba(212,175,55,0.1); color: #d4af37;
-    border: 1px solid rgba(212,175,55,0.25);
-    font-size: 0.65rem; font-weight: 700; white-space: nowrap;
-  }
-  .biz-name { font-family: 'Playfair Display', serif; font-size: 1rem; color: #f0f0f0; margin-bottom: 3px; line-height: 1.3; }
-  .biz-city { font-size: 0.75rem; color: #555; margin-bottom: 5px; }
-  .biz-desc {
-    font-size: 0.78rem; color: #444; line-height: 1.5;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  }
-
-  .biz-actions { display: flex; gap: 7px; padding: 0 14px 12px; margin-top: auto; }
-  .action-btn {
-    flex: 1; display: inline-flex; align-items: center; justify-content: center;
-    gap: 5px; padding: 8px 10px; border-radius: 6px; font-size: 0.75rem;
-    font-weight: 600; font-family: 'Sora', sans-serif; text-decoration: none;
-    cursor: pointer; transition: opacity 0.2s; border: none;
-  }
-  .action-btn:hover { opacity: 0.85; }
-  .whatsapp-btn { background: #25d366; color: #fff; }
-  .call-btn { background: #1e1e1e; color: #ccc; border: 1px solid #2a2a2a; }
-  .save-btn { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6); border: 1px solid #222; }
-  .save-btn.saved { background: rgba(192,57,43,0.12); color: #e05c4e; border-color: rgba(192,57,43,0.35); }
-  .save-btn:hover { opacity: 1 !important; background: rgba(192,57,43,0.1); border-color: rgba(192,57,43,0.4); color: #e05c4e; }
+  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
 
   /* ── SKELETONS ── */
   @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
@@ -697,23 +593,9 @@ const styles = `
     .trending-chips::-webkit-scrollbar { display: none; }
     .chip-btn { flex-shrink: 0; }
 
-    .results-grid { grid-template-columns: 1fr; gap: 0.75rem; }
-
-    /* Mobile card — horizontal-ish, no tall image */
-    .biz-card { flex-direction: row; align-items: stretch; border-radius: 10px; }
-    .biz-card-link { display: flex; flex: 1; min-width: 0; }
-
-    .biz-photo-wrap { width: 90px; flex-shrink: 0; }
-    .biz-photo { width: 90px; height: 100%; object-fit: cover; display: block; }
-    .biz-photo-placeholder { width: 90px; height: 100%; min-height: 90px; }
-    .biz-placeholder-emoji { font-size: 1.6rem; }
-
-    .biz-body { padding: 10px 10px 8px; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-    .biz-name { font-size: 0.92rem; }
-    .biz-city { font-size: 0.72rem; }
-    .biz-desc { font-size: 0.73rem; -webkit-line-clamp: 1; }
-
-    .biz-actions { padding: 0 10px 10px 100px; gap: 6px; }
-    .action-btn { font-size: 0.72rem; padding: 7px 8px; gap: 4px; }
+    .results-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.65rem; }
+    .bc { height: 185px; }
+    .bc-name { font-size: 13px; }
+    .bc-meta { font-size: 10px; }
   }
 `;

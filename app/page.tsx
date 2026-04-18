@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { supabase } from '@/lib/supabase';
+import { BizCard, BIZ_CARD_CSS } from '@/components/BizCard';
 
 const ROTATING_PLACEHOLDERS = [
   'Try: Girls PG in Kohima…',
@@ -91,6 +92,7 @@ export default function HomePage() {
   const [totalCategories, setTotalCategories] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [savedBizIds, setSavedBizIds] = useState<Set<string>>(new Set());
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -244,12 +246,16 @@ export default function HomePage() {
         setLoggedIn(!!data.session);
         setUserEmail(data.session?.user?.email ?? null);
         if (data.session?.user?.id) {
-          const res = await fetch('/api/owner-stats');
-          if (isMounted && res.ok) {
-            const stats = await res.json();
+          const [statsRes, savedRes] = await Promise.all([fetch('/api/owner-stats'), fetch('/api/saved')]);
+          if (isMounted && statsRes.ok) {
+            const stats = await statsRes.json();
             setBizName(stats.name);
             setOwnerPlan(stats.plan || 'free');
             setOwnerStats({ views: stats.views, calls: stats.calls, whatsapp: stats.whatsapp });
+          }
+          if (isMounted && savedRes.ok) {
+            const json = await savedRes.json();
+            setSavedBizIds(new Set<string>((json.saved ?? []).filter((s: { business_id: string | null }) => s.business_id).map((s: { business_id: string }) => s.business_id)));
           }
         }
       })
@@ -262,18 +268,23 @@ export default function HomePage() {
       setLoggedIn(!!session);
       setUserEmail(session?.user?.email ?? null);
       if (session?.user?.id) {
-        const res = await fetch('/api/owner-stats');
-        if (isMounted && res.ok) {
-          const stats = await res.json();
+        const [statsRes, savedRes] = await Promise.all([fetch('/api/owner-stats'), fetch('/api/saved')]);
+        if (isMounted && statsRes.ok) {
+          const stats = await statsRes.json();
           setBizName(stats.name);
           setOwnerPlan(stats.plan || 'free');
           setOwnerStats({ views: stats.views, calls: stats.calls, whatsapp: stats.whatsapp });
+        }
+        if (isMounted && savedRes.ok) {
+          const json = await savedRes.json();
+          setSavedBizIds(new Set<string>((json.saved ?? []).filter((s: { business_id: string | null }) => s.business_id).map((s: { business_id: string }) => s.business_id)));
         }
       } else {
         setBizName(null);
         setOwnerPlan('free');
         setOwnerStats({ views: 0, calls: 0, whatsapp: 0 });
         setUserEmail(null);
+        setSavedBizIds(new Set());
       }
     });
     return () => {
@@ -296,6 +307,17 @@ export default function HomePage() {
   async function handleSignOut() {
     await supabaseBrowser.auth.signOut();
     setDropdownOpen(false);
+  }
+
+  async function toggleSaveBiz(bizId: string) {
+    if (!loggedIn) { window.location.href = '/login'; return; }
+    const isSaved = savedBizIds.has(bizId);
+    setSavedBizIds(prev => { const next = new Set(prev); if (isSaved) next.delete(bizId); else next.add(bizId); return next; });
+    if (isSaved) {
+      await fetch(`/api/saved?business_id=${bizId}`, { method: 'DELETE' });
+    } else {
+      await fetch('/api/saved', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business_id: bizId }) });
+    }
   }
 
   const handleSearch = () => {
@@ -491,33 +513,9 @@ export default function HomePage() {
             )}
           </div>
           <div className="featured-grid">
-            {featuredBusinesses.map((biz, i) => {
-              const isVerified = !!biz.is_verified;
-              return (
-              <a key={biz.id} href={`/business/${biz.id}`} className={`feat ${getFeatAccent(i)}${isVerified ? ' feat-plus' : ''}`}>
-                <div className="feat-photo">
-                  {biz.photos && biz.photos[0] ? (
-                    <>
-                      <img src={biz.photos[0]} alt={biz.name} />
-                      <div className="feat-photo-overlay" />
-                    </>
-                  ) : (
-                    getCategoryEmoji(biz.category)
-                  )}
-                  {isVerified && <span className="feat-verified-badge">✓ Verified Business</span>}
-                </div>
-                <div className="feat-body">
-                  <div className="feat-name">{biz.name}</div>
-                  <div className="feat-detail">
-                    {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {isVerified ? '✅ ' : ''}{biz.category}
-                  </div>
-                  <span className={`feat-tag ${getTagClass(i)}`}>
-                    {biz.rating != null ? `⭐ ${biz.rating}` : biz.price_range || (biz.is_verified ? '✓ Verified' : biz.category)}
-                  </span>
-                </div>
-              </a>
-            );
-            })}
+            {featuredBusinesses.map((biz) => (
+              <BizCard key={biz.id} biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
+            ))}
           </div>
 
           {/* CATEGORIES */}
@@ -548,31 +546,10 @@ export default function HomePage() {
             <span className="sec-title">Recently listed</span>
             <button className="sec-more" onClick={() => quickSearch('new businesses Nagaland')}>View all →</button>
           </div>
-          <div className="recent-list">
-            {recentBusinesses.map((biz) => {
-              const badge = getRecentBadge(biz);
-              const isVerified = !!biz.is_verified;
-              return (
-                <a key={biz.id} href={`/business/${biz.id}`} className={`recent${isVerified ? ' recent-plus' : ''}`}>
-                  <div className="recent-photo">
-                    {biz.photos && biz.photos[0] ? (
-                      <img src={biz.photos[0]} alt={biz.name} />
-                    ) : (
-                      getCategoryEmoji(biz.category)
-                    )}
-                    {isVerified && <span className="recent-verified-badge">✓ Verified</span>}
-                  </div>
-                  <div className="recent-info">
-                    <div className="recent-name">{biz.name}</div>
-                    <div className="recent-meta">
-                      {[biz.area, biz.city].filter(Boolean).join(' · ') || biz.city} · {isVerified ? '✅ ' : ''}{biz.category}
-                      {biz.price_range ? ` · ${biz.price_range}` : ''}
-                    </div>
-                  </div>
-                  <span className={`rbadge ${badge.cls}`}>{badge.label}</span>
-                </a>
-              );
-            })}
+          <div className="recent-grid">
+            {recentBusinesses.map((biz) => (
+              <BizCard key={biz.id} biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
+            ))}
           </div>
         </div>
 
@@ -886,29 +863,11 @@ export default function HomePage() {
             <button className="m-sec-more" onClick={() => router.push('/search?featured=true')}>View all →</button>
           </div>
           <div className="m-feat-scroll">
-            {featuredBusinesses.length > 0 ? featuredBusinesses.map(biz => {
-              const isVerified = !!biz.is_verified;
-              return (
-                <a key={biz.id} href={`/business/${biz.id}`} className="m-feat-card">
-                  <div className="m-feat-photo">
-                    {biz.photos?.[0] ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={biz.photos[0]} alt={biz.name} />
-                        <div className="m-feat-overlay" />
-                      </>
-                    ) : (
-                      <span className="m-feat-emoji">{getCategoryEmoji(biz.category)}</span>
-                    )}
-                    {isVerified && <span className="m-feat-badge">✓ Verified</span>}
-                    <div className="m-feat-info-overlay">
-                      <div className="m-feat-name">{biz.name}</div>
-                      <div className="m-feat-meta">{[biz.area, biz.city].filter(Boolean).join(' · ')} · {biz.category}</div>
-                    </div>
-                  </div>
-                </a>
-              );
-            }) : (
+            {featuredBusinesses.length > 0 ? featuredBusinesses.map(biz => (
+              <div key={biz.id} className="m-biz-wrap">
+                <BizCard biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
+              </div>
+            )) : (
               <div className="m-feat-placeholder">
                 {[1,2,3].map(i => <div key={i} className="m-feat-skel" />)}
               </div>
@@ -924,16 +883,12 @@ export default function HomePage() {
           </div>
           <div className="m-feat-scroll">
             {recentlyAdded.length > 0 ? recentlyAdded.map(biz => (
-              <a key={biz.id} href={`/business/${biz.id}`} className="m-recent-card">
-                <div className="m-recent-icon">{getCategoryEmoji(biz.category)}</div>
-                <span className="m-recent-new">NEW</span>
-                <div className="m-recent-name">{biz.name}</div>
-                <div className="m-recent-meta">{biz.city}{biz.area ? ` · ${biz.area}` : ''}</div>
-                <div className="m-recent-cat">{biz.category}</div>
-              </a>
+              <div key={biz.id} className="m-biz-wrap">
+                <BizCard biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
+              </div>
             )) : (
               <div className="m-feat-placeholder">
-                {[1,2,3].map(i => <div key={i} className="m-recent-skel" />)}
+                {[1,2,3].map(i => <div key={i} className="m-feat-skel" />)}
               </div>
             )}
           </div>
@@ -1069,7 +1024,13 @@ export default function HomePage() {
   );
 }
 
-const pageStyles = `
+const pageStyles = BIZ_CARD_CSS + `
+  /* ── RECENTLY LISTED GRID ── */
+  .recent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+  /* ── MOBILE CARD WRAPPER (horizontal scroll) ── */
+  .m-biz-wrap { flex-shrink: 0; width: 200px; }
+  .m-biz-wrap .bc { height: 175px; }
+` + `
   /* ── NAV ── */
   .yana-nav{
     position:sticky;top:0;z-index:100;
@@ -1277,100 +1238,7 @@ const pageStyles = `
   }
 
   /* ── FEATURED ── */
-  .featured-grid{
-    display:grid;grid-template-columns:1fr 1fr;gap:12px;
-    margin-bottom:28px;
-  }
-  .feat{
-    background:var(--bg2);
-    border:1px solid var(--border);
-    border-radius:12px;
-    overflow:hidden;
-    cursor:pointer;transition:all 0.2s;
-    position:relative;
-    text-decoration:none;color:inherit;display:block;
-  }
-  .feat::before{
-    content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  }
-  .feat.red::before{background:linear-gradient(90deg,var(--red),transparent);}
-  .feat.gold::before{background:linear-gradient(90deg,var(--gold),transparent);}
-  .feat.green::before{background:linear-gradient(90deg,#25d366,transparent);}
-  .feat.dim::before{background:linear-gradient(90deg,rgba(255,255,255,0.2),transparent);}
-  .feat:hover{background:var(--bg3);border-color:var(--border2);transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,0,0,0.3);}
-  .feat-plus{border-color:rgba(192,57,43,0.3);}
-  .feat-plus:hover{border-color:rgba(192,57,43,0.5);}
-  .feat-photo{
-    width:100%;height:110px;
-    background:linear-gradient(135deg,#1a1a1a,#222);
-    display:flex;align-items:center;justify-content:center;
-    font-size:32px;position:relative;overflow:hidden;
-  }
-  .feat-photo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
-  .feat-photo-overlay{
-    position:absolute;inset:0;
-    background:linear-gradient(transparent 40%,rgba(0,0,0,0.6));
-  }
-  .feat-verified-badge{
-    position:absolute;bottom:6px;left:8px;
-    padding:3px 8px;border-radius:999px;
-    background:white;
-    color:#b8860b;
-    border:1.5px solid #d4af37;
-    box-shadow:0 2px 8px rgba(212,175,55,0.3);
-    font-family:'Sora',sans-serif;
-    font-size:11px;font-weight:700;
-    white-space:nowrap;
-  }
-  .feat-body{padding:12px 14px;}
-  .feat-name{font-size:13px;font-weight:700;color:var(--white);margin-bottom:3px;}
-  .feat-detail{font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:8px;}
-  .feat-tag{
-    display:inline-block;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:600;
-  }
-  .tag-red{background:var(--red-bg);color:var(--red);}
-  .tag-gold{background:var(--gold-bg);color:var(--gold);}
-  .tag-green{background:var(--green-bg);color:var(--green);}
-  .tag-dim{background:rgba(255,255,255,0.06);color:var(--muted);}
-
-  /* ── RECENT LIST ── */
-  .recent-list{display:flex;flex-direction:column;gap:8px;margin-bottom:28px;}
-  .recent{
-    background:var(--bg2);border:1px solid var(--border);
-    border-radius:10px;padding:12px 14px;
-    display:flex;align-items:center;gap:12px;
-    cursor:pointer;transition:all 0.15s;
-    text-decoration:none;color:inherit;
-  }
-  .recent:hover{background:var(--bg3);border-color:var(--border2);}
-  .recent-plus{border-color:rgba(192,57,43,0.3);}
-  .recent-plus:hover{border-color:rgba(192,57,43,0.5);}
-  .recent-photo{
-    width:44px;height:44px;
-    background:var(--bg3);border-radius:10px;
-    display:grid;place-items:center;font-size:20px;
-    flex-shrink:0;border:1px solid var(--border);
-    overflow:hidden;position:relative;
-  }
-  .recent-photo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
-  .recent-verified-badge{
-    position:absolute;bottom:3px;left:3px;
-    padding:2px 5px;border-radius:999px;
-    background:white;
-    color:#b8860b;
-    border:1.5px solid #d4af37;
-    box-shadow:0 2px 8px rgba(212,175,55,0.3);
-    font-size:8px;font-weight:700;
-    font-family:'Sora',sans-serif;
-    white-space:nowrap;
-  }
-  .recent-info{flex:1;min-width:0;}
-  .recent-name{font-size:13px;font-weight:600;color:var(--white);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .recent-meta{font-size:11.5px;color:var(--muted);font-weight:300;}
-  .rbadge{font-size:10px;padding:3px 8px;border-radius:4px;font-weight:700;white-space:nowrap;flex-shrink:0;}
-  .r-new{background:var(--red-bg);color:var(--red);}
-  .r-hot{background:var(--gold-bg);color:var(--gold);}
-  .r-verified{background:var(--green-bg);color:var(--green);}
+  .featured-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:28px; }
 
   /* ── CATEGORIES ── */
   .categories-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;}
