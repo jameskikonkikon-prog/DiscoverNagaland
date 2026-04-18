@@ -544,7 +544,7 @@ export default function HomePage() {
           {/* RECENTLY LISTED */}
           <div className="sec-head">
             <span className="sec-title">Recently listed</span>
-            <button className="sec-more" onClick={() => quickSearch('new businesses Nagaland')}>View all →</button>
+            <button className="sec-more" onClick={() => router.push('/search?recent=true')}>View all →</button>
           </div>
           <div className="recent-grid">
             {recentBusinesses.map((biz) => (
@@ -879,7 +879,7 @@ export default function HomePage() {
         <div className="m-section">
           <div className="m-sec-head">
             <span className="m-sec-title">Recently listed</span>
-            <a href="/search" className="m-sec-more">View all →</a>
+            <button className="m-sec-more" onClick={() => router.push('/search?recent=true')}>View all →</button>
           </div>
           <div className="m-feat-scroll">
             {recentlyAdded.length > 0 ? recentlyAdded.map(biz => (

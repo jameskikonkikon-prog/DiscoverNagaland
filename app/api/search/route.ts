@@ -6,11 +6,12 @@ export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q') || '';
   const city = request.nextUrl.searchParams.get('city') || '';
   const featured = request.nextUrl.searchParams.get('featured') === 'true';
+  const recent = request.nextUrl.searchParams.get('recent') === 'true';
 
-  if (!query && !city && !featured) return NextResponse.json({ businesses: [], detectedCity: null, detectedPrice: null });
+  if (!query && !city && !featured && !recent) return NextResponse.json({ businesses: [], detectedCity: null, detectedPrice: null });
 
   try {
-    const result = await searchBusinesses(query, city || undefined, featured);
+    const result = await searchBusinesses(query, city || undefined, featured, recent);
     return NextResponse.json(result);
   } catch (error) {
     console.error('Search error:', error);

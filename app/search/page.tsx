@@ -55,8 +55,11 @@ function SearchPageInner() {
   useEffect(() => {
     const q = searchParams.get("q") || "";
     const isFeatured = searchParams.get("featured") === "true";
+    const isRecent = searchParams.get("recent") === "true";
     if (isFeatured) {
       doSearch("", "", true);
+    } else if (isRecent) {
+      doSearch("", "", false, true);
     } else if (q) {
       setQuery(q);
       doSearch(q, "");
@@ -88,7 +91,7 @@ function SearchPageInner() {
     return () => { isMounted = false; };
   }, []);
 
-  async function doSearch(q: string, city?: string, featuredOnly?: boolean) {
+  async function doSearch(q: string, city?: string, featuredOnly?: boolean, recentOnly?: boolean) {
     setLoading(true);
     setHasSearched(true);
     setRelatedResults([]);
@@ -97,6 +100,7 @@ function SearchPageInner() {
       if (q.trim()) params.set("q", q);
       if (city) params.set("city", city);
       if (featuredOnly) params.set("featured", "true");
+      if (recentOnly) params.set("recent", "true");
       const res = await fetch(`/api/search?${params}`);
       const json = await res.json();
       setDetectedCity(json.detectedCity || null);

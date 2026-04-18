@@ -476,7 +476,8 @@ function shortenLast(query: string, n: number): string {
 export async function searchBusinesses(
   query: string,
   cityFilter?: string,
-  featured?: boolean
+  featured?: boolean,
+  recent?: boolean
 ): Promise<{
   businesses: Business[];
   detectedCity: string | null;
@@ -494,6 +495,17 @@ export async function searchBusinesses(
       .eq('featured', true)
       .not('category', 'in', `(${PROPERTY_CATEGORIES.join(',')})`);
     return { businesses: byPlan(((data as unknown) as Business[]) || []), detectedCity: null, detectedPrice: null };
+  }
+
+  if (recent) {
+    const { data } = await client
+      .from('businesses')
+      .select(SELECT_COLS)
+      .eq('is_active', true)
+      .not('category', 'in', `(${PROPERTY_CATEGORIES.join(',')})`)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    return { businesses: ((data as unknown) as Business[]) || [], detectedCity: null, detectedPrice: null };
   }
 
   // Load DB metadata (categories + cities) — cached
