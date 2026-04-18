@@ -597,9 +597,7 @@ const styles = BIZ_CARD_CSS + `
     .trending-chips::-webkit-scrollbar { display: none; }
     .chip-btn { flex-shrink: 0; }
 
-    .results-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.65rem; }
-    .bc { height: 185px; }
-    .bc-name { font-size: 13px; }
-    .bc-meta { font-size: 10px; }
+    .results-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+    .bc { height: 200px; }
   }
 `;
