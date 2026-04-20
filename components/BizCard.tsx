@@ -1,5 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 export type BizCardBiz = {
   id: string;
   name: string;
@@ -77,17 +80,22 @@ function getWaUrl(biz: BizCardBiz) {
 }
 
 export function BizCard({ biz, isSaved = false, onToggleSave }: Props) {
+  const router = useRouter();
   const photo = biz.photos?.[0] ?? null;
   const isVerified = !!(biz.is_verified || biz.verified);
-  const openStatus = isOpenNow(biz.opening_hours ?? null);
+  const [openStatus, setOpenStatus] = useState<boolean | null>(null);
   const location = [biz.area, biz.city].filter(Boolean).join(' · ') || biz.city;
   const waUrl = getWaUrl(biz);
   const callUrl = biz.phone ? `tel:${biz.phone}` : null;
 
+  useEffect(() => {
+    setOpenStatus(isOpenNow(biz.opening_hours ?? null));
+  }, [biz.opening_hours]);
+
   return (
     <div
       className="bc"
-      onClick={() => { window.location.href = `/business/${biz.id}`; }}
+      onClick={() => { router.push(`/business/${biz.id}`); }}
     >
       {/* Image */}
       {photo ? (

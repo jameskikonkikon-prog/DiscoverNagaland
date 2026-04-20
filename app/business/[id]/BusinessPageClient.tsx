@@ -108,6 +108,11 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
 
   const [isSaved, setIsSaved] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [openStatus, setOpenStatus] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setOpenStatus(isOpenNow(biz.opening_hours || ''));
+  }, [biz.opening_hours]);
 
   // Load saved state for logged-in customers
   useEffect(() => {
@@ -221,7 +226,6 @@ export default function BusinessPageClient({ biz, initialReviews, isOwner, isLog
   };
 
   const avgRating = reviews.length > 0 ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : null;
-  const openStatus = isOpenNow(biz.opening_hours || '');
   const tagsList = biz.tags?.split(',').map(t => t.trim()).filter(Boolean) || [];
   const vibeTags = tagsList.length > 0 ? tagsList : (biz.tags ? [biz.tags] : []);
   const photos = biz.photos?.length ? biz.photos : [];
