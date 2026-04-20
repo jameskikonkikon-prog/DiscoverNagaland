@@ -25,6 +25,8 @@ type Business = {
   plan?: string;
 };
 
+const SEARCH_CACHE_KEY = 'yana_search_cache';
+
 function SearchPageInner() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Business[]>([]);
@@ -42,6 +44,7 @@ function SearchPageInner() {
   const [filterVerified, setFilterVerified] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const pendingScrollRef = useRef<number | null>(null);
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [savedBizIds, setSavedBizIds] = useState<Set<string>>(new Set());
@@ -56,6 +59,32 @@ function SearchPageInner() {
     const q = searchParams.get("q") || "";
     const isFeatured = searchParams.get("featured") === "true";
     const isRecent = searchParams.get("recent") === "true";
+
+    // Restore cached state when returning from a listing page
+    try {
+      const raw = sessionStorage.getItem(SEARCH_CACHE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached.urlKey === window.location.search && Array.isArray(cached.results)) {
+          setQuery(cached.query ?? q);
+          setResults(cached.results);
+          setRelatedResults(cached.relatedResults ?? []);
+          setDetectedCity(cached.detectedCity ?? null);
+          setDetectedPrice(cached.detectedPrice ?? null);
+          setCorrectedQuery(cached.correctedQuery ?? null);
+          setHasSearched(true);
+          const f = cached.filters ?? {};
+          setFilterOpenNow(!!f.filterOpenNow);
+          setFilterCity(f.filterCity ?? "");
+          setFilterBudget(!!f.filterBudget);
+          setFilterPremium(!!f.filterPremium);
+          setFilterVerified(!!f.filterVerified);
+          if (cached.scrollY) pendingScrollRef.current = cached.scrollY;
+          return;
+        }
+      }
+    } catch { /* ignore corrupt cache */ }
+
     if (isFeatured) {
       doSearch("", "", true);
     } else if (isRecent) {
@@ -65,6 +94,51 @@ function SearchPageInner() {
       doSearch(q, "");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Restore scroll position after content mounts
+  useEffect(() => {
+    if (mounted && pendingScrollRef.current !== null) {
+      const y = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  }, [mounted]);
+
+  // Persist search state so back-navigation can restore it
+  useEffect(() => {
+    if (!hasSearched || loading || typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({
+        urlKey: window.location.search,
+        query, results, relatedResults, detectedCity, detectedPrice, correctedQuery,
+        filters: { filterOpenNow, filterCity, filterBudget, filterPremium, filterVerified },
+      }));
+    } catch { /* storage full or unavailable */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, filterOpenNow, filterCity, filterBudget, filterPremium, filterVerified]);
+
+  // Track scroll position with rAF throttle and write it into the cached state
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        try {
+          const raw = sessionStorage.getItem(SEARCH_CACHE_KEY);
+          if (raw) {
+            const data = JSON.parse(raw);
+            data.scrollY = Math.floor(window.scrollY);
+            sessionStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify(data));
+          }
+        } catch {}
+        ticking = false;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   useEffect(() => {
