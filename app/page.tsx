@@ -107,18 +107,44 @@ export default function HomePage() {
   type ChatMsg = { role: 'user' | 'ai'; text: string; chips?: string[] };
 
   function renderAiText(text: string) {
-    const parts = text.split(/(\[BUSINESS:[^\]]+\])/g);
-    return parts.map((part, i) => {
-      const m = part.match(/^\[BUSINESS:([^:]+):(.+)\]$/);
-      if (m) {
-        const [, id, name] = m;
-        return (
-          <a key={i} href={`/business/${id}`} target="_blank" rel="noopener noreferrer" className="ai-biz-link">
-            {name}
-          </a>
-        );
+    let key = 0;
+    const k = () => String(key++);
+
+    function parseInline(str: string) {
+      const nodes: React.ReactNode[] = [];
+      const re = /\*\*(.+?)\*\*|\*(.+?)\*/g;
+      let last = 0, m;
+      while ((m = re.exec(str)) !== null) {
+        if (m.index > last) nodes.push(<span key={k()}>{str.slice(last, m.index)}</span>);
+        if (m[1] !== undefined) nodes.push(<strong key={k()}>{m[1]}</strong>);
+        else nodes.push(<em key={k()}>{m[2]}</em>);
+        last = re.lastIndex;
       }
-      return <span key={i}>{part}</span>;
+      if (last < str.length) nodes.push(<span key={k()}>{str.slice(last)}</span>);
+      return nodes;
+    }
+
+    const segments = text.split(/(\[BUSINESS:[^\]]+\])/g);
+    return segments.flatMap((seg) => {
+      const biz = seg.match(/^\[BUSINESS:([^:]+):(.+)\]$/);
+      if (biz) {
+        return [<a key={k()} href={`/business/${biz[1]}`} target="_blank" rel="noopener noreferrer" className="ai-biz-link">{biz[2]}</a>];
+      }
+      const lines = seg.split('\n');
+      const out: React.ReactNode[] = [];
+      lines.forEach((line, li) => {
+        const isBullet = /^[-*•]\s+/.test(line);
+        const content = isBullet ? line.replace(/^[-*•]\s+/, '') : line;
+        if (isBullet) {
+          out.push(<div key={k()} className="ai-bullet">{parseInline(content)}</div>);
+        } else if (line.trim() === '') {
+          if (li > 0 && li < lines.length - 1) out.push(<br key={k()} />);
+        } else {
+          if (out.length > 0 && !isBullet) out.push(<br key={k()} />);
+          out.push(...parseInline(line));
+        }
+      });
+      return out;
     });
   }
   const [chatOpen, setChatOpen] = useState(false);
@@ -1453,6 +1479,10 @@ const pageStyles = BIZ_CARD_CSS + `
   .ai-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
   .ai-biz-link{color:#c0392b;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
   .ai-biz-link:hover{color:#e74c3c;}
+  .ai-bullet{padding-left:14px;position:relative;margin:2px 0;}
+  .ai-bullet::before{content:'•';position:absolute;left:2px;}
+  .ai-msg-text strong{font-weight:700;color:#fff;}
+  .ai-msg-text em{font-style:italic;color:#ccc;}
   .ai-chip{
     background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.32);
     border-radius:999px;padding:5px 12px;
