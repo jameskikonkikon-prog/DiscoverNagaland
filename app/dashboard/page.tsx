@@ -427,7 +427,13 @@ export default function DashboardPage() {
           </nav>
 
           <div className="sidebar-bottom">
-            <div className="plan-pill">
+            <a href="/account" className="nav-item" style={{textDecoration:'none',display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+              <span className="icon">👤</span>My Account
+            </a>
+            <button className="nav-item sign-out" onClick={signOut}>
+              <span className="icon">🚪</span>Sign Out
+            </button>
+            <div className="plan-pill" style={{marginTop:8}}>
               <span className={`badge badge-${plan}`}>{PLANS[plan].name}</span>
               <div className="plan-info">
                 <div className="plan-name">
@@ -440,12 +446,6 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-            <a href="/account" className="nav-item" style={{textDecoration:'none',display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-              <span className="icon">👤</span>My Account
-            </a>
-            <button className="nav-item sign-out" onClick={signOut}>
-              <span className="icon">🚪</span>Sign Out
-            </button>
           </div>
         </aside>
 
@@ -855,7 +855,7 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);}
 .nav-item .icon{font-size:16px;width:20px;text-align:center;}
 .sign-out{color:var(--muted);}
 .sidebar-bottom{padding:16px 12px;border-top:1px solid var(--border);}
-.plan-pill{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+.plan-pill{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
 .badge{font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:0.5px;}
 .badge-free{background:#333;color:#888;}
 .badge-pro{background:var(--gold-soft);color:var(--gold);border:1px solid rgba(212,160,23,0.3);}
