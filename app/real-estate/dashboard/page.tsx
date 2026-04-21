@@ -242,8 +242,8 @@ export default function RealEstateDashboard() {
         .ml-btn-refresh.urgent{border-color:rgba(232,169,8,0.35);color:var(--gold);}
         .ml-btn-refresh.urgent:hover:not(:disabled){border-color:rgba(232,169,8,0.6);background:rgba(232,169,8,0.06);}
         .ml-btn-refresh:hover:not(:disabled){border-color:rgba(59,168,143,0.3);color:var(--teal);}
-        .ml-btn-disable{border-color:rgba(192,57,43,0.45);color:rgba(192,57,43,0.9);}
-        .ml-btn-disable:hover:not(:disabled){border-color:rgba(192,57,43,0.4);color:var(--red);background:var(--red-bg);}
+        .ml-btn-disable{background:var(--red);border-color:var(--red);color:#fff;}
+        .ml-btn-disable:hover:not(:disabled){background:var(--red2);border-color:var(--red2);}
         .ml-btn-enable{border-color:rgba(59,168,143,0.25);color:rgba(59,168,143,0.7);}
         .ml-btn-enable:hover:not(:disabled){border-color:rgba(59,168,143,0.5);color:var(--teal);background:var(--teal-bg);}
         .ml-btn:disabled{opacity:0.4;cursor:default;}
