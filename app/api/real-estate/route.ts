@@ -167,7 +167,8 @@ export async function PATCH(req: NextRequest) {
     const { data: { user } } = await authClient.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { id } = await req.json();
+    const body = await req.json();
+    const { id, is_available } = body;
     if (!id || typeof id !== 'string') {
       return NextResponse.json({ error: 'Property id is required' }, { status: 400 });
     }
@@ -176,7 +177,7 @@ export async function PATCH(req: NextRequest) {
     // owner_id filter is the security gate — only the owner's own row is updated
     const { data, error } = await supabase
       .from('properties')
-      .update({ is_available: false })
+      .update({ is_available: is_available === true })
       .eq('id', id)
       .eq('owner_id', user.id)
       .select('id, is_available')

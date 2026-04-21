@@ -57,6 +57,7 @@ export default function RealEstateDashboard() {
   const [totalViews, setTotalViews] = useState(0)
   const [refreshing, setRefreshing] = useState<string | null>(null)
   const [disabling,  setDisabling]  = useState<string | null>(null)
+  const [enabling,   setEnabling]   = useState<string | null>(null)
   const [saveCounts, setSaveCounts] = useState<Record<string, number>>({})
 
   async function handleDisable(id: string) {
@@ -65,7 +66,7 @@ export default function RealEstateDashboard() {
       const res = await fetch('/api/real-estate', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, is_available: false }),
       })
       const json = await res.json()
       if (!res.ok) { showToast(json.error ?? 'Failed to update listing', 'error'); return }
@@ -75,6 +76,25 @@ export default function RealEstateDashboard() {
       showToast('Network error. Please try again.', 'error')
     } finally {
       setDisabling(null)
+    }
+  }
+
+  async function handleEnable(id: string) {
+    setEnabling(id)
+    try {
+      const res = await fetch('/api/real-estate', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_available: true }),
+      })
+      const json = await res.json()
+      if (!res.ok) { showToast(json.error ?? 'Failed to update listing', 'error'); return }
+      setProperties(prev => prev.map(p => p.id === id ? { ...p, is_available: true } : p))
+      showToast('Listing marked as available')
+    } catch {
+      showToast('Network error. Please try again.', 'error')
+    } finally {
+      setEnabling(null)
     }
   }
 
@@ -224,6 +244,8 @@ export default function RealEstateDashboard() {
         .ml-btn-refresh:hover:not(:disabled){border-color:rgba(59,168,143,0.3);color:var(--teal);}
         .ml-btn-disable{border-color:rgba(192,57,43,0.18);color:rgba(192,57,43,0.55);}
         .ml-btn-disable:hover:not(:disabled){border-color:rgba(192,57,43,0.4);color:var(--red);background:var(--red-bg);}
+        .ml-btn-enable{border-color:rgba(59,168,143,0.25);color:rgba(59,168,143,0.7);}
+        .ml-btn-enable:hover:not(:disabled){border-color:rgba(59,168,143,0.5);color:var(--teal);background:var(--teal-bg);}
         .ml-btn:disabled{opacity:0.4;cursor:default;}
 
         /* EMPTY */
@@ -347,6 +369,7 @@ export default function RealEstateDashboard() {
                   const needsRefresh = freshLabel === 'Expiring Soon' || freshLabel === 'Needs Refresh' || freshLabel === 'Unverified'
                   const isRefreshing = refreshing === p.id
                   const isDisabling = disabling === p.id
+                  const isEnabling  = enabling  === p.id
                   const thumb = Array.isArray(p.photos) && p.photos.length > 0 ? p.photos[0] : null
                   const emoji = p.property_type === 'land' ? '🌿' : p.property_type === 'apartment' ? '🏢' : p.property_type === 'commercial' ? '🏪' : '🏠'
                   return (
@@ -382,13 +405,21 @@ export default function RealEstateDashboard() {
                         >
                           {isRefreshing ? 'Refreshing…' : needsRefresh ? '⚡ Refresh Now' : '↻ Refresh'}
                         </button>
-                        {p.is_available && (
+                        {p.is_available ? (
                           <button
                             className="ml-btn ml-btn-disable"
                             onClick={() => handleDisable(p.id)}
-                            disabled={!!disabling || !!refreshing}
+                            disabled={!!disabling || !!refreshing || !!enabling}
                           >
                             {isDisabling ? 'Updating…' : '✕ Mark Sold / Rented'}
+                          </button>
+                        ) : (
+                          <button
+                            className="ml-btn ml-btn-enable"
+                            onClick={() => handleEnable(p.id)}
+                            disabled={!!enabling || !!refreshing || !!disabling}
+                          >
+                            {isEnabling ? 'Updating…' : '✓ Mark as Available'}
                           </button>
                         )}
                       </div>
