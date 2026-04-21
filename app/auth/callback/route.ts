@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       if      (hasBiz  && !hasProp) destination = '/dashboard';
       else if (hasProp && !hasBiz)  destination = '/real-estate/dashboard';
       else if (hasBiz  && hasProp)  destination = '/account';
-      else                          destination = safePath ?? '/saved';  // customer
+      else                          destination = safePath ?? '/account';  // customer
 
       return redirectWithCookies(`${origin}${destination}`);
     }

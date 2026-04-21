@@ -48,7 +48,7 @@ export default function LoginPage() {
     if (hasBiz && !hasProp) return '/dashboard';
     if (hasProp && !hasBiz) return '/real-estate/dashboard';
     if (hasBiz && hasProp) return '/account';
-    return '/';
+    return '/account';
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {

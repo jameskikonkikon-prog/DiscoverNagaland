@@ -118,7 +118,9 @@ export default function DashboardPage() {
         .eq('is_active', true)
         .single()
 
-      setBusiness(biz ?? null)
+      if (!biz) { router.push('/account'); return }
+
+      setBusiness(biz)
 
       // Analytics
       if (biz) {
