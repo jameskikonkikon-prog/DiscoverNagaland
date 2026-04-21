@@ -227,17 +227,17 @@ export default function RealEstateDashboard() {
         .ml-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
         .ml-info{flex:1;min-width:0;}
         .ml-title{font-size:14px;font-weight:700;color:var(--white);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
-        .ml-loc{font-size:12px;color:var(--muted);margin-bottom:6px;}
+        .ml-loc{font-size:12px;color:rgba(255,255,255,0.62);margin-bottom:6px;}
         .ml-badges{display:flex;flex-wrap:wrap;gap:5px;}
-        .ml-badge{font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted);background:var(--bg3);}
-        .ml-badge-unavail{border-color:rgba(192,57,43,0.2);color:rgba(192,57,43,0.65);}
+        .ml-badge{font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid rgba(255,255,255,0.14);color:rgba(255,255,255,0.65);background:var(--bg3);}
+        .ml-badge-unavail{border-color:rgba(192,57,43,0.3);color:rgba(192,57,43,0.85);}
         .ml-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;min-width:0;}
         .ml-price{font-size:13.5px;font-weight:700;color:var(--white);white-space:nowrap;}
         .ml-fresh{font-size:10.5px;font-weight:600;white-space:nowrap;}
-        .ml-saves{font-size:10.5px;font-weight:600;color:rgba(255,255,255,0.3);white-space:nowrap;margin-top:1px;}
+        .ml-saves{font-size:10.5px;font-weight:600;color:rgba(255,255,255,0.55);white-space:nowrap;margin-top:1px;}
         .ml-divider{height:1px;background:var(--border);}
         .ml-actions{display:flex;gap:6px;flex-wrap:wrap;}
-        .ml-btn{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;text-decoration:none;display:inline-flex;align-items:center;border:1px solid var(--border2);background:transparent;color:var(--muted);}
+        .ml-btn{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:8px;cursor:pointer;font-family:'Sora',sans-serif;transition:all 0.15s;text-decoration:none;display:inline-flex;align-items:center;border:1px solid var(--border2);background:transparent;color:rgba(255,255,255,0.6);}
         .ml-btn:hover:not(:disabled){border-color:rgba(255,255,255,0.22);color:var(--off);}
         .ml-btn-refresh.urgent{border-color:rgba(232,169,8,0.35);color:var(--gold);}
         .ml-btn-refresh.urgent:hover:not(:disabled){border-color:rgba(232,169,8,0.6);background:rgba(232,169,8,0.06);}
