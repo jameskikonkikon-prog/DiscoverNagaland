@@ -47,7 +47,7 @@ export default function LoginPage() {
     const hasProp = (propRes.count ?? 0) > 0;
     if (hasBiz && !hasProp) return '/dashboard';
     if (hasProp && !hasBiz) return '/real-estate/dashboard';
-    if (hasBiz && hasProp) return '/account';
+    if (hasBiz && hasProp) return '/dashboard/select';
     return '/account';
   };
 

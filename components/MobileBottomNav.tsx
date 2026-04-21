@@ -9,7 +9,7 @@ export default function MobileBottomNav() {
   const isSearch = pathname.startsWith('/search');
   const isRE = pathname.startsWith('/real-estate');
   const isRegister = pathname.startsWith('/register');
-  const isDashboard = pathname.startsWith('/dashboard') || pathname.startsWith('/account');
+  const isDashboard = pathname.startsWith('/dashboard') || pathname.startsWith('/account') || pathname.startsWith('/real-estate/dashboard');
   const isSaved = pathname.startsWith('/saved');
 
   const [loggedIn, setLoggedIn] = useState(false);
@@ -76,7 +76,7 @@ export default function MobileBottomNav() {
               <span className="gnav-icon">🔖</span>
               <span className="gnav-label">Saved</span>
             </a>
-            <a href="/dashboard" className={`gnav-item${isDashboard ? ' gnav-active' : ''}`}>
+            <a href="/dashboard/select" className={`gnav-item${isDashboard ? ' gnav-active' : ''}`}>
               <span className="gnav-icon">📊</span>
               <span className="gnav-label">Dashboard</span>
             </a>

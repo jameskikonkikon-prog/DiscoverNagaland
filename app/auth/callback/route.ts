@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       let destination: string;
       if      (hasBiz  && !hasProp) destination = '/dashboard';
       else if (hasProp && !hasBiz)  destination = '/real-estate/dashboard';
-      else if (hasBiz  && hasProp)  destination = '/account';
+      else if (hasBiz  && hasProp)  destination = '/dashboard/select';
       else                          destination = safePath ?? '/account';  // customer
 
       return redirectWithCookies(`${origin}${destination}`);
