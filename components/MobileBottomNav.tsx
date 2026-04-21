@@ -54,7 +54,7 @@ export default function MobileBottomNav() {
         .gnav-cta{
           margin:8px 6px;border-radius:10px;
           background:rgba(229,56,59,0.14);border:1px solid rgba(229,56,59,0.28);
-          color:#e5383b;font-weight:700;
+          font-weight:700;
         }
       `}</style>
       <nav className={`gnav${loggedIn ? ' gnav-5' : ''}`} aria-label="Mobile navigation">
