@@ -76,7 +76,7 @@ export default function MobileBottomNav() {
               <span className="gnav-icon">🔖</span>
               <span className="gnav-label">Saved</span>
             </a>
-            <a href="/dashboard" className={`gnav-item gnav-cta${isDashboard ? ' gnav-active' : ''}`}>
+            <a href="/dashboard" className={`gnav-item${isDashboard ? ' gnav-active' : ''}`}>
               <span className="gnav-icon">📊</span>
               <span className="gnav-label">Dashboard</span>
             </a>
