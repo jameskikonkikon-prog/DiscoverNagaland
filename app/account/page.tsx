@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
+import MobileBottomNav from '@/components/MobileBottomNav'
 
 export default function AccountPage() {
   const router = useRouter()
@@ -52,6 +53,11 @@ export default function AccountPage() {
 
   const ownsNeither = !loading && bizCount === 0 && propCount === 0
 
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', fontFamily: "'Sora', sans-serif", color: 'var(--white)' }}>
       <style>{`
@@ -63,7 +69,8 @@ export default function AccountPage() {
         .nav-logo{font-size:14px;font-weight:700;color:var(--white);text-decoration:none;}
         .nav-sep{color:var(--muted);font-size:12px;}
         .nav-tag{font-size:11.5px;font-weight:600;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.25);padding:3px 10px;border-radius:999px;}
-        .nav-email{font-size:12px;color:var(--muted);}
+        .nav-signout{font-size:12px;font-weight:600;color:var(--muted);background:transparent;border:1px solid var(--border2);border-radius:8px;padding:6px 14px;cursor:pointer;font-family:'Sora',sans-serif;transition:color 0.15s,border-color 0.15s;}
+        .nav-signout:hover{color:var(--off);border-color:rgba(255,255,255,0.22);}
         .wrap{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:52px 24px 80px;}
         .eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--red);background:var(--red-bg);border:1px solid rgba(192,57,43,0.2);padding:5px 13px;border-radius:999px;margin-bottom:16px;}
         .title{font-size:clamp(24px,4vw,32px);font-weight:800;letter-spacing:-0.03em;color:var(--white);margin-bottom:6px;}
@@ -122,7 +129,7 @@ export default function AccountPage() {
           <span className="nav-sep">/</span>
           <span className="nav-tag">My Account</span>
         </div>
-        {email && <span className="nav-email">{email}</span>}
+        <button className="nav-signout" onClick={signOut}>Sign out</button>
       </nav>
 
       <div className="wrap">
@@ -218,6 +225,7 @@ export default function AccountPage() {
         )}
 
       </div>
+      <MobileBottomNav />
     </div>
   )
 }
