@@ -122,82 +122,85 @@ export default function DashboardPage() {
 
       setBusiness(biz)
 
-      // Analytics
-      if (biz) {
-        const today     = new Date().toISOString().split('T')[0]
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-        const weekStart = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0]
+      // All data fetches run in parallel — none depend on each other
+      const today     = new Date().toISOString().split('T')[0]
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+      const weekStart = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0]
 
-        const { data: rows } = await supabase
+      const [
+        { data: rows },
+        { data: allRows },
+        { data: leads },
+        scRes,
+      ] = await Promise.all([
+        supabase
           .from('business_analytics')
           .select('date, profile_views, search_appearances, whatsapp_clicks, call_clicks, maps_clicks')
           .eq('business_id', biz.id)
           .gte('date', weekStart)
-          .order('date', { ascending: true })
-
-        const r = rows ?? []
-        const get = (date: string, field: string) =>
-          (r.find(x => x.date === date) as any)?.[field] ?? 0
-
-        // Last 7 days for chart (oldest → newest)
-        const weekly = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date(Date.now() - (6 - i) * 86400000).toISOString().split('T')[0]
-          return get(d, 'profile_views')
-        })
-
-        // All-time total views
-        const { data: allRows } = await supabase
+          .order('date', { ascending: true }),
+        supabase
           .from('business_analytics')
           .select('profile_views')
-          .eq('business_id', biz.id)
-        const totalViews = (allRows ?? []).reduce((s, x) => s + (x.profile_views ?? 0), 0)
-
-        setAnalytics({
-          views_today:        get(today,     'profile_views'),
-          views_yesterday:    get(yesterday, 'profile_views'),
-          whatsapp_today:     get(today,     'whatsapp_clicks'),
-          whatsapp_yesterday: get(yesterday, 'whatsapp_clicks'),
-          calls_today:        get(today,     'call_clicks'),
-          calls_yesterday:    get(yesterday, 'call_clicks'),
-          maps_today:         get(today,     'maps_clicks'),
-          search_today:       get(today,     'search_appearances'),
-          total_views:        totalViews,
-          weekly_views:       weekly,
-        })
-
-        // Lead events — all time
-        const { data: leads } = await supabase
+          .eq('business_id', biz.id),
+        supabase
           .from('lead_events')
           .select('event_type, created_at')
-          .eq('business_id', biz.id)
-        const leadRows = leads ?? []
-        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-        setLeadCalls(leadRows.filter((l: { event_type: string }) => l.event_type === 'call').length)
-        setLeadWa(leadRows.filter((l: { event_type: string }) => l.event_type === 'whatsapp').length)
-        setLeadViews(leadRows.filter((l: { event_type: string }) => l.event_type === 'view').length)
-        setLeadMonth(leadRows.filter((l: { event_type: string; created_at: string }) =>
-          (l.event_type === 'call' || l.event_type === 'whatsapp') && l.created_at >= monthStart
-        ).length)
+          .eq('business_id', biz.id),
+        fetch('/api/save-count'),
+      ])
 
-        // Weekly breakdown for chart (last 7 days, index 0 = 6 days ago, index 6 = today)
-        const now = Date.now()
-        const wViews = new Array(7).fill(0)
-        const wCalls = new Array(7).fill(0)
-        const wWa    = new Array(7).fill(0)
-        leadRows.forEach((l: { event_type: string; created_at: string }) => {
-          const daysAgo = Math.floor((now - new Date(l.created_at).getTime()) / 86400000)
-          if (daysAgo >= 0 && daysAgo < 7) {
-            const idx = 6 - daysAgo
-            if (l.event_type === 'view')     wViews[idx]++
-            if (l.event_type === 'call')     wCalls[idx]++
-            if (l.event_type === 'whatsapp') wWa[idx]++
-          }
-        })
-        setWeeklyData({ views: wViews, calls: wCalls, whatsapp: wWa })
-      }
+      // Analytics
+      const r = rows ?? []
+      const get = (date: string, field: string) =>
+        (r.find(x => x.date === date) as any)?.[field] ?? 0
+
+      const weekly = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(Date.now() - (6 - i) * 86400000).toISOString().split('T')[0]
+        return get(d, 'profile_views')
+      })
+
+      const totalViews = (allRows ?? []).reduce((s, x) => s + (x.profile_views ?? 0), 0)
+
+      setAnalytics({
+        views_today:        get(today,     'profile_views'),
+        views_yesterday:    get(yesterday, 'profile_views'),
+        whatsapp_today:     get(today,     'whatsapp_clicks'),
+        whatsapp_yesterday: get(yesterday, 'whatsapp_clicks'),
+        calls_today:        get(today,     'call_clicks'),
+        calls_yesterday:    get(yesterday, 'call_clicks'),
+        maps_today:         get(today,     'maps_clicks'),
+        search_today:       get(today,     'search_appearances'),
+        total_views:        totalViews,
+        weekly_views:       weekly,
+      })
+
+      // Lead events
+      const leadRows = leads ?? []
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+      setLeadCalls(leadRows.filter((l: { event_type: string }) => l.event_type === 'call').length)
+      setLeadWa(leadRows.filter((l: { event_type: string }) => l.event_type === 'whatsapp').length)
+      setLeadViews(leadRows.filter((l: { event_type: string }) => l.event_type === 'view').length)
+      setLeadMonth(leadRows.filter((l: { event_type: string; created_at: string }) =>
+        (l.event_type === 'call' || l.event_type === 'whatsapp') && l.created_at >= monthStart
+      ).length)
+
+      const now = Date.now()
+      const wViews = new Array(7).fill(0)
+      const wCalls = new Array(7).fill(0)
+      const wWa    = new Array(7).fill(0)
+      leadRows.forEach((l: { event_type: string; created_at: string }) => {
+        const daysAgo = Math.floor((now - new Date(l.created_at).getTime()) / 86400000)
+        if (daysAgo >= 0 && daysAgo < 7) {
+          const idx = 6 - daysAgo
+          if (l.event_type === 'view')     wViews[idx]++
+          if (l.event_type === 'call')     wCalls[idx]++
+          if (l.event_type === 'whatsapp') wWa[idx]++
+        }
+      })
+      setWeeklyData({ views: wViews, calls: wCalls, whatsapp: wWa })
 
       // Save count
-      const scRes = await fetch('/api/save-count')
       if (scRes.ok) {
         const scData = await scRes.json()
         const counts: Record<string, number> = scData.businesses ?? {}
@@ -352,7 +355,7 @@ export default function DashboardPage() {
           })() : 'Dashboard'}
         </span>
         {business ? (
-          <a href={`/business/${business.slug}`} target="_blank" rel="noreferrer" className="mob-view-btn">View Listing →</a>
+          <a href={`/business/${business.id}`} target="_blank" rel="noreferrer" className="mob-view-btn">View Listing →</a>
         ) : <span style={{width:44}} />}
       </div>
 
@@ -461,7 +464,7 @@ export default function DashboardPage() {
               <p>Here's how your business is doing today</p>
             </div>
             {business && (
-              <a href={`/business/${business.slug}`} target="_blank" rel="noreferrer" className="view-btn">
+              <a href={`/business/${business.id}`} target="_blank" rel="noreferrer" className="view-btn">
                 🔗 View Live Listing
               </a>
             )}
@@ -484,7 +487,7 @@ export default function DashboardPage() {
                   <div className="fb-cover-gradient" />
                   <div className="fb-cover-actions">
                     <button className="fb-cover-btn" onClick={() => setActiveTab('listing')}>Edit cover</button>
-                    <a href={`/business/${business.slug}`} target="_blank" rel="noreferrer" className="fb-cover-btn fb-cover-btn-red">View listing →</a>
+                    <a href={`/business/${business.id}`} target="_blank" rel="noreferrer" className="fb-cover-btn fb-cover-btn-red">View listing →</a>
                   </div>
                 </div>
                 {/* Avatar + business info */}
