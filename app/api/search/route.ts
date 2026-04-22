@@ -8,8 +8,6 @@ export async function GET(request: NextRequest) {
   const featured = request.nextUrl.searchParams.get('featured') === 'true';
   const recent = request.nextUrl.searchParams.get('recent') === 'true';
 
-  if (!query && !city && !featured && !recent) return NextResponse.json({ businesses: [], detectedCity: null, detectedPrice: null });
-
   try {
     const result = await searchBusinesses(query, city || undefined, featured, recent);
     return NextResponse.json(result);
