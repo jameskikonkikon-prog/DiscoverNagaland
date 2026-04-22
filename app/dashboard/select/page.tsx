@@ -99,7 +99,11 @@ export default function DashboardSelectPage() {
         .section-label { font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:rgba(255,255,255,0.25); margin-bottom:10px; margin-top:4px; }
         .badge-free { background:#222; color:#888; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; text-transform:uppercase; letter-spacing:0.4px; flex-shrink:0; }
         .badge-pro { background:rgba(212,160,23,0.12); color:#D4A017; border:1px solid rgba(212,160,23,0.3); font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; text-transform:uppercase; letter-spacing:0.4px; flex-shrink:0; }
-        @media(max-width:480px) { .wrap { padding:48px 16px 80px; } }
+        .add-row { display:flex; gap:10px; margin-top:20px; }
+        .add-btn { flex:1; display:flex; align-items:center; justify-content:center; gap:7px; background:transparent; border:1px solid rgba(255,255,255,0.08); border-radius:11px; padding:11px 14px; color:rgba(255,255,255,0.45); font-size:12px; font-weight:600; text-decoration:none; font-family:'Sora',sans-serif; transition:border-color 0.15s,color 0.15s,background 0.15s; white-space:nowrap; }
+        .add-btn:hover { border-color:rgba(192,57,43,0.4); color:#fff; background:rgba(192,57,43,0.06); }
+        .add-btn-plus { font-size:15px; font-weight:700; color:#c0392b; line-height:1; }
+        @media(max-width:480px) { .wrap { padding:48px 16px 80px; } .add-row { flex-direction:column; } }
       `}</style>
 
       <nav className="nav">
@@ -170,6 +174,15 @@ export default function DashboardSelectPage() {
               </a>
             </>
           )}
+        </div>
+
+        <div className="add-row">
+          <a href="/dashboard/add-listing" className="add-btn">
+            <span className="add-btn-plus">+</span> Add Business
+          </a>
+          <a href="/real-estate/dashboard/add-property" className="add-btn">
+            <span className="add-btn-plus">+</span> Add Property
+          </a>
         </div>
       </div>
     </div>
