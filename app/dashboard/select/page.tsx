@@ -177,7 +177,7 @@ export default function DashboardSelectPage() {
         </div>
 
         <div className="add-row">
-          <a href="/dashboard/add-listing" className="add-btn">
+          <a href="/register" className="add-btn">
             <span className="add-btn-plus">+</span> Add Business
           </a>
           <a href="/real-estate/dashboard/add-property" className="add-btn">
