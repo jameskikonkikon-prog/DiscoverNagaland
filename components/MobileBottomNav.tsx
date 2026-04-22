@@ -44,7 +44,7 @@ export default function MobileBottomNav() {
         @media(max-width:767px){.gnav{display:grid;}}
         .gnav-item{
           display:flex;flex-direction:column;align-items:center;justify-content:center;
-          gap:3px;text-decoration:none;color:#3a3a3a;
+          gap:3px;text-decoration:none;color:#666;
           font-size:10px;font-weight:600;letter-spacing:0.3px;
           transition:color 0.15s;padding:0 4px;
         }
@@ -54,7 +54,7 @@ export default function MobileBottomNav() {
         .gnav-cta{
           margin:8px 6px;border-radius:10px;
           background:rgba(229,56,59,0.14);border:1px solid rgba(229,56,59,0.28);
-          font-weight:700;
+          color:#e5383b;font-weight:700;
         }
       `}</style>
       <nav className={`gnav${loggedIn ? ' gnav-5' : ''}`} aria-label="Mobile navigation">
@@ -82,7 +82,7 @@ export default function MobileBottomNav() {
             </a>
           </>
         ) : (
-          <a href="/register" className={`gnav-item gnav-cta${isRegister ? ' gnav-active' : ''}`}>
+          <a href="/register" className={`gnav-item${isRegister ? ' gnav-cta gnav-active' : ''}`}>
             <span className="gnav-icon">+</span>
             <span className="gnav-label">List Business</span>
           </a>

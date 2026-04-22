@@ -114,8 +114,15 @@ export default function AccountPage() {
         .cust-discover{margin-bottom:16px;}
         .cust-discover-title{font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
         .cust-discover-links{display:flex;gap:10px;flex-wrap:wrap;}
-        .cust-list-cta{font-size:13px;color:var(--muted);text-align:center;}
-        .cust-list-cta a{color:var(--red);text-decoration:none;}
+        /* OWN A BUSINESS BANNER */
+        .own-biz-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;background:var(--bg2);border:1px solid rgba(192,57,43,0.22);border-radius:14px;padding:18px 20px;margin-top:8px;}
+        .own-biz-left{display:flex;align-items:center;gap:13px;}
+        .own-biz-icon{width:40px;height:40px;border-radius:10px;background:var(--red-bg);border:1px solid rgba(192,57,43,0.22);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+        .own-biz-title{font-size:14px;font-weight:700;color:var(--white);margin-bottom:2px;}
+        .own-biz-sub{font-size:11px;color:var(--muted);line-height:1.5;}
+        .own-biz-btn{flex-shrink:0;background:var(--red);color:#fff;font-size:12px;font-weight:700;padding:8px 16px;border-radius:8px;text-decoration:none;white-space:nowrap;font-family:'Sora',sans-serif;transition:opacity 0.15s;}
+        .own-biz-btn:hover{opacity:0.85;}
+        @media(max-width:520px){.own-biz-banner{flex-direction:column;align-items:flex-start;gap:12px;}.own-biz-btn{align-self:stretch;text-align:center;}}
         /* SAVED STRIP (for owners) */
         .saved-strip{display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-top:16px;text-decoration:none;color:var(--off);font-size:13px;font-weight:600;transition:border-color 0.15s;}
         .saved-strip:hover{border-color:var(--border2);}
@@ -164,9 +171,15 @@ export default function AccountPage() {
               </div>
             </div>
 
-            <div className="divider" />
-            <div className="cust-list-cta">
-              Want to list? <a href="/register">Register a business</a> · <a href="/real-estate/dashboard/add-property">List a property</a>
+            <div className="own-biz-banner">
+              <div className="own-biz-left">
+                <div className="own-biz-icon">🏪</div>
+                <div>
+                  <div className="own-biz-title">Own a business?</div>
+                  <div className="own-biz-sub">List it on Yana — free to get started, no credit card needed.</div>
+                </div>
+              </div>
+              <a href="/register" className="own-biz-btn">List for free →</a>
             </div>
           </div>
         ) : (
