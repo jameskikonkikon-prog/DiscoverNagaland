@@ -65,7 +65,7 @@ function SearchPageInner() {
       const raw = sessionStorage.getItem(SEARCH_CACHE_KEY);
       if (raw) {
         const cached = JSON.parse(raw);
-        if (cached.urlKey === window.location.search && Array.isArray(cached.results)) {
+        if (cached.urlKey === window.location.search && Array.isArray(cached.results) && cached.results.length > 0) {
           setQuery(cached.query ?? q);
           setResults(cached.results);
           setRelatedResults(cached.relatedResults ?? []);
