@@ -92,6 +92,8 @@ function SearchPageInner() {
     } else if (q) {
       setQuery(q);
       doSearch(q, "");
+    } else {
+      doSearch("", "");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -359,7 +361,7 @@ function SearchPageInner() {
             </div>
           )}
 
-          {!loading && query.trim() !== "" && results.length > 0 && (
+          {!loading && hasSearched && results.length > 0 && (
             <div className="filter-chips-wrap">
               <button type="button" className={`filter-chip ${filterOpenNow ? "active" : ""}`} onClick={() => setFilterOpenNow(v => !v)}>Open Now</button>
               <button type="button" className={`filter-chip ${filterCity === "Kohima" ? "active" : ""}`} onClick={() => toggleFilterCity("Kohima")}>Kohima</button>
@@ -375,8 +377,8 @@ function SearchPageInner() {
         <div className="content">
           <div className="results-col">
 
-            {/* Trending chips — shown when no active search */}
-            {!loading && query.trim() === "" && (
+            {/* Trending chips — shown when no active search and no default results yet */}
+            {!loading && query.trim() === "" && results.length === 0 && (
               <div className="trending-section">
                 {!hasSearched && (
                   <p className="trending-label">Trending</p>

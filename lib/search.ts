@@ -543,9 +543,14 @@ export async function searchBusinesses(
   console.log('[search] keywords:', keywords);
   console.log('[search] meta.categories sample:', meta.categories.slice(0, 10));
 
-  // ── Edge case: completely empty query ──
+  // ── Edge case: completely empty query — show all businesses, Pro first ──
   if (!cleanQuery && !activeCity) {
-    return { businesses: [], detectedCity, detectedPrice };
+    const { data } = await client
+      .from('businesses')
+      .select(SELECT_COLS)
+      .or('is_active.eq.true,is_active.is.null')
+      .not('category', 'in', `(${PROPERTY_CATEGORIES.join(',')})`);
+    return { businesses: byPlan(((data as unknown) as Business[]) || []), detectedCity, detectedPrice };
   }
 
   // ── Main fetch ──
