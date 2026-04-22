@@ -39,6 +39,7 @@ export default function MyListingPage() {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [business, setBusiness] = useState<Business | null>(null);
 
@@ -64,12 +65,21 @@ export default function MyListingPage() {
       if (!mounted) return;
       if (!user) { router.push('/login'); return; }
 
-      const { data: biz } = await supabase
+      const bizId = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('businessId')
+        : null;
+
+      const q = supabase
         .from('businesses')
         .select('id, name, category, city, area, phone, whatsapp, email, price_range, opening_hours, website, photos, description, tags, vibe_tags, plan')
-        .eq('owner_id', user.id)
-        .eq('is_active', true)
-        .single();
+        .eq('is_active', true);
+
+      const { data: bizRows } = await (bizId
+        ? q.eq('id', bizId).eq('owner_id', user.id)
+        : q.eq('owner_id', user.id)
+      ).limit(1);
+
+      const biz = bizRows?.[0] ?? null;
 
       if (!mounted) return;
       if (biz) {

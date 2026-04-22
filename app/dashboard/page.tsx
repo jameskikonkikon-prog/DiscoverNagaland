@@ -94,8 +94,103 @@ export default function DashboardPage() {
   const [leadMonth,    setLeadMonth]    = useState(0)
   const [saveCount,    setSaveCount]    = useState(0)
   const [weeklyData,   setWeeklyData]   = useState<{ views: number[]; calls: number[]; whatsapp: number[] }>({ views: [], calls: [], whatsapp: [] })
+  const [allBusinesses, setAllBusinesses] = useState<Business[]>([])
+  const [showSelector,  setShowSelector]  = useState(false)
 
   // ── LOAD ─────────────────────────────────────────────────────────────────
+  const loadAnalytics = useCallback(async (biz: Business) => {
+    const today     = new Date().toISOString().split('T')[0]
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+    const weekStart = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0]
+
+    const [
+      { data: rows },
+      { data: allRows },
+      { data: leads },
+      scRes,
+    ] = await Promise.all([
+      supabase
+        .from('business_analytics')
+        .select('date, profile_views, search_appearances, whatsapp_clicks, call_clicks, maps_clicks')
+        .eq('business_id', biz.id)
+        .gte('date', weekStart)
+        .order('date', { ascending: true }),
+      supabase
+        .from('business_analytics')
+        .select('profile_views')
+        .eq('business_id', biz.id),
+      supabase
+        .from('lead_events')
+        .select('event_type, created_at')
+        .eq('business_id', biz.id),
+      fetch('/api/save-count'),
+    ])
+
+    const r = rows ?? []
+    const get = (date: string, field: string) =>
+      (r.find(x => x.date === date) as any)?.[field] ?? 0
+
+    const weekly = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(Date.now() - (6 - i) * 86400000).toISOString().split('T')[0]
+      return get(d, 'profile_views')
+    })
+
+    const totalViews = (allRows ?? []).reduce((s, x) => s + (x.profile_views ?? 0), 0)
+
+    setAnalytics({
+      views_today:        get(today,     'profile_views'),
+      views_yesterday:    get(yesterday, 'profile_views'),
+      whatsapp_today:     get(today,     'whatsapp_clicks'),
+      whatsapp_yesterday: get(yesterday, 'whatsapp_clicks'),
+      calls_today:        get(today,     'call_clicks'),
+      calls_yesterday:    get(yesterday, 'call_clicks'),
+      maps_today:         get(today,     'maps_clicks'),
+      search_today:       get(today,     'search_appearances'),
+      total_views:        totalViews,
+      weekly_views:       weekly,
+    })
+
+    const leadRows = leads ?? []
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+    setLeadCalls(leadRows.filter((l: { event_type: string }) => l.event_type === 'call').length)
+    setLeadWa(leadRows.filter((l: { event_type: string }) => l.event_type === 'whatsapp').length)
+    setLeadViews(leadRows.filter((l: { event_type: string }) => l.event_type === 'view').length)
+    setLeadMonth(leadRows.filter((l: { event_type: string; created_at: string }) =>
+      (l.event_type === 'call' || l.event_type === 'whatsapp') && l.created_at >= monthStart
+    ).length)
+
+    const now = Date.now()
+    const wViews = new Array(7).fill(0)
+    const wCalls = new Array(7).fill(0)
+    const wWa    = new Array(7).fill(0)
+    leadRows.forEach((l: { event_type: string; created_at: string }) => {
+      const daysAgo = Math.floor((now - new Date(l.created_at).getTime()) / 86400000)
+      if (daysAgo >= 0 && daysAgo < 7) {
+        const idx = 6 - daysAgo
+        if (l.event_type === 'view')     wViews[idx]++
+        if (l.event_type === 'call')     wCalls[idx]++
+        if (l.event_type === 'whatsapp') wWa[idx]++
+      }
+    })
+    setWeeklyData({ views: wViews, calls: wCalls, whatsapp: wWa })
+
+    if (scRes.ok) {
+      const scData = await scRes.json()
+      const counts: Record<string, number> = scData.businesses ?? {}
+      setSaveCount(counts[biz.id] ?? 0)
+    }
+
+    setLoading(false)
+  }, [supabase])
+
+  const handleSelectBusiness = useCallback(async (biz: Business) => {
+    setShowSelector(false)
+    setLoading(true)
+    setBusiness(biz)
+    setAnalytics(null)
+    await loadAnalytics(biz)
+  }, [loadAnalytics])
+
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -104,8 +199,11 @@ export default function DashboardPage() {
       setUserId(session.user.id)
       setUserEmail(session.user.email ?? '')
 
-      // Business owned by this user
-      const { data: biz } = await supabase
+      const bizIdParam = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('businessId')
+        : null
+
+      const { data: bizList } = await supabase
         .from('businesses')
         .select(`
           id, name, slug, category, city, area,
@@ -116,101 +214,31 @@ export default function DashboardPage() {
         `)
         .eq('owner_id', session.user.id)
         .eq('is_active', true)
-        .single()
+        .order('created_at', { ascending: true })
 
-      if (!biz) { router.push('/account'); return }
+      const allBizList = (bizList ?? []) as Business[]
 
-      setBusiness(biz)
+      if (allBizList.length === 0) { router.push('/account'); return }
 
-      // All data fetches run in parallel — none depend on each other
-      const today     = new Date().toISOString().split('T')[0]
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-      const weekStart = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0]
+      setAllBusinesses(allBizList)
 
-      const [
-        { data: rows },
-        { data: allRows },
-        { data: leads },
-        scRes,
-      ] = await Promise.all([
-        supabase
-          .from('business_analytics')
-          .select('date, profile_views, search_appearances, whatsapp_clicks, call_clicks, maps_clicks')
-          .eq('business_id', biz.id)
-          .gte('date', weekStart)
-          .order('date', { ascending: true }),
-        supabase
-          .from('business_analytics')
-          .select('profile_views')
-          .eq('business_id', biz.id),
-        supabase
-          .from('lead_events')
-          .select('event_type, created_at')
-          .eq('business_id', biz.id),
-        fetch('/api/save-count'),
-      ])
-
-      // Analytics
-      const r = rows ?? []
-      const get = (date: string, field: string) =>
-        (r.find(x => x.date === date) as any)?.[field] ?? 0
-
-      const weekly = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(Date.now() - (6 - i) * 86400000).toISOString().split('T')[0]
-        return get(d, 'profile_views')
-      })
-
-      const totalViews = (allRows ?? []).reduce((s, x) => s + (x.profile_views ?? 0), 0)
-
-      setAnalytics({
-        views_today:        get(today,     'profile_views'),
-        views_yesterday:    get(yesterday, 'profile_views'),
-        whatsapp_today:     get(today,     'whatsapp_clicks'),
-        whatsapp_yesterday: get(yesterday, 'whatsapp_clicks'),
-        calls_today:        get(today,     'call_clicks'),
-        calls_yesterday:    get(yesterday, 'call_clicks'),
-        maps_today:         get(today,     'maps_clicks'),
-        search_today:       get(today,     'search_appearances'),
-        total_views:        totalViews,
-        weekly_views:       weekly,
-      })
-
-      // Lead events
-      const leadRows = leads ?? []
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-      setLeadCalls(leadRows.filter((l: { event_type: string }) => l.event_type === 'call').length)
-      setLeadWa(leadRows.filter((l: { event_type: string }) => l.event_type === 'whatsapp').length)
-      setLeadViews(leadRows.filter((l: { event_type: string }) => l.event_type === 'view').length)
-      setLeadMonth(leadRows.filter((l: { event_type: string; created_at: string }) =>
-        (l.event_type === 'call' || l.event_type === 'whatsapp') && l.created_at >= monthStart
-      ).length)
-
-      const now = Date.now()
-      const wViews = new Array(7).fill(0)
-      const wCalls = new Array(7).fill(0)
-      const wWa    = new Array(7).fill(0)
-      leadRows.forEach((l: { event_type: string; created_at: string }) => {
-        const daysAgo = Math.floor((now - new Date(l.created_at).getTime()) / 86400000)
-        if (daysAgo >= 0 && daysAgo < 7) {
-          const idx = 6 - daysAgo
-          if (l.event_type === 'view')     wViews[idx]++
-          if (l.event_type === 'call')     wCalls[idx]++
-          if (l.event_type === 'whatsapp') wWa[idx]++
-        }
-      })
-      setWeeklyData({ views: wViews, calls: wCalls, whatsapp: wWa })
-
-      // Save count
-      if (scRes.ok) {
-        const scData = await scRes.json()
-        const counts: Record<string, number> = scData.businesses ?? {}
-        setSaveCount(Object.values(counts).reduce((s: number, n) => s + (n as number), 0))
+      let selectedBiz: Business
+      if (bizIdParam) {
+        selectedBiz = allBizList.find(b => b.id === bizIdParam) ?? allBizList[0]
+      } else if (allBizList.length === 1) {
+        selectedBiz = allBizList[0]
+      } else {
+        setShowSelector(true)
+        setLoading(false)
+        return
       }
 
-      setLoading(false)
+      setBusiness(selectedBiz)
+      await loadAnalytics(selectedBiz)
     }
     load()
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadAnalytics])
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -321,6 +349,64 @@ export default function DashboardPage() {
 
   const location = [business?.area, business?.city].filter(Boolean).join(', ')
 
+  // ── BUSINESS SELECTOR ─────────────────────────────────────────────────────
+  if (showSelector) {
+    return (
+      <>
+        <style>{CSS + `
+          .sel-page{min-height:100vh;background:var(--bg);font-family:'Sora',sans-serif;color:#fff;}
+          .sel-nav{position:sticky;top:0;z-index:50;background:rgba(10,10,10,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;gap:8px;}
+          .sel-nav-logo{font-size:14px;font-weight:700;color:#fff;text-decoration:none;}
+          .sel-nav-sep{color:rgba(255,255,255,0.3);font-size:12px;}
+          .sel-nav-tag{font-size:11px;font-weight:600;color:var(--red);background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.22);padding:3px 10px;border-radius:999px;}
+          .sel-wrap{max-width:520px;margin:0 auto;padding:64px 24px 80px;}
+          .sel-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--red);background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);padding:4px 12px;border-radius:999px;margin-bottom:18px;}
+          .sel-title{font-size:clamp(22px,4vw,28px);font-weight:800;letter-spacing:-0.03em;margin-bottom:6px;}
+          .sel-sub{font-size:13px;color:var(--muted);margin-bottom:32px;line-height:1.6;}
+          .sel-add{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);color:#aaa;padding:9px 16px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;font-family:'Sora',sans-serif;transition:all 0.2s;margin-bottom:28px;}
+          .sel-add:hover{border-color:#444;color:#fff;}
+          .sel-grid{display:grid;gap:10px;}
+          .sel-card{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;cursor:pointer;transition:border-color 0.15s,transform 0.12s;font-family:'Sora',sans-serif;text-align:left;width:100%;}
+          .sel-card:hover{border-color:rgba(255,255,255,0.18);transform:translateY(-1px);}
+          .sel-avatar{width:44px;height:44px;border-radius:11px;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0;}
+          .sel-info{flex:1;min-width:0;}
+          .sel-name{font-size:14px;font-weight:700;color:#fff;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+          .sel-meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+          .sel-arrow{font-size:18px;color:rgba(255,255,255,0.2);flex-shrink:0;}
+        `}</style>
+        <div className="sel-page">
+          <nav className="sel-nav">
+            <a href="/" className="sel-nav-logo">Yana Nagaland</a>
+            <span className="sel-nav-sep">/</span>
+            <span className="sel-nav-tag">My Businesses</span>
+          </nav>
+          <div className="sel-wrap">
+            <div className="sel-eyebrow"><span>🏪</span><span>My Businesses</span></div>
+            <h1 className="sel-title">Choose a business</h1>
+            <p className="sel-sub">Select the business you'd like to manage.</p>
+            <a href="/dashboard/add-listing" className="sel-add">+ Add New Business</a>
+            <div className="sel-grid">
+              {allBusinesses.map(biz => {
+                const p = normalizePlan(biz.plan)
+                return (
+                  <button key={biz.id} className="sel-card" onClick={() => handleSelectBusiness(biz)}>
+                    <div className="sel-avatar">{biz.name[0]?.toUpperCase() ?? '?'}</div>
+                    <div className="sel-info">
+                      <div className="sel-name">{biz.name}</div>
+                      <div className="sel-meta">{[biz.category, biz.city].filter(Boolean).join(' · ')}</div>
+                    </div>
+                    <span className={`badge badge-${p}`}>{PLANS[p].name}</span>
+                    <span className="sel-arrow">→</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   // ── LOADING ───────────────────────────────────────────────────────────────
   if (loading) return (
     <div style={{ display:'flex', minHeight:'100vh', background:'#0a0a0a', fontFamily:'Sora,sans-serif' }}>
@@ -429,6 +515,17 @@ export default function DashboardPage() {
               onClick={() => { setActiveTab('billing'); setSidebarOpen(false) }}>
               <span className="icon">💳</span>Plan & Billing
             </button>
+
+            {allBusinesses.length > 1 && (
+              <>
+                <div className="nav-label">Businesses</div>
+                <button
+                  className="nav-item"
+                  onClick={() => { setShowSelector(true); setBusiness(null); setAnalytics(null); setSidebarOpen(false) }}>
+                  <span className="icon">⇄</span>Switch Business
+                </button>
+              </>
+            )}
           </nav>
 
           <div className="sidebar-bottom">
@@ -725,6 +822,12 @@ export default function DashboardPage() {
             ]
             return (
               <>
+                {allBusinesses.length > 1 && business && (
+                  <div style={{ fontSize:12, color:'var(--muted)', marginBottom:12, display:'flex', alignItems:'center', gap:6 }}>
+                    Managing plan for <strong style={{ color:'#ccc', marginLeft:2 }}>{business.name}</strong>
+                  </div>
+                )}
+
                 {/* Current plan indicator */}
                 <div className="billing-current">
                   <span className="billing-current-label">Current plan</span>

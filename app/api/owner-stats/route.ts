@@ -1,11 +1,10 @@
 export const dynamic = 'force-dynamic';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getServiceClient } from '@/lib/supabase';
 
-export async function GET() {
-  // Authenticate via cookie session
+export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const authClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,19 +15,32 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const serviceClient = getServiceClient();
+  const businessId = request.nextUrl.searchParams.get('businessId');
 
-  // Find the owner's active business
-  const { data: biz } = await serviceClient
-    .from('businesses')
-    .select('id, name, plan')
-    .eq('owner_id', user.id)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
+  let biz: { id: string; name: string; plan: string } | null = null;
+
+  if (businessId) {
+    const { data } = await serviceClient
+      .from('businesses')
+      .select('id, name, plan')
+      .eq('id', businessId)
+      .eq('owner_id', user.id)
+      .eq('is_active', true)
+      .single();
+    biz = data;
+  } else {
+    const { data } = await serviceClient
+      .from('businesses')
+      .select('id, name, plan')
+      .eq('owner_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+    biz = data;
+  }
 
   if (!biz) return NextResponse.json({ error: 'No business found' }, { status: 404 });
 
-  // Count all-time lead events
   const { data: rows } = await serviceClient
     .from('lead_events')
     .select('event_type')
