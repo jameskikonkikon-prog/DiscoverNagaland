@@ -961,8 +961,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* OWN A BUSINESS CTA (logged out only) */}
-        {mounted && !loggedIn && (
+        {/* OWN A BUSINESS CTA */}
+        {mounted && (
           <div className="m-biz-cta">
             <span className="m-biz-cta-icon">🏪</span>
             <div className="m-biz-cta-body">
