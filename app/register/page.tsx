@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 import { supabase } from '@/lib/supabase';
 import { CITIES, CATEGORIES } from '@/types';
 
@@ -397,6 +398,17 @@ export default function RegisterPage() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState('');
   const [otpResending, setOtpResending] = useState(false);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const client = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    client.auth.getSession().then(({ data }) => {
+      setSessionUserId(data.session?.user.id ?? null)
+    })
+  }, [])
 
   // ── CUSTOMER SIGN-UP MODE ──────────────────────────────────────────────────
   const [regMode,          setRegMode]          = useState<'business' | 'customer'>('business')
@@ -482,6 +494,37 @@ export default function RegisterPage() {
       return urlData.publicUrl;
     }
     return null;
+  };
+
+  const handleSubmitLoggedIn = async () => {
+    setLoading(true); setError('');
+    try {
+      const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
+      const res = await fetch('/api/register-business', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, slug, custom_fields: customFields, vibe_tags: vibeTags.join(',') }),
+      });
+      if (!res.ok) {
+        const { error: e } = await res.json();
+        throw new Error(e || 'Failed to create listing');
+      }
+      const { business } = await res.json();
+      if (business?.id) {
+        const [photoUrls, menuUrl] = await Promise.all([uploadPhotos(business.id), uploadMenu(business.id)]);
+        if (photoUrls.length > 0 || menuUrl) {
+          await fetch('/api/register-business/media', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ business_id: business.id, photos: photoUrls, menu_url: menuUrl }),
+          });
+        }
+      }
+      window.location.href = '/dashboard';
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    }
+    setLoading(false);
   };
 
   const handleSubmit = async () => {
@@ -728,6 +771,17 @@ export default function RegisterPage() {
         </div>
 
         {regMode === 'customer' ? (
+          sessionUserId ? (
+            <div className="reg-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>✅</div>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.5rem', color: 'var(--white)', marginBottom: '0.75rem' }}>You&apos;re already signed in</h2>
+              <p style={{ color: 'var(--muted)', marginBottom: '1.5rem', fontSize: '0.9rem', lineHeight: 1.6 }}>You already have an account. Head to your saved items or list a business instead.</p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <a href="/saved" style={{ padding: '10px 20px', background: 'var(--red)', color: '#fff', borderRadius: '9px', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600 }}>View Saved Items</a>
+                <a href="/account" style={{ padding: '10px 20px', background: 'transparent', color: 'var(--muted)', border: '1px solid var(--border2)', borderRadius: '9px', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600 }}>My Account</a>
+              </div>
+            </div>
+          ) : (
           <div className="reg-card">
             <div className="step-heading">
               <h2>Create your account</h2>
@@ -768,15 +822,16 @@ export default function RegisterPage() {
               </p>
             </form>
           </div>
+          )
         ) : (
         <>
         {/* STEPPER */}
         <div className="stepper">
-          {STEPS.map((s, i) => (
+          {(sessionUserId ? STEPS.slice(0, 5) : STEPS).map((s, i) => (
             <div key={s} className={`step-item ${i < step ? 'done' : i === step ? 'active' : ''}`}>
               <div className="step-bubble">{i < step ? '✓' : i + 1}</div>
               <span className="step-label">{s}</span>
-              {i < STEPS.length - 1 && <div className="step-line" />}
+              {i < (sessionUserId ? 4 : STEPS.length - 1) && <div className="step-line" />}
             </div>
           ))}
         </div>
@@ -972,8 +1027,12 @@ export default function RegisterPage() {
 
           <div className="btn-row">
             {step > 0 && <button className="btn-back" onClick={() => setStep(step - 1)}>← Back</button>}
-            {step < 5 ? (
+            {step < (sessionUserId ? 4 : 5) ? (
               <button className="btn-next" onClick={() => setStep(step + 1)} disabled={!canNext[step]}>Continue →</button>
+            ) : sessionUserId ? (
+              <button className="btn-next" onClick={handleSubmitLoggedIn} disabled={loading}>
+                {loading ? 'Creating listing…' : 'Create Listing'}
+              </button>
             ) : (
               <button className="btn-next" onClick={handleSubmit} disabled={loading || !canNext[5] || account.password !== account.confirm || !termsAccepted}>
                 {loading ? 'Creating listing…' : 'Create Listing'}
