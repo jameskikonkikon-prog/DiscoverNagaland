@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BREVO_API_KEY = process.env.BREVO_API_KEY!;
-const FROM_EMAIL = 'hello@discovernagaland.in';
-const FROM_NAME = 'Yana Nagaland';
+const FROM = 'Yana Nagaland <hello@yananagaland.com>';
 const DASHBOARD_URL = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`;
 
 type EmailPayload = {
@@ -80,19 +78,19 @@ function getEmailContent(payload: EmailPayload) {
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
-  await fetch('https://api.brevo.com/v3/smtp/email', {
+  const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      'api-key': BREVO_API_KEY,
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      sender: { name: FROM_NAME, email: FROM_EMAIL },
-      to: [{ email: to }],
-      subject,
-      htmlContent: html,
-    }),
+    body: JSON.stringify({ from: FROM, to, subject, html }),
   });
+  if (!res.ok) {
+    const body = await res.text();
+    console.error('[emails/send] Resend error:', res.status, body);
+    throw new Error(`Resend ${res.status}`);
+  }
 }
 
 export async function POST(req: NextRequest) {

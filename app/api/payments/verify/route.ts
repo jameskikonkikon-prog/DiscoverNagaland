@@ -57,5 +57,25 @@ export async function POST(request: NextRequest) {
     })
     .eq('id', storedBusinessId);
 
+  // Send payment confirmation email (non-fatal)
+  const { data: biz } = await serviceClient
+    .from('businesses')
+    .select('name, email')
+    .eq('id', storedBusinessId)
+    .single();
+
+  if (biz?.email) {
+    await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/emails/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'payment_success',
+        email: biz.email,
+        name: biz.name,
+        plan: 'pro',
+      }),
+    }).catch(console.error);
+  }
+
   return NextResponse.json({ success: true });
 }
