@@ -583,22 +583,19 @@ export default function HomePage() {
         {/* SIDEBAR */}
         <div className="sidebar">
           {/* LIVE STATS */}
-          <div className="sec-head"><span className="sec-title">Platform stats</span></div>
+          <div className="sec-head"><span className="sec-title">Yana in numbers</span></div>
           <div className="live-row"><div className="live-dot" />From Supabase</div>
           <div className="stats-grid stats-three">
             <div className="stat s1">
-              <div className="stat-icon">🏪</div>
-              <div className="stat-val gold">{totalBusinesses}</div>
-              <div className="stat-lbl">Businesses listed</div>
+              <div className="stat-val">{totalBusinesses}</div>
+              <div className="stat-lbl">Businesses</div>
             </div>
             <div className="stat s2">
-              <div className="stat-icon">📍</div>
-              <div className="stat-val red">{totalCities}</div>
+              <div className="stat-val">{totalCities}</div>
               <div className="stat-lbl">Cities</div>
             </div>
             <div className="stat s3">
-              <div className="stat-icon">📂</div>
-              <div className="stat-val grn">{totalCategories}</div>
+              <div className="stat-val">{totalCategories}</div>
               <div className="stat-lbl">Categories</div>
             </div>
           </div>
@@ -1282,33 +1279,49 @@ const pageStyles = BIZ_CARD_CSS + `
   /* ── SIDEBAR ── */
   .sidebar{}
   .stats-grid{
-    display:grid;grid-template-columns:1fr 1fr;gap:8px;
+    display:grid;grid-template-columns:1fr 1fr;gap:14px;
     margin-bottom:20px;
   }
   .stats-grid.stats-three{grid-template-columns:1fr 1fr 1fr;}
   .stat{
-    background:var(--bg2);border:1px solid var(--border);
-    border-radius:10px;padding:16px 12px;text-align:center;
+    border-radius:16px;padding:22px 20px;
     position:relative;overflow:hidden;
-    transition:all 0.15s;
+    transition:transform 0.18s, border-color 0.18s;
   }
-  .stat::before{
-    content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  .stat::after{
+    content:'';position:absolute;bottom:-50px;right:-50px;
+    width:140px;height:140px;border-radius:50%;
+    pointer-events:none;
   }
-  .stat.s1::before{background:linear-gradient(90deg,var(--red),transparent);}
-  .stat.s2::before{background:linear-gradient(90deg,var(--gold),transparent);}
-  .stat.s3::before{background:linear-gradient(90deg,#25d366,transparent);}
-  .stat.s4::before{background:linear-gradient(90deg,rgba(255,255,255,0.3),transparent);}
-  .stat:hover{background:var(--bg3);}
-  .stat-icon{font-size:18px;margin-bottom:6px;}
+  .stat.s1{
+    background:linear-gradient(135deg,#1e0808,#2a0f0f);
+    border:1px solid rgba(192,57,43,0.3);
+  }
+  .stat.s1::after{background:radial-gradient(circle,rgba(231,76,60,0.28),transparent 70%);}
+  .stat.s2{
+    background:linear-gradient(135deg,#080d1e,#0f152a);
+    border:1px solid rgba(52,152,219,0.3);
+  }
+  .stat.s2::after{background:radial-gradient(circle,rgba(52,152,219,0.28),transparent 70%);}
+  .stat.s3{
+    background:linear-gradient(135deg,#081e0f,#0f2a16);
+    border:1px solid rgba(39,174,96,0.3);
+  }
+  .stat.s3::after{background:radial-gradient(circle,rgba(39,174,96,0.28),transparent 70%);}
+  .stat:hover{transform:translateY(-2px);}
   .stat-val{
-    font-family:'Playfair Display',serif;
-    font-size:26px;font-weight:700;line-height:1;margin-bottom:4px;
+    font-family:'Sora',sans-serif;
+    font-size:36px;font-weight:800;line-height:1;margin-bottom:8px;
+    position:relative;z-index:1;letter-spacing:-0.02em;
   }
-  .stat-val.red{color:var(--red);}
-  .stat-val.gold{color:var(--gold);}
-  .stat-val.grn{color:#25d366;}
-  .stat-lbl{font-size:10.5px;color:var(--muted);line-height:1.4;}
+  .stat.s1 .stat-val{color:#e74c3c;}
+  .stat.s2 .stat-val{color:#3498db;}
+  .stat.s3 .stat-val{color:#27ae60;}
+  .stat-lbl{
+    font-size:11px;color:rgba(255,255,255,0.65);
+    letter-spacing:0.1em;text-transform:uppercase;font-weight:600;
+    position:relative;z-index:1;
+  }
   .stat-change{
     display:inline-flex;align-items:center;gap:3px;
     margin-top:5px;font-size:10px;font-weight:600;
