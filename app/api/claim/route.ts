@@ -24,7 +24,7 @@ async function sendClaimEmail(fields: {
     },
     body: JSON.stringify({
       from: 'claims@yananagaland.com',
-      to: 'jameskikonkikon@gmail.com',
+      to: process.env.ADMIN_EMAIL,
       subject: 'New listing claim request',
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:2rem;">

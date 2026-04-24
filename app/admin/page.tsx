@@ -3,8 +3,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Business } from '@/types';
 
-// Add your email here to access admin
-const ADMIN_EMAIL = 'your-admin@email.com';
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
 export default function AdminPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
