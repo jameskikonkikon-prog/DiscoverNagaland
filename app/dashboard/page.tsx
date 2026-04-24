@@ -498,9 +498,12 @@ export default function DashboardPage() {
 
           <nav className="sidebar-nav">
             <div className="nav-label">Dashboard</div>
+            <a href="/dashboard/select" className="nav-item" style={{textDecoration:'none'}}>
+              <span className="icon">📋</span>My Listings
+            </a>
             {([
-              { key:'overview',   icon:'📊', label:'Overview'   },
-              { key:'listing',    icon:'🏪', label:'My Listing' },
+              { key:'overview',   icon:'📊', label:'Overview'         },
+              { key:'listing',    icon:'🏪', label:'Business Profile' },
             ] as const).map(item => (
               <button key={item.key}
                 className={`nav-item${activeTab === item.key ? ' active' : ''}`}
@@ -633,6 +636,12 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
+
+            {/* ── ADD SHORTCUTS ──────────────────────────────────────── */}
+            <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
+              <a href="/register" className="view-btn">+ Add Business</a>
+              <a href="/real-estate/dashboard/add-property" className="view-btn">+ Add Property</a>
+            </div>
 
             {/* ── STATS ROW ──────────────────────────────────────────── */}
             <div className="stats-row" style={{ marginBottom:16 }}>
