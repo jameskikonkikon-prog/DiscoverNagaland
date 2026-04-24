@@ -606,9 +606,9 @@ export default function HomePage() {
           {/* CTA */}
           <div className="cta-box">
             <div className="cta-icon">🏪</div>
-            <div className="cta-title">Own a business?</div>
+            <div className="cta-title">List your business or property for free</div>
             <div className="cta-sub">Get found by thousands searching in Nagaland.</div>
-            <a href="/register" className="cta-btn">List your business free</a>
+            <a href="/list" className="cta-btn">Get started →</a>
             <span className="cta-free">No credit card · No contract · Cancel anytime</span>
             <a href="/login" className="cta-signin">Already own a business? Sign in</a>
           </div>
@@ -966,10 +966,10 @@ export default function HomePage() {
           <div className="m-biz-cta">
             <span className="m-biz-cta-icon">🏪</span>
             <div className="m-biz-cta-body">
-              <div className="m-biz-cta-title">Own a business?</div>
+              <div className="m-biz-cta-title">List your business or property for free</div>
               <div className="m-biz-cta-sub">Get found for free. No credit card required.</div>
             </div>
-            <a href="/register" className="m-biz-cta-btn">List free →</a>
+            <a href="/list" className="m-biz-cta-btn">Get started →</a>
           </div>
         )}
 
