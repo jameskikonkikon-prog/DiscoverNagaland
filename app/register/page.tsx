@@ -378,6 +378,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailExists, setEmailExists] = useState(false);
   const [form, setForm] = useState({
     name: '', category: '', city: '', address: '', landmark: '',
     phone: '', whatsapp: '', website: '',
@@ -500,10 +501,11 @@ export default function RegisterPage() {
     setLoading(true); setError('');
     try {
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
+      const { data: { user } } = await supabase.auth.getUser();
       const res = await fetch('/api/register-business', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, slug, custom_fields: customFields, vibe_tags: vibeTags.join(',') }),
+        body: JSON.stringify({ ...form, slug, custom_fields: customFields, vibe_tags: vibeTags.join(','), email: user?.email ?? null }),
       });
       if (!res.ok) {
         const { error: e } = await res.json();
@@ -530,7 +532,7 @@ export default function RegisterPage() {
   const handleSubmit = async () => {
     if (account.password !== account.confirm) { setError("Passwords don't match!"); return; }
     if (account.password.length < 6) { setError("Password must be at least 6 characters."); return; }
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setEmailExists(false);
     try {
       // Save business details to localStorage so they survive OTP verification
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
@@ -545,8 +547,12 @@ export default function RegisterPage() {
       const { error: signUpErr } = await supabase.auth.signUp({ email: account.email, password: account.password });
       if (signUpErr) {
         localStorage.removeItem('yana_pending_business');
-        const msg = signUpErr.message.includes('already registered') ? 'An account with this email already exists.' : 'Could not create account. Please try again.';
-        throw new Error(msg);
+        if (signUpErr.message.includes('already registered')) {
+          setEmailExists(true);
+          setLoading(false);
+          return;
+        }
+        throw new Error('Could not create account. Please try again.');
       }
 
       setShowOtp(true);
@@ -1023,7 +1029,16 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {error && <div className="error-msg">{error}</div>}
+          {emailExists ? (
+            <div className="email-exists-box">
+              <div className="email-exists-text">
+                You already have a Yana account with this email. Log in and add your business from your dashboard.
+              </div>
+              <a href="/login" className="email-exists-btn">Go to login →</a>
+            </div>
+          ) : error ? (
+            <div className="error-msg">{error}</div>
+          ) : null}
 
           <div className="btn-row">
             {step > 0 && <button className="btn-back" onClick={() => setStep(step - 1)}>← Back</button>}
@@ -1304,6 +1319,36 @@ const styles = `
     border: 1px solid rgba(180,40,40,0.3);
     border-radius: 8px; padding: 0.7rem 1rem;
     font-size: 0.85rem; color: #ff8080; margin-top: 1rem;
+  }
+
+  /* EMAIL ALREADY EXISTS */
+  .email-exists-box {
+    margin-top: 1rem;
+    background: rgba(192,57,43,0.08);
+    border: 1px solid rgba(192,57,43,0.3);
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+    display: flex; flex-direction: column; gap: 0.85rem;
+  }
+  .email-exists-text {
+    font-size: 0.9rem; line-height: 1.5;
+    color: var(--text, #f1e8e0);
+  }
+  .email-exists-btn {
+    align-self: flex-start;
+    padding: 0.6rem 1.1rem;
+    background: var(--red);
+    border: none; border-radius: 10px;
+    color: white; font-family: 'Sora', sans-serif;
+    font-size: 0.9rem; font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s;
+    box-shadow: 0 4px 16px rgba(192,57,43,0.25);
+  }
+  .email-exists-btn:hover {
+    background: var(--red2);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(192,57,43,0.35);
   }
 
   /* BUTTONS */
