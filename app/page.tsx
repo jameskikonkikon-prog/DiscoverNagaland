@@ -61,6 +61,15 @@ function getCategoryEmoji(category: string): string {
   return '🏪';
 }
 
+function formatCategory(category: string): string {
+  if (!category) return '';
+  return category
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 type Business = {
   id: string;
   name: string;
@@ -587,7 +596,7 @@ export default function HomePage() {
                     onClick={() => quickSearch(category)}
                   >
                     <span className="category-emoji">{getCategoryEmoji(category)}</span>
-                    <span className="category-name">{category}</span>
+                    <span className="category-name">{formatCategory(category)}</span>
                     <span className="category-count">{count}</span>
                   </button>
                 ))}
@@ -645,7 +654,7 @@ export default function HomePage() {
                 {categories.slice(0, 6).map(({ category, count }, i) => (
                   <div key={category} className="trend" onClick={() => quickSearch(category)}>
                     <span className="trend-n">{i + 1}</span>
-                    <span className="trend-t">{getCategoryEmoji(category)} {category}</span>
+                    <span className="trend-t">{getCategoryEmoji(category)} {formatCategory(category)}</span>
                     <span className="trend-c">{count}</span>
                   </div>
                 ))}
@@ -971,7 +980,7 @@ export default function HomePage() {
               {categories.map(({ category, count }) => (
                 <button key={category} className="m-cat-chip" onClick={() => quickSearch(category)}>
                   <span className="m-cat-emoji">{getCategoryEmoji(category)}</span>
-                  <span className="m-cat-name">{category}</span>
+                  <span className="m-cat-name">{formatCategory(category)}</span>
                   <span className="m-cat-count">{count}</span>
                 </button>
               ))}
@@ -1306,7 +1315,7 @@ const pageStyles = BIZ_CARD_CSS + `
 
   /* ── FEATURED ── */
   .featured-grid { display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:28px; }
-  .featured-carousel { margin-bottom:28px; }
+  .featured-carousel { margin-bottom:28px; max-width:560px; }
   .featured-slide { animation: featuredFade 0.5s ease; }
   @keyframes featuredFade {
     from { opacity:0; transform:translateY(6px); }
@@ -1345,12 +1354,13 @@ const pageStyles = BIZ_CARD_CSS + `
   /* ── SIDEBAR ── */
   .sidebar{}
   .stats-grid{
-    display:grid;grid-template-columns:1fr 1fr;gap:14px;
+    display:grid;grid-template-columns:1fr 1fr;gap:10px;
     margin-bottom:20px;
   }
-  .stats-grid.stats-three{grid-template-columns:1fr 1fr 1fr;}
+  .stats-grid.stats-three{grid-template-columns:1fr 1fr 1fr;gap:10px;}
   .stat{
-    border-radius:16px;padding:22px 20px;
+    border-radius:16px;padding:18px 14px;
+    min-width:0;
     position:relative;overflow:hidden;
     transition:transform 0.18s, border-color 0.18s;
   }
@@ -1377,16 +1387,17 @@ const pageStyles = BIZ_CARD_CSS + `
   .stat:hover{transform:translateY(-2px);}
   .stat-val{
     font-family:'Sora',sans-serif;
-    font-size:36px;font-weight:800;line-height:1;margin-bottom:8px;
+    font-size:30px;font-weight:800;line-height:1;margin-bottom:6px;
     position:relative;z-index:1;letter-spacing:-0.02em;
   }
   .stat.s1 .stat-val{color:#e74c3c;}
   .stat.s2 .stat-val{color:#3498db;}
   .stat.s3 .stat-val{color:#27ae60;}
   .stat-lbl{
-    font-size:11px;color:rgba(255,255,255,0.65);
-    letter-spacing:0.1em;text-transform:uppercase;font-weight:600;
+    font-size:10px;color:rgba(255,255,255,0.65);
+    letter-spacing:0.05em;text-transform:uppercase;font-weight:600;
     position:relative;z-index:1;
+    white-space:nowrap;
   }
   .stat-change{
     display:inline-flex;align-items:center;gap:3px;
