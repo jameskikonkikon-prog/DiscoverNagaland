@@ -85,6 +85,7 @@ export default function HomePage() {
   const [query, setQuery] = useState('');
   const [placeholder, setPlaceholder] = useState(ROTATING_PLACEHOLDERS[0]);
   const [featuredBusinesses, setFeaturedBusinesses] = useState<Business[]>([]);
+  const [featuredIndex, setFeaturedIndex] = useState(0);
   const [recentBusinesses, setRecentBusinesses] = useState<Business[]>([]);
   const [recentlyAdded, setRecentlyAdded] = useState<Business[]>([]);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
@@ -186,6 +187,14 @@ export default function HomePage() {
     }, 2800);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (featuredBusinesses.length <= 1) return;
+    const id = setInterval(() => {
+      setFeaturedIndex((i) => (i + 1) % featuredBusinesses.length);
+    }, 10000);
+    return () => clearInterval(id);
+  }, [featuredBusinesses.length]);
 
   useEffect(() => {
     async function fetchData() {
@@ -539,10 +548,28 @@ export default function HomePage() {
               <button className="sec-more" onClick={() => router.push('/search?featured=true')}>See all →</button>
             )}
           </div>
-          <div className="featured-grid">
-            {featuredBusinesses.map((biz) => (
-              <BizCard key={biz.id} biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
-            ))}
+          <div className="featured-carousel">
+            {featuredBusinesses.length > 0 && (() => {
+              const idx = featuredIndex % featuredBusinesses.length;
+              const biz = featuredBusinesses[idx];
+              return (
+                <div className="featured-slide" key={biz.id}>
+                  <BizCard biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
+                </div>
+              );
+            })()}
+            {featuredBusinesses.length > 1 && (
+              <div className="featured-dots">
+                {featuredBusinesses.map((_, i) => (
+                  <button
+                    key={i}
+                    className={`featured-dot${i === featuredIndex % featuredBusinesses.length ? ' active' : ''}`}
+                    onClick={() => setFeaturedIndex(i)}
+                    aria-label={`Featured ${i + 1} of ${featuredBusinesses.length}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* CATEGORIES */}
@@ -886,12 +913,30 @@ export default function HomePage() {
             <span className="m-sec-title">Featured this week</span>
             <button className="m-sec-more" onClick={() => router.push('/search?featured=true')}>View all →</button>
           </div>
-          <div className="m-feat-vert">
-            {featuredBusinesses.length > 0 ? featuredBusinesses.map(biz => (
-              <BizCard key={biz.id} biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
-            )) : (
+          <div className="featured-carousel">
+            {featuredBusinesses.length > 0 ? (() => {
+              const idx = featuredIndex % featuredBusinesses.length;
+              const biz = featuredBusinesses[idx];
+              return (
+                <div className="featured-slide" key={biz.id}>
+                  <BizCard biz={biz} isSaved={savedBizIds.has(biz.id)} onToggleSave={toggleSaveBiz} />
+                </div>
+              );
+            })() : (
               <div className="m-feat-placeholder">
                 {[1,2,3].map(i => <div key={i} className="m-feat-skel" />)}
+              </div>
+            )}
+            {featuredBusinesses.length > 1 && (
+              <div className="featured-dots">
+                {featuredBusinesses.map((_, i) => (
+                  <button
+                    key={i}
+                    className={`featured-dot${i === featuredIndex % featuredBusinesses.length ? ' active' : ''}`}
+                    onClick={() => setFeaturedIndex(i)}
+                    aria-label={`Featured ${i + 1} of ${featuredBusinesses.length}`}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -1261,6 +1306,27 @@ const pageStyles = BIZ_CARD_CSS + `
 
   /* ── FEATURED ── */
   .featured-grid { display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:28px; }
+  .featured-carousel { margin-bottom:28px; }
+  .featured-slide { animation: featuredFade 0.5s ease; }
+  @keyframes featuredFade {
+    from { opacity:0; transform:translateY(6px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  .featured-dots {
+    display:flex; justify-content:center; gap:6px;
+    margin-top:14px;
+  }
+  .featured-dot {
+    width:7px; height:7px; padding:0;
+    border:none; border-radius:50%;
+    background:rgba(255,255,255,0.18);
+    cursor:pointer; transition:width 0.25s ease, background 0.2s ease, border-radius 0.25s ease;
+  }
+  .featured-dot:hover { background:rgba(255,255,255,0.4); }
+  .featured-dot.active {
+    width:18px; border-radius:4px;
+    background:var(--red);
+  }
 
   /* ── CATEGORIES ── */
   .categories-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;}
