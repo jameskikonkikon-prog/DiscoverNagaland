@@ -630,7 +630,7 @@ const styles = BIZ_CARD_CSS + `
   .zero-register { margin-top: 1rem; font-size: 0.83rem; color: #555; }
 
   /* ── RESULTS GRID ── */
-  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+  .results-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 
   /* ── SKELETONS ── */
   @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
