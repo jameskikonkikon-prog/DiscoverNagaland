@@ -1771,6 +1771,7 @@ const pageStyles = BIZ_CARD_CSS + `
     padding:0 18px 8px;
   }
   .m-feat-vert .bc{ height:200px; }
+  .m-section .featured-carousel{ padding:0 18px; }
 
   /* Recently listed horizontal scroll */
   .m-feat-scroll{
